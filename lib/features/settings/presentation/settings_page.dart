@@ -30,9 +30,7 @@ class SettingsPage extends ConsumerWidget {
         settingsState.when(
           loading: () => const _SettingsLoading(),
           error: (error, stackTrace) => _SettingsError(
-            onRetry: () {
-              ref.invalidate(reminderSettingsControllerProvider);
-            },
+            onRetry: () => ref.invalidate(reminderSettingsControllerProvider),
           ),
           data: (settings) => _ReminderSettingsSection(
             settings: settings,
@@ -43,27 +41,20 @@ class SettingsPage extends ConsumerWidget {
                   .setRemindersEnabled(value);
             },
             onSittingIntervalChanged: (value) {
-              if (value == null) {
-                return;
-              }
+              if (value == null) return;
               ref
                   .read(reminderSettingsControllerProvider.notifier)
                   .setSittingIntervalMinutes(value);
             },
             onStandingIntervalChanged: (value) {
-              if (value == null) {
-                return;
-              }
+              if (value == null) return;
               ref
                   .read(reminderSettingsControllerProvider.notifier)
                   .setStandingIntervalMinutes(value);
             },
             onTestReminderPressed: () async {
               await ref.read(notificationServiceProvider).showTestReminder();
-              if (!context.mounted) {
-                return;
-              }
-
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('已发送测试提醒')),
               );
@@ -111,6 +102,13 @@ class SettingsPage extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showDisclaimerDialog(context),
         ),
+        ListTile(
+          leading: const Icon(Icons.help_outline),
+          title: const Text('关于腰椎节奏'),
+          subtitle: const Text('版本 0.1.0+1，永久免费、无广告、无账号。'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _showAboutDialog(context),
+        ),
       ],
     );
   }
@@ -148,9 +146,7 @@ class SettingsPage extends ConsumerWidget {
       },
     );
 
-    if (confirmed != true) {
-      return;
-    }
+    if (confirmed != true) return;
 
     await ref.read(localDataRepositoryProvider).deleteAllLocalData();
     await ref.read(notificationServiceProvider).cancelScheduledReminders();
@@ -158,10 +154,7 @@ class SettingsPage extends ConsumerWidget {
     ref.invalidate(activityRecordsControllerProvider);
     ref.invalidate(dailyReportControllerProvider);
 
-    if (!context.mounted) {
-      return;
-    }
-
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('已删除全部本地数据')),
     );
@@ -196,6 +189,24 @@ class SettingsPage extends ConsumerWidget {
             '不提供疾病诊断、治疗建议或复发判断。',
             '不替代医生、康复师或其他专业医疗建议。',
             '出现大小便异常、鞍区麻木、进行性下肢无力、术后伤口红肿发热渗液、疼痛突然明显加重等情况，应及时就医。',
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return const _InfoDialog(
+          title: '关于腰椎节奏',
+          items: [
+            '项目名称：腰椎节奏 / Lumbar Rhythm。',
+            '版本：0.1.0+1。',
+            '永久免费、无广告、无账号、无云端上传。',
+            '面向腰突患者、术后恢复人群和久坐办公人群的久坐久站提醒与本地记录工具。',
+            '项目坚持本地优先，不接入广告、订阅、第三方追踪或云同步 SDK。',
           ],
         );
       },
@@ -325,7 +336,7 @@ class _InfoDialog extends StatelessWidget {
             for (final item in items)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text('• $item'),
+                child: Text('- $item'),
               ),
           ],
         ),
