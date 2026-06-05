@@ -13,6 +13,7 @@ class RecordsPage extends ConsumerStatefulWidget {
 
 class _RecordsPageState extends ConsumerState<RecordsPage> {
   final _noteController = TextEditingController();
+  ActivityRecordType? _selectedFilter;
 
   @override
   void dispose() {
@@ -27,11 +28,24 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text(
-          '记录',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '记录',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
+            ),
+            IconButton(
+              tooltip: '刷新记录',
+              icon: const Icon(Icons.refresh_outlined),
+              onPressed: () {
+                ref.invalidate(activityRecordsControllerProvider);
+              },
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         _QuickRecordPanel(
@@ -53,6 +67,15 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
               ),
         ),
         const SizedBox(height: 8),
+        _RecordFilterChips(
+          selectedFilter: _selectedFilter,
+          onSelected: (type) {
+            setState(() {
+              _selectedFilter = type;
+            });
+          },
+        ),
+        const SizedBox(height: 8),
         recordsState.when(
           loading: () => const _RecordsLoading(),
           error: (error, stackTrace) => _RecordsError(
@@ -60,10 +83,23 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
               ref.invalidate(activityRecordsControllerProvider);
             },
           ),
-          data: (records) => _TodayRecordsList(records: records),
+          data: (records) => _TodayRecordsList(
+            records: _filteredRecords(records),
+            selectedFilter: _selectedFilter,
+          ),
         ),
       ],
     );
+  }
+
+  List<ActivityRecord> _filteredRecords(List<ActivityRecord> records) {
+    final selectedFilter = _selectedFilter;
+
+    if (selectedFilter == null) {
+      return records;
+    }
+
+    return records.where((record) => record.type == selectedFilter).toList();
   }
 
   Future<void> _addRecord(ActivityRecordType type) async {
@@ -147,19 +183,54 @@ class _QuickRecordPanel extends StatelessWidget {
   }
 }
 
+class _RecordFilterChips extends StatelessWidget {
+  const _RecordFilterChips({
+    required this.selectedFilter,
+    required this.onSelected,
+  });
+
+  final ActivityRecordType? selectedFilter;
+  final ValueChanged<ActivityRecordType?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilterChip(
+          selected: selectedFilter == null,
+          label: const Text('全部'),
+          onSelected: (_) => onSelected(null),
+        ),
+        for (final type in ActivityRecordType.values)
+          FilterChip(
+            selected: selectedFilter == type,
+            label: Text(type.label),
+            onSelected: (_) => onSelected(type),
+          ),
+      ],
+    );
+  }
+}
+
 class _TodayRecordsList extends StatelessWidget {
-  const _TodayRecordsList({required this.records});
+  const _TodayRecordsList({
+    required this.records,
+    required this.selectedFilter,
+  });
 
   final List<ActivityRecord> records;
+  final ActivityRecordType? selectedFilter;
 
   @override
   Widget build(BuildContext context) {
     if (records.isEmpty) {
-      return const Card(
+      return Card(
         child: ListTile(
-          leading: Icon(Icons.inbox_outlined),
-          title: Text('暂无记录'),
-          subtitle: Text('今天的本地记录会显示在这里。'),
+          leading: const Icon(Icons.inbox_outlined),
+          title: Text(selectedFilter == null ? '暂无记录' : '暂无筛选结果'),
+          subtitle: const Text('今天的本地记录会显示在这里。'),
         ),
       );
     }

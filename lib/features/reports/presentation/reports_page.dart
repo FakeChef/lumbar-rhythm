@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../records/domain/activity_record.dart';
+import '../../settings/data/local_data_repository.dart';
 import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
 
@@ -15,11 +16,24 @@ class ReportsPage extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text(
-          '报告',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '报告',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
+            ),
+            IconButton(
+              tooltip: '刷新报告',
+              icon: const Icon(Icons.refresh_outlined),
+              onPressed: () {
+                ref.invalidate(dailyReportControllerProvider);
+              },
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         reportState.when(
@@ -40,14 +54,28 @@ class ReportsPage extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const Card(
+        Card(
           child: ListTile(
-            leading: Icon(Icons.file_download_outlined),
-            title: Text('导出数据'),
-            subtitle: Text('后续支持用户主动导出自己的本地记录。'),
+            leading: const Icon(Icons.file_download_outlined),
+            title: const Text('导出数据'),
+            subtitle: const Text('导出本地设置和本地记录为 JSON 文件。'),
+            trailing: IconButton(
+              tooltip: '导出数据',
+              icon: const Icon(Icons.ios_share_outlined),
+              onPressed: () => _exportLocalData(context, ref),
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _exportLocalData(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final file = await ref.read(localDataRepositoryProvider).exportToJson();
+
+    messenger.showSnackBar(
+      SnackBar(content: Text('已导出：${file.path}')),
     );
   }
 }

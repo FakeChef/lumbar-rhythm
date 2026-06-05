@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/notifications/notification_service.dart';
+import '../../records/application/activity_records_controller.dart';
 import '../../records/domain/activity_record.dart';
 import '../../reports/application/daily_report_controller.dart';
 import '../../reports/domain/daily_report.dart';
@@ -16,63 +17,91 @@ class HomePage extends ConsumerWidget {
     final reportState = ref.watch(dailyReportControllerProvider);
     final settingsState = ref.watch(reminderSettingsControllerProvider);
 
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Text(
-          '腰椎节奏',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(reminderSettingsControllerProvider);
+        ref.invalidate(activityRecordsControllerProvider);
+        ref.invalidate(dailyReportControllerProvider);
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '腰椎节奏',
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '久坐久站提醒与本地自我记录',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ],
+                ),
               ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '久坐久站提醒与本地自我记录',
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
-        const SizedBox(height: 24),
-        settingsState.when(
-          loading: () => const _HomeLoadingCard(title: '正在读取提醒设置'),
-          error: (error, stackTrace) => _HomeErrorCard(
-            title: '提醒设置读取失败',
-            onRetry: () {
-              ref.invalidate(reminderSettingsControllerProvider);
-            },
+              IconButton(
+                tooltip: '刷新首页',
+                icon: const Icon(Icons.refresh_outlined),
+                onPressed: () {
+                  ref.invalidate(reminderSettingsControllerProvider);
+                  ref.invalidate(activityRecordsControllerProvider);
+                  ref.invalidate(dailyReportControllerProvider);
+                },
+              ),
+            ],
           ),
-          data: (settings) => _RhythmCard(
-            settings: settings,
-            onTestReminderPressed: () async {
-              await ref.read(notificationServiceProvider).showTestReminder();
-              if (!context.mounted) {
-                return;
-              }
+          const SizedBox(height: 24),
+          settingsState.when(
+            loading: () => const _HomeLoadingCard(title: '正在读取提醒设置'),
+            error: (error, stackTrace) => _HomeErrorCard(
+              title: '提醒设置读取失败',
+              onRetry: () {
+                ref.invalidate(reminderSettingsControllerProvider);
+              },
+            ),
+            data: (settings) => _RhythmCard(
+              settings: settings,
+              onTestReminderPressed: () async {
+                await ref.read(notificationServiceProvider).showTestReminder();
+                if (!context.mounted) {
+                  return;
+                }
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('已发送测试提醒')),
-              );
-            },
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('已发送测试提醒')),
+                );
+              },
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        reportState.when(
-          loading: () => const _HomeLoadingCard(title: '正在读取今日概览'),
-          error: (error, stackTrace) => _HomeErrorCard(
-            title: '今日概览读取失败',
-            onRetry: () {
-              ref.invalidate(dailyReportControllerProvider);
-            },
+          const SizedBox(height: 12),
+          reportState.when(
+            loading: () => const _HomeLoadingCard(title: '正在读取今日概览'),
+            error: (error, stackTrace) => _HomeErrorCard(
+              title: '今日概览读取失败',
+              onRetry: () {
+                ref.invalidate(dailyReportControllerProvider);
+              },
+            ),
+            data: (report) => _TodayOverviewCard(report: report),
           ),
-          data: (report) => _TodayOverviewCard(report: report),
-        ),
-        const SizedBox(height: 12),
-        const Card(
-          child: ListTile(
-            leading: Icon(Icons.privacy_tip_outlined),
-            title: Text('本地优先'),
-            subtitle: Text('不登录，不上传健康数据，不接入广告追踪。'),
+          const SizedBox(height: 12),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.privacy_tip_outlined),
+              title: Text('本地优先'),
+              subtitle: Text('不登录，不上传健康数据，不接入广告追踪。'),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -164,9 +193,7 @@ class _TodayOverviewCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              latest == null ? '最近记录：暂无' : '最近记录：${latest.type.label}',
-            ),
+            Text(latest == null ? '最近记录：暂无' : '最近记录：${latest.type.label}'),
           ],
         ),
       ),
