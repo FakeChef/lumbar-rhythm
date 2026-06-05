@@ -116,6 +116,14 @@ class _FakeActivityRecordRepository implements ActivityRecordRepository {
   }
 
   @override
+  Future<List<ActivityRecord>> loadRecentDays({
+    required int days,
+    DateTime? now,
+  }) async {
+    return _records;
+  }
+
+  @override
   Future<void> delete(int id) async {
     deletedIds.add(id);
     _records.removeWhere((record) => record.id == id);

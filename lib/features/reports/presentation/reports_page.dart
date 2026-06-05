@@ -114,7 +114,58 @@ class _DailyReportView extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _LatestRecordCard(record: report.latestRecord),
+        const SizedBox(height: 12),
+        _RecentSummaryCard(report: report),
       ],
+    );
+  }
+}
+
+class _RecentSummaryCard extends StatelessWidget {
+  const _RecentSummaryCard({required this.report});
+
+  final DailyReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.date_range_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '最近 7 天',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text('总记录：${report.recentTotalCount} 条'),
+            const SizedBox(height: 4),
+            Text('有记录的天数：${report.activeDaysCount()} 天'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final type in ActivityRecordType.values)
+                  Chip(
+                    label: Text('${type.label} ${report.recentCountFor(type)}'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

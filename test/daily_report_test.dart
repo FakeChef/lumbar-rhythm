@@ -49,4 +49,31 @@ void main() {
 
     expect(report.latestRecord, latest);
   });
+
+  test('counts recent records and active days', () {
+    final report = DailyReport(
+      records: const [],
+      recentRecords: [
+        ActivityRecord(
+          id: 1,
+          type: ActivityRecordType.sitting,
+          createdAt: DateTime(2026, 6, 5, 9),
+        ),
+        ActivityRecord(
+          id: 2,
+          type: ActivityRecordType.stretch,
+          createdAt: DateTime(2026, 6, 5, 10),
+        ),
+        ActivityRecord(
+          id: 3,
+          type: ActivityRecordType.stretch,
+          createdAt: DateTime(2026, 6, 3, 10),
+        ),
+      ],
+    );
+
+    expect(report.recentTotalCount, 3);
+    expect(report.recentCountFor(ActivityRecordType.stretch), 2);
+    expect(report.activeDaysCount(), 2);
+  });
 }

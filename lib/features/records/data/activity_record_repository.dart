@@ -17,6 +17,11 @@ abstract class ActivityRecordRepository {
 
   Future<List<ActivityRecord>> loadToday({DateTime? now});
 
+  Future<List<ActivityRecord>> loadRecentDays({
+    required int days,
+    DateTime? now,
+  });
+
   Future<void> delete(int id);
 }
 
@@ -52,6 +57,23 @@ class SqfliteActivityRecordRepository implements ActivityRecordRepository {
     final anchor = now ?? DateTime.now();
     final start = DateTime(anchor.year, anchor.month, anchor.day);
     final end = start.add(const Duration(days: 1));
+    final rows = await _database.readRecordsCreatedBetween(
+      start: start,
+      end: end,
+    );
+
+    return rows.map(_fromRow).toList();
+  }
+
+  @override
+  Future<List<ActivityRecord>> loadRecentDays({
+    required int days,
+    DateTime? now,
+  }) async {
+    final anchor = now ?? DateTime.now();
+    final todayStart = DateTime(anchor.year, anchor.month, anchor.day);
+    final start = todayStart.subtract(Duration(days: days - 1));
+    final end = todayStart.add(const Duration(days: 1));
     final rows = await _database.readRecordsCreatedBetween(
       start: start,
       end: end,

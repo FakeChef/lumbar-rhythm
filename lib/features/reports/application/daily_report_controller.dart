@@ -11,8 +11,13 @@ final dailyReportControllerProvider =
 class DailyReportController extends AsyncNotifier<DailyReport> {
   @override
   Future<DailyReport> build() async {
-    final records =
-        await ref.watch(activityRecordRepositoryProvider).loadToday();
-    return DailyReport(records: records);
+    final repository = ref.watch(activityRecordRepositoryProvider);
+    final records = await repository.loadToday();
+    final recentRecords = await repository.loadRecentDays(days: 7);
+
+    return DailyReport(
+      records: records,
+      recentRecords: recentRecords,
+    );
   }
 }
