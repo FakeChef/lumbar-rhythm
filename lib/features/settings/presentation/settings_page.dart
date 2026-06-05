@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/notifications/notification_service.dart';
 import '../application/reminder_settings_controller.dart';
 import '../domain/reminder_settings.dart';
 
@@ -54,6 +55,16 @@ class SettingsPage extends ConsumerWidget {
                   .read(reminderSettingsControllerProvider.notifier)
                   .setStandingIntervalMinutes(value);
             },
+            onTestReminderPressed: () async {
+              await ref.read(notificationServiceProvider).showTestReminder();
+              if (!context.mounted) {
+                return;
+              }
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('已发送测试提醒')),
+              );
+            },
           ),
         ),
         const Divider(height: 32),
@@ -89,6 +100,7 @@ class _ReminderSettingsSection extends StatelessWidget {
     required this.onRemindersEnabledChanged,
     required this.onSittingIntervalChanged,
     required this.onStandingIntervalChanged,
+    required this.onTestReminderPressed,
   });
 
   final ReminderSettings settings;
@@ -96,6 +108,7 @@ class _ReminderSettingsSection extends StatelessWidget {
   final ValueChanged<bool> onRemindersEnabledChanged;
   final ValueChanged<int?> onSittingIntervalChanged;
   final ValueChanged<int?> onStandingIntervalChanged;
+  final VoidCallback onTestReminderPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -129,6 +142,16 @@ class _ReminderSettingsSection extends StatelessWidget {
           leading: Icon(Icons.check_circle_outline),
           title: Text('自动保存'),
           subtitle: Text('以上设置会立即保存到本地数据库。'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.notifications_outlined),
+          title: const Text('发送测试提醒'),
+          subtitle: const Text('立即发送一条本地通知，用于确认提醒是否可用。'),
+          trailing: IconButton(
+            tooltip: '发送测试提醒',
+            icon: const Icon(Icons.send_outlined),
+            onPressed: onTestReminderPressed,
+          ),
         ),
       ],
     );

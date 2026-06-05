@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
 import 'package:lumbar_rhythm/features/settings/application/reminder_settings_controller.dart';
 import 'package:lumbar_rhythm/features/settings/data/reminder_settings_repository.dart';
 import 'package:lumbar_rhythm/features/settings/domain/reminder_settings.dart';
@@ -30,7 +31,8 @@ void main() {
 
   test('saves reminder changes through repository', () async {
     final repository = _FakeReminderSettingsRepository();
-    final container = _createContainer(repository);
+    final notificationService = _FakeNotificationService();
+    final container = _createContainer(repository, notificationService);
     addTearDown(container.dispose);
 
     await container.read(reminderSettingsControllerProvider.future);
@@ -47,13 +49,21 @@ void main() {
     expect(settings?.remindersEnabled, isFalse);
     expect(repository.savedSettings.last.sittingIntervalMinutes, 60);
     expect(repository.savedSettings.last.remindersEnabled, isFalse);
+    expect(notificationService.scheduledSettings.last.enabled, isFalse);
+    expect(
+        notificationService.scheduledSettings.last.sittingIntervalMinutes, 60);
   });
 }
 
-ProviderContainer _createContainer(ReminderSettingsRepository repository) {
+ProviderContainer _createContainer(
+  ReminderSettingsRepository repository, [
+  NotificationService? notificationService,
+]) {
   return ProviderContainer(
     overrides: [
       reminderSettingsRepositoryProvider.overrideWithValue(repository),
+      if (notificationService != null)
+        notificationServiceProvider.overrideWithValue(notificationService),
     ],
   );
 }
@@ -72,4 +82,35 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
     this.settings = settings;
     savedSettings.add(settings);
   }
+}
+
+class _FakeNotificationService extends NotificationService {
+  final scheduledSettings = <_ScheduledSettings>[];
+
+  @override
+  Future<void> scheduleNextReminders({
+    required bool enabled,
+    required int sittingIntervalMinutes,
+    required int standingIntervalMinutes,
+  }) async {
+    scheduledSettings.add(
+      _ScheduledSettings(
+        enabled: enabled,
+        sittingIntervalMinutes: sittingIntervalMinutes,
+        standingIntervalMinutes: standingIntervalMinutes,
+      ),
+    );
+  }
+}
+
+class _ScheduledSettings {
+  const _ScheduledSettings({
+    required this.enabled,
+    required this.sittingIntervalMinutes,
+    required this.standingIntervalMinutes,
+  });
+
+  final bool enabled;
+  final int sittingIntervalMinutes;
+  final int standingIntervalMinutes;
 }

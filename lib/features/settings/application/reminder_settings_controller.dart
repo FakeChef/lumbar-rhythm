@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/notifications/notification_service.dart';
 import '../data/reminder_settings_repository.dart';
 import '../domain/reminder_settings.dart';
 
@@ -39,5 +40,10 @@ class ReminderSettingsController extends AsyncNotifier<ReminderSettings> {
     final next = update(current);
     state = AsyncData(next);
     await ref.read(reminderSettingsRepositoryProvider).save(next);
+    await ref.read(notificationServiceProvider).scheduleNextReminders(
+          enabled: next.remindersEnabled,
+          sittingIntervalMinutes: next.sittingIntervalMinutes,
+          standingIntervalMinutes: next.standingIntervalMinutes,
+        );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/notifications/notification_service.dart';
 import '../core/theme/app_theme.dart';
+import '../features/settings/data/reminder_settings_repository.dart';
 import '../features/shell/presentation/main_shell.dart';
 
 class LumbarRhythmApp extends ConsumerStatefulWidget {
@@ -16,8 +17,17 @@ class _LumbarRhythmAppState extends ConsumerState<LumbarRhythmApp> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      ref.read(notificationServiceProvider).initialize();
+    Future.microtask(() async {
+      final notificationService = ref.read(notificationServiceProvider);
+      await notificationService.initialize();
+
+      final settings =
+          await ref.read(reminderSettingsRepositoryProvider).load();
+      await notificationService.scheduleNextReminders(
+        enabled: settings.remindersEnabled,
+        sittingIntervalMinutes: settings.sittingIntervalMinutes,
+        standingIntervalMinutes: settings.standingIntervalMinutes,
+      );
     });
   }
 
