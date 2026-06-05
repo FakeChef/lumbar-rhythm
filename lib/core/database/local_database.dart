@@ -51,4 +51,30 @@ class LocalDatabase {
       _database = null;
     }
   }
+
+  Future<String?> readSetting(String key) async {
+    final database = await instance;
+    final rows = await database.query(
+      'settings',
+      columns: ['value'],
+      where: 'key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+
+    if (rows.isEmpty) {
+      return null;
+    }
+
+    return rows.first['value'] as String?;
+  }
+
+  Future<void> writeSetting(String key, String value) async {
+    final database = await instance;
+    await database.insert(
+      'settings',
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
 }
