@@ -14,11 +14,14 @@ class RecordsPage extends ConsumerStatefulWidget {
 
 class _RecordsPageState extends ConsumerState<RecordsPage> {
   final _noteController = TextEditingController();
+  final _searchController = TextEditingController();
   ActivityRecordType? _selectedFilter;
+  String _searchText = '';
 
   @override
   void dispose() {
     _noteController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -68,6 +71,29 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
               ),
         ),
         const SizedBox(height: 8),
+        TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search_outlined),
+            suffixIcon: _searchText.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: '清除搜索',
+                    icon: const Icon(Icons.close_outlined),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchText = '');
+                    },
+                  ),
+            labelText: '搜索备注',
+            hintText: '输入关键词筛选今日记录',
+            border: const OutlineInputBorder(),
+          ),
+          onChanged: (value) {
+            setState(() => _searchText = value.trim());
+          },
+        ),
+        const SizedBox(height: 12),
         _RecordFilterChips(
           selectedFilter: _selectedFilter,
           onSelected: (type) {
@@ -87,6 +113,7 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
           data: (records) => _TodayRecordsList(
             records: _filteredRecords(records),
             selectedFilter: _selectedFilter,
+            searchText: _searchText,
             onDelete: _deleteRecord,
           ),
         ),
@@ -96,12 +123,18 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
 
   List<ActivityRecord> _filteredRecords(List<ActivityRecord> records) {
     final selectedFilter = _selectedFilter;
+    final searchText = _searchText.toLowerCase();
 
-    if (selectedFilter == null) {
-      return records;
-    }
+    return records.where((record) {
+      final matchesType =
+          selectedFilter == null || record.type == selectedFilter;
+      final note = record.note?.toLowerCase() ?? '';
+      final matchesSearch = searchText.isEmpty ||
+          note.contains(searchText) ||
+          record.type.label.toLowerCase().contains(searchText);
 
-    return records.where((record) => record.type == selectedFilter).toList();
+      return matchesType && matchesSearch;
+    }).toList();
   }
 
   Future<void> _addRecord(ActivityRecordType type) async {
@@ -260,20 +293,24 @@ class _TodayRecordsList extends StatelessWidget {
   const _TodayRecordsList({
     required this.records,
     required this.selectedFilter,
+    required this.searchText,
     required this.onDelete,
   });
 
   final List<ActivityRecord> records;
   final ActivityRecordType? selectedFilter;
+  final String searchText;
   final ValueChanged<ActivityRecord> onDelete;
 
   @override
   Widget build(BuildContext context) {
     if (records.isEmpty) {
+      final hasFilter = selectedFilter != null || searchText.isNotEmpty;
+
       return Card(
         child: ListTile(
           leading: const Icon(Icons.inbox_outlined),
-          title: Text(selectedFilter == null ? '暂无记录' : '暂无筛选结果'),
+          title: Text(hasFilter ? '暂无筛选结果' : '暂无记录'),
           subtitle: const Text('今天的本地记录会显示在这里。'),
         ),
       );
