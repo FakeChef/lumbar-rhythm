@@ -96,10 +96,20 @@ class SettingsPage extends ConsumerWidget {
             onPressed: () => _confirmDeleteLocalData(context, ref),
           ),
         ),
-        const ListTile(
-          leading: Icon(Icons.info_outline),
-          title: Text('医疗边界'),
-          subtitle: Text('本 App 不提供疾病诊断、治疗建议或复发判断。'),
+        const Divider(height: 32),
+        ListTile(
+          leading: const Icon(Icons.privacy_tip_outlined),
+          title: const Text('隐私说明'),
+          subtitle: const Text('查看本 App 的本地优先和数据处理原则。'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _showPrivacyDialog(context),
+        ),
+        ListTile(
+          leading: const Icon(Icons.info_outline),
+          title: const Text('免责声明'),
+          subtitle: const Text('查看健康提醒工具的医疗边界。'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _showDisclaimerDialog(context),
         ),
       ],
     );
@@ -154,6 +164,41 @@ class SettingsPage extends ConsumerWidget {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('已删除全部本地数据')),
+    );
+  }
+
+  void _showPrivacyDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return const _InfoDialog(
+          title: '隐私说明',
+          items: [
+            '无需注册登录。',
+            '不上传健康数据。',
+            '姿势记录、症状记录和提醒设置保存在本地设备。',
+            '用户可以主动导出数据，也可以删除全部本地数据。',
+            '不出售、不共享用户数据，不接入广告追踪 SDK。',
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDisclaimerDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return const _InfoDialog(
+          title: '免责声明',
+          items: [
+            '本 App 是健康提醒和自我记录工具。',
+            '不提供疾病诊断、治疗建议或复发判断。',
+            '不替代医生、康复师或其他专业医疗建议。',
+            '出现大小便异常、鞍区麻木、进行性下肢无力、术后伤口红肿发热渗液、疼痛突然明显加重等情况，应及时就医。',
+          ],
+        );
+      },
     );
   }
 }
@@ -255,6 +300,42 @@ class _IntervalTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _InfoDialog extends StatelessWidget {
+  const _InfoDialog({
+    required this.title,
+    required this.items,
+  });
+
+  final String title;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(title),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final item in items)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('• $item'),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+      ],
     );
   }
 }
