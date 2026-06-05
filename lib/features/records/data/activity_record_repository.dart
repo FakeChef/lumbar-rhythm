@@ -16,6 +16,8 @@ abstract class ActivityRecordRepository {
   });
 
   Future<List<ActivityRecord>> loadToday({DateTime? now});
+
+  Future<void> delete(int id);
 }
 
 class SqfliteActivityRecordRepository implements ActivityRecordRepository {
@@ -56,6 +58,11 @@ class SqfliteActivityRecordRepository implements ActivityRecordRepository {
     );
 
     return rows.map(_fromRow).toList();
+  }
+
+  @override
+  Future<void> delete(int id) {
+    return _database.deleteRecord(id);
   }
 
   ActivityRecord _fromRow(Map<String, Object?> row) {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../records/application/activity_records_controller.dart';
 import '../../records/domain/activity_record.dart';
+import '../../reports/application/daily_report_controller.dart';
 import '../domain/action_item.dart';
 
 class ActionsPage extends ConsumerWidget {
@@ -48,6 +49,7 @@ class ActionsPage extends ConsumerWidget {
           type: ActivityRecordType.stretch,
           note: '完成动作：${item.name}',
         );
+    ref.invalidate(dailyReportControllerProvider);
 
     if (!context.mounted) {
       return;

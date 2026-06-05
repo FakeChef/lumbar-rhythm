@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../reports/application/daily_report_controller.dart';
 import '../application/activity_records_controller.dart';
 import '../domain/activity_record.dart';
 
@@ -86,6 +87,7 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
           data: (records) => _TodayRecordsList(
             records: _filteredRecords(records),
             selectedFilter: _selectedFilter,
+            onDelete: _deleteRecord,
           ),
         ),
       ],
@@ -116,6 +118,46 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('已记录：${type.label}')),
+    );
+    ref.invalidate(dailyReportControllerProvider);
+  }
+
+  Future<void> _deleteRecord(ActivityRecord record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('删除这条记录？'),
+          content: Text('将删除：${record.type.label}。此操作只影响本机数据。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('确认删除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await ref
+        .read(activityRecordsControllerProvider.notifier)
+        .deleteRecord(record.id);
+    ref.invalidate(dailyReportControllerProvider);
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已删除记录')),
     );
   }
 }
@@ -218,10 +260,12 @@ class _TodayRecordsList extends StatelessWidget {
   const _TodayRecordsList({
     required this.records,
     required this.selectedFilter,
+    required this.onDelete,
   });
 
   final List<ActivityRecord> records;
   final ActivityRecordType? selectedFilter;
+  final ValueChanged<ActivityRecord> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -243,6 +287,11 @@ class _TodayRecordsList extends StatelessWidget {
               leading: Icon(_iconFor(record.type)),
               title: Text(record.type.label),
               subtitle: Text(_subtitleFor(record)),
+              trailing: IconButton(
+                tooltip: '删除记录',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => onDelete(record),
+              ),
             ),
           ),
       ],

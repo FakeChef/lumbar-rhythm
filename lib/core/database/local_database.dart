@@ -110,6 +110,15 @@ class LocalDatabase {
     );
   }
 
+  Future<void> deleteRecord(int id) async {
+    final database = await instance;
+    await database.delete(
+      'records',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<List<Map<String, Object?>>> readAllRecords() async {
     final database = await instance;
     return database.query('records', orderBy: 'created_at DESC');
