@@ -109,4 +109,26 @@ class LocalDatabase {
       orderBy: 'created_at DESC',
     );
   }
+
+  Future<List<Map<String, Object?>>> readAllRecords() async {
+    final database = await instance;
+    return database.query('records', orderBy: 'created_at DESC');
+  }
+
+  Future<Map<String, String>> readAllSettings() async {
+    final database = await instance;
+    final rows = await database.query('settings');
+
+    return {
+      for (final row in rows) row['key'] as String: row['value'] as String,
+    };
+  }
+
+  Future<void> deleteAllLocalData() async {
+    final database = await instance;
+    await database.transaction((transaction) async {
+      await transaction.delete('records');
+      await transaction.delete('settings');
+    });
+  }
 }
