@@ -1,44 +1,31 @@
-# Lumbar Rhythm
+请在项目根目录创建 README.md 文件，并写入以下内容：
 
-Welcome to the Lumbar Rhythm repository! This project is dedicated to exploring and developing tools and resources related to lumbar rhythm and related topics.
+# 腰椎节奏
 
-## Overview
+这是一个永久免费、无广告、无账号、无云端上传的久坐久站提醒 App，面向腰突患者、术后恢复人群和久坐办公人群。
 
-Lumbar Rhythm is a biomechanical concept that refers to the synchronized movement pattern of the lumbar spine and pelvis during motion. This repository serves as a resource for understanding, studying, and implementing applications related to this concept.
+## 产品边界
 
-## Features
+本 App 是健康提醒和个人记录工具，不是医疗器械，不提供疾病诊断、治疗建议、复发判断、用药建议或手术建议。
 
-- Documentation and research materials
-- Code samples and implementations
-- Resources for biomechanical analysis
-- Community contributions and discussions
+## 公益原则
 
-## Getting Started
+- 永久免费
+- 不接广告
+- 不接订阅
+- 不做付费墙
+- 不售卖用户数据
+- 不接入第三方广告追踪 SDK
 
-To get started with this project:
+## 隐私原则
 
-1. Clone the repository
-2. Review the documentation
-3. Explore the available resources
-4. Contribute your own materials or improvements
+- 不需要注册登录
+- 不上传健康数据
+- 姿势记录、症状记录和提醒设置默认保存在用户本地设备
+- 用户可以一键删除本地数据
+- 用户可以自行导出数据
 
-## Contributing
+## 医疗免责声明
 
-We welcome contributions from the community! Please feel free to:
-
-- Submit issues and feature requests
-- Create pull requests with improvements
-- Share research and documentation
-- Provide feedback and suggestions
-
-## License
-
-This project is open source and available under an appropriate open source license.
-
-## Support
-
-For questions, issues, or support, please open an issue in the repository or contact the maintainers.
-
----
-
-**Happy exploring!**
+本 App 不能替代医生、康复师或其他专业医疗人员的建议。  
+如果出现大小便异常、鞍区麻木、进行性下肢无力、术后伤口红肿发热渗液、疼痛突然明显加重等情况，应及时就医。
