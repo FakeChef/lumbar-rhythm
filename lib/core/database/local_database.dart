@@ -77,4 +77,36 @@ class LocalDatabase {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
+
+  Future<int> insertRecord({
+    required String type,
+    required String? note,
+    required DateTime createdAt,
+  }) async {
+    final database = await instance;
+    return database.insert(
+      'records',
+      {
+        'type': type,
+        'note': note,
+        'created_at': createdAt.toIso8601String(),
+      },
+    );
+  }
+
+  Future<List<Map<String, Object?>>> readRecordsCreatedBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final database = await instance;
+    return database.query(
+      'records',
+      where: 'created_at >= ? AND created_at < ?',
+      whereArgs: [
+        start.toIso8601String(),
+        end.toIso8601String(),
+      ],
+      orderBy: 'created_at DESC',
+    );
+  }
 }
