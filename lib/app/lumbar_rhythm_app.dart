@@ -17,7 +17,11 @@ class _LumbarRhythmAppState extends ConsumerState<LumbarRhythmApp> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() async {
+    Future.microtask(_initializeNotifications);
+  }
+
+  Future<void> _initializeNotifications() async {
+    try {
       final notificationService = ref.read(notificationServiceProvider);
       await notificationService.initialize();
 
@@ -28,7 +32,9 @@ class _LumbarRhythmAppState extends ConsumerState<LumbarRhythmApp> {
         sittingIntervalMinutes: settings.sittingIntervalMinutes,
         standingIntervalMinutes: settings.standingIntervalMinutes,
       );
-    });
+    } catch (_) {
+      // Notification setup should never prevent the app from opening.
+    }
   }
 
   @override

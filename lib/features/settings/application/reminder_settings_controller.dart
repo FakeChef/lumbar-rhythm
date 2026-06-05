@@ -40,10 +40,14 @@ class ReminderSettingsController extends AsyncNotifier<ReminderSettings> {
     final next = update(current);
     state = AsyncData(next);
     await ref.read(reminderSettingsRepositoryProvider).save(next);
-    await ref.read(notificationServiceProvider).scheduleNextReminders(
-          enabled: next.remindersEnabled,
-          sittingIntervalMinutes: next.sittingIntervalMinutes,
-          standingIntervalMinutes: next.standingIntervalMinutes,
-        );
+    try {
+      await ref.read(notificationServiceProvider).scheduleNextReminders(
+            enabled: next.remindersEnabled,
+            sittingIntervalMinutes: next.sittingIntervalMinutes,
+            standingIntervalMinutes: next.standingIntervalMinutes,
+          );
+    } catch (_) {
+      // Settings remain saved even if the platform cannot schedule reminders.
+    }
   }
 }
