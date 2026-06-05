@@ -16,23 +16,21 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
-  static const _pages = [
-    HomePage(),
-    RecordsPage(),
-    ReportsPage(),
-    ActionsPage(),
-    SettingsPage(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      HomePage(onNavigate: _selectTab),
+      const RecordsPage(),
+      const ReportsPage(),
+      const ActionsPage(),
+      const SettingsPage(),
+    ];
+
     return Scaffold(
-      body: SafeArea(child: _pages[_index]),
+      body: SafeArea(child: pages[_index]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (value) {
-          setState(() => _index = value);
-        },
+        onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -62,5 +60,9 @@ class _MainShellState extends State<MainShell> {
         ],
       ),
     );
+  }
+
+  void _selectTab(int value) {
+    setState(() => _index = value);
   }
 }
