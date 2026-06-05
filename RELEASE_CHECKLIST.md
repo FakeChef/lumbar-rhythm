@@ -56,6 +56,7 @@ This checklist is for preparing Lumbar Rhythm for Android and iOS review.
 - Actions can be marked as completed.
 - Reports show today's summary.
 - Reports show the recent seven-day summary.
+- Weekly report image can be saved locally as a PNG file.
 - Settings can save reminder intervals.
 - Test notification can be triggered.
 - Local JSON export contains app metadata, settings, and records.

@@ -21,7 +21,11 @@ class ActivityRecordsController extends AsyncNotifier<List<ActivityRecord>> {
     final repository = ref.read(activityRecordRepositoryProvider);
     final record = await repository.add(type: type, note: note);
     final current = state.value ?? const [];
-    state = AsyncData([record, ...current]);
+    state = AsyncData([
+      record,
+      for (final existing in current)
+        if (existing.id != record.id) existing,
+    ]);
   }
 
   Future<void> deleteRecord(int id) async {
