@@ -14,6 +14,10 @@ final localDataRepositoryProvider = Provider<LocalDataRepository>((ref) {
 class LocalDataRepository {
   const LocalDataRepository(this._database);
 
+  static const appName = 'Lumbar Rhythm';
+  static const appVersion = '0.1.0+1';
+  static const exportSchemaVersion = 1;
+
   final LocalDatabase _database;
 
   Future<File> exportToJson() async {
@@ -25,9 +29,14 @@ class LocalDataRepository {
     final file = File(p.join(directory.path, fileName));
 
     final payload = {
-      'app': 'Lumbar Rhythm',
+      'schema_version': exportSchemaVersion,
+      'app': appName,
+      'app_version': appVersion,
       'exported_at': exportedAt.toIso8601String(),
-      'privacy_note': 'This file was created locally by user action.',
+      'privacy_note':
+          'This file was created locally by user action. Lumbar Rhythm does not upload health data.',
+      'record_count': records.length,
+      'setting_count': settings.length,
       'settings': settings,
       'records': records,
     };
