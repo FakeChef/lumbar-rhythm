@@ -4,10 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/notifications/notification_service.dart';
 import '../../posture/application/posture_session_controller.dart';
 import '../../posture/domain/posture_session.dart';
-import '../../records/application/activity_records_controller.dart';
-import '../../records/domain/activity_record.dart';
-import '../../reports/application/daily_report_controller.dart';
-import '../../reports/domain/daily_report.dart';
 import '../../settings/application/reminder_settings_controller.dart';
 import '../../settings/domain/reminder_settings.dart';
 
@@ -16,16 +12,10 @@ final _testReminderFeedbackProvider = StateProvider.autoDispose<String?>(
 );
 
 class HomePage extends ConsumerWidget {
-  const HomePage({
-    required this.onNavigate,
-    super.key,
-  });
-
-  final ValueChanged<int> onNavigate;
+  const HomePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final reportState = ref.watch(dailyReportControllerProvider);
     final settingsState = ref.watch(reminderSettingsControllerProvider);
     final postureState = ref.watch(postureSessionControllerProvider);
     final postureNow =
@@ -69,8 +59,6 @@ class HomePage extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 20),
-          _QuickActionsCard(onNavigate: onNavigate),
-          const SizedBox(height: 12),
           postureState.when(
             loading: () => const _HomeLoadingCard(title: '正在读取当前姿势'),
             error: (error, stackTrace) => _HomeErrorCard(
@@ -129,23 +117,6 @@ class HomePage extends ConsumerWidget {
               },
             ),
           ),
-          const SizedBox(height: 12),
-          reportState.when(
-            loading: () => const _HomeLoadingCard(title: '正在读取今日概览'),
-            error: (error, stackTrace) => _HomeErrorCard(
-              title: '今日概览读取失败',
-              onRetry: () => ref.invalidate(dailyReportControllerProvider),
-            ),
-            data: (report) => _TodayOverviewCard(report: report),
-          ),
-          const SizedBox(height: 12),
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.privacy_tip_outlined),
-              title: Text('本地优先'),
-              subtitle: Text('不登录，不上传健康数据，不接入广告追踪。'),
-            ),
-          ),
         ],
       ),
     );
@@ -154,8 +125,6 @@ class HomePage extends ConsumerWidget {
   void _refresh(WidgetRef ref) {
     ref.invalidate(postureSessionControllerProvider);
     ref.invalidate(reminderSettingsControllerProvider);
-    ref.invalidate(activityRecordsControllerProvider);
-    ref.invalidate(dailyReportControllerProvider);
   }
 }
 
@@ -252,54 +221,6 @@ class _PostureStatusCard extends StatelessWidget {
   }
 }
 
-class _QuickActionsCard extends StatelessWidget {
-  const _QuickActionsCard({required this.onNavigate});
-
-  final ValueChanged<int> onNavigate;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '快速入口',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.tonalIcon(
-                  onPressed: () => onNavigate(1),
-                  icon: const Icon(Icons.edit_note_outlined),
-                  label: const Text('去记录'),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () => onNavigate(3),
-                  icon: const Icon(Icons.accessibility_new_outlined),
-                  label: const Text('记康复'),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () => onNavigate(2),
-                  icon: const Icon(Icons.bar_chart_outlined),
-                  label: const Text('看报告'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _RhythmCard extends StatelessWidget {
   const _RhythmCard({
     required this.settings,
@@ -361,49 +282,6 @@ class _RhythmCard extends StatelessWidget {
                     ),
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TodayOverviewCard extends StatelessWidget {
-  const _TodayOverviewCard({required this.report});
-
-  final DailyReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final latest = report.latestRecord;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '今日概览',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Text('今日记录：${report.totalCount} 条'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final type in ActivityRecordType.values)
-                  Chip(
-                    label: Text('${type.label} ${report.countFor(type)}'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(latest == null ? '最近记录：暂无' : '最近记录：${latest.type.label}'),
           ],
         ),
       ),

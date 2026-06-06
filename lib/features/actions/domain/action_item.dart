@@ -120,13 +120,47 @@ class RehabLog {
 class RehabSummary {
   const RehabSummary({
     required this.logs,
+    this.actions = const [],
   });
 
   final List<RehabLog> logs;
+  final List<RehabAction> actions;
 
   int get totalCount => logs.length;
 
   int reactionCount(RehabReaction reaction) {
     return logs.where((log) => log.reaction == reaction).length;
+  }
+
+  double totalAmountForActionNamed(String name) {
+    final matchingActionIds = actions
+        .where((action) => action.name == name)
+        .map((action) => action.id)
+        .toSet();
+    return logs
+        .where((log) => matchingActionIds.contains(log.actionId))
+        .map((log) => double.tryParse(log.amount) ?? 0)
+        .fold(0.0, (sum, amount) => sum + amount);
+  }
+
+  RehabAction? mostCompletedAction() {
+    if (logs.isEmpty || actions.isEmpty) {
+      return null;
+    }
+
+    final counts = <int, int>{};
+    for (final log in logs) {
+      counts[log.actionId] = (counts[log.actionId] ?? 0) + 1;
+    }
+    final topActionId = counts.entries.reduce((left, right) {
+      return left.value >= right.value ? left : right;
+    }).key;
+
+    for (final action in actions) {
+      if (action.id == topActionId) {
+        return action;
+      }
+    }
+    return null;
   }
 }

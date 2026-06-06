@@ -10,7 +10,7 @@ class ActionsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final actionsState = ref.watch(_rehabActionsProvider);
+    final pageState = ref.watch(_rehabPageDataProvider);
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -30,7 +30,7 @@ class ActionsPage extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-        actionsState.when(
+        pageState.when(
           loading: () => const Card(
             child: ListTile(
               leading: CircularProgressIndicator(),
@@ -42,16 +42,17 @@ class ActionsPage extends ConsumerWidget {
               leading: const Icon(Icons.error_outline),
               title: const Text('康复模板读取失败'),
               trailing: TextButton(
-                onPressed: () => ref.invalidate(_rehabActionsProvider),
+                onPressed: () => ref.invalidate(_rehabPageDataProvider),
                 child: const Text('重试'),
               ),
             ),
           ),
-          data: (actions) => Column(
+          data: (data) => Column(
             children: [
-              for (final action in actions) ...[
+              for (final action in data.actions) ...[
                 _RehabActionCard(
                   action: action,
+                  todayAmount: data.todayAmountFor(action),
                   onRecord: () => _showLogDialog(context, ref, action),
                 ),
                 const SizedBox(height: 12),
@@ -68,9 +69,10 @@ class ActionsPage extends ConsumerWidget {
     WidgetRef ref,
     RehabAction action,
   ) async {
-    final result = await showDialog<_RehabLogDraft>(
+    final result = await showModalBottomSheet<_RehabLogDraft>(
       context: context,
-      builder: (context) => _RehabLogDialog(action: action),
+      isScrollControlled: true,
+      builder: (context) => RehabLogSheet(action: action),
     );
     if (result == null) {
       return;
@@ -84,6 +86,7 @@ class ActionsPage extends ConsumerWidget {
           symptomTag: result.symptomTag,
           note: result.note,
         );
+    ref.invalidate(_rehabPageDataProvider);
     ref.invalidate(dailyReportControllerProvider);
 
     if (!context.mounted) {
@@ -105,17 +108,44 @@ class ActionsPage extends ConsumerWidget {
   }
 }
 
-final _rehabActionsProvider = FutureProvider<List<RehabAction>>((ref) {
-  return ref.watch(rehabRepositoryProvider).loadActions();
+final _rehabPageDataProvider = FutureProvider<_RehabPageData>((ref) async {
+  final repository = ref.watch(rehabRepositoryProvider);
+  final actions = await repository.loadActions();
+  final todayLogs = await repository.loadToday();
+  return _RehabPageData(actions: actions, todayLogs: todayLogs);
 });
+
+class _RehabPageData {
+  const _RehabPageData({
+    required this.actions,
+    required this.todayLogs,
+  });
+
+  final List<RehabAction> actions;
+  final List<RehabLog> todayLogs;
+
+  String todayAmountFor(RehabAction action) {
+    final amount = todayLogs
+        .where((log) => log.actionId == action.id)
+        .map((log) => double.tryParse(log.amount) ?? 0)
+        .fold(0.0, (sum, value) => sum + value);
+    if (amount == 0) {
+      return '今日 0 ${action.defaultUnit}';
+    }
+    final display = amount % 1 == 0 ? amount.toInt().toString() : '$amount';
+    return '今日 $display ${action.defaultUnit}';
+  }
+}
 
 class _RehabActionCard extends StatelessWidget {
   const _RehabActionCard({
     required this.action,
+    required this.todayAmount,
     required this.onRecord,
   });
 
   final RehabAction action;
+  final String todayAmount;
   final VoidCallback onRecord;
 
   @override
@@ -143,6 +173,14 @@ class _RehabActionCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(action.guidance),
+            const SizedBox(height: 8),
+            Text(
+              todayAmount,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
@@ -159,16 +197,16 @@ class _RehabActionCard extends StatelessWidget {
   }
 }
 
-class _RehabLogDialog extends StatefulWidget {
-  const _RehabLogDialog({required this.action});
+class RehabLogSheet extends StatefulWidget {
+  const RehabLogSheet({required this.action, super.key});
 
   final RehabAction action;
 
   @override
-  State<_RehabLogDialog> createState() => _RehabLogDialogState();
+  State<RehabLogSheet> createState() => _RehabLogSheetState();
 }
 
-class _RehabLogDialogState extends State<_RehabLogDialog> {
+class _RehabLogSheetState extends State<RehabLogSheet> {
   static const _symptomTags = ['腰酸', '腰痛', '臀腿痛', '腿麻', '脚背刺痛', '疲劳'];
 
   late final TextEditingController _amountController;
@@ -194,12 +232,25 @@ class _RehabLogDialogState extends State<_RehabLogDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('记录：${widget.action.name}'),
-      content: SingleChildScrollView(
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          MediaQuery.of(context).viewInsets.bottom + 20,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Text(
+              '记录：${widget.action.name}',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
@@ -260,29 +311,34 @@ class _RehabLogDialogState extends State<_RehabLogDialog> {
               decoration: const InputDecoration(labelText: '备注'),
               maxLines: 2,
             ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('取消'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(
+                      _RehabLogDraft(
+                        amount: _amountController.text,
+                        unit: _unitController.text,
+                        reaction: _reaction,
+                        symptomTag: _symptomTag,
+                        note: _noteController.text,
+                      ),
+                    );
+                  },
+                  child: const Text('保存'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () {
-            Navigator.of(context).pop(
-              _RehabLogDraft(
-                amount: _amountController.text,
-                unit: _unitController.text,
-                reaction: _reaction,
-                symptomTag: _symptomTag,
-                note: _noteController.text,
-              ),
-            );
-          },
-          child: const Text('保存'),
-        ),
-      ],
     );
   }
 }

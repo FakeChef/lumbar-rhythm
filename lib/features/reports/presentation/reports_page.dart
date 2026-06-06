@@ -1,33 +1,17 @@
-import 'dart:io';
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
-import '../../../core/media/gallery_image_saver.dart';
 import '../../actions/domain/action_item.dart';
 import '../../posture/domain/posture_summary.dart';
 import '../../posture/domain/posture_session.dart';
-import '../../records/domain/activity_record.dart';
-import '../../settings/data/local_data_repository.dart';
 import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
 
-class ReportsPage extends ConsumerStatefulWidget {
+class ReportsPage extends ConsumerWidget {
   const ReportsPage({super.key});
 
   @override
-  ConsumerState<ReportsPage> createState() => _ReportsPageState();
-}
-
-class _ReportsPageState extends ConsumerState<ReportsPage> {
-  final _weeklyReportImageKey = GlobalKey();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final reportState = ref.watch(dailyReportControllerProvider);
 
     return ListView(
@@ -46,9 +30,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             IconButton(
               tooltip: '刷新报告',
               icon: const Icon(Icons.refresh_outlined),
-              onPressed: () {
-                ref.invalidate(dailyReportControllerProvider);
-              },
+              onPressed: () => ref.invalidate(dailyReportControllerProvider),
             ),
           ],
         ),
@@ -56,206 +38,103 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         reportState.when(
           loading: () => const _ReportLoading(),
           error: (error, stackTrace) => _ReportError(
-            onRetry: () {
-              ref.invalidate(dailyReportControllerProvider);
-            },
+            onRetry: () => ref.invalidate(dailyReportControllerProvider),
           ),
-          data: (report) => _DailyReportView(
-            report: report,
-            weeklyReportImageKey: _weeklyReportImageKey,
-            onSaveWeeklyImage: _saveWeeklyReportImage,
-          ),
+          data: (report) => _ReportContent(report: report),
         ),
         const SizedBox(height: 12),
         const Card(
           child: ListTile(
             leading: Icon(Icons.privacy_tip_outlined),
             title: Text('报告边界'),
-            subtitle: Text('报告只汇总本地记录，不提供诊断、治疗建议或复发判断。'),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.file_download_outlined),
-            title: const Text('备份数据'),
-            subtitle: const Text('高级功能：导出本地 JSON，主要用于备份或问题排查。'),
-            trailing: IconButton(
-              tooltip: '备份数据',
-              icon: const Icon(Icons.ios_share_outlined),
-              onPressed: () => _exportLocalData(context, ref),
-            ),
+            subtitle: Text('报告只描述个人本地记录，不提供诊断、治疗建议或复发判断。'),
           ),
         ),
       ],
     );
   }
-
-  Future<void> _exportLocalData(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final file = await ref.read(localDataRepositoryProvider).exportToJson();
-
-    messenger.showSnackBar(
-      SnackBar(content: Text('已导出：${file.path}')),
-    );
-  }
-
-  Future<void> _saveWeeklyReportImage() async {
-    final messenger = ScaffoldMessenger.of(context);
-    final boundary = _weeklyReportImageKey.currentContext?.findRenderObject()
-        as RenderRepaintBoundary?;
-
-    if (boundary == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('周报图片尚未准备好，请稍后重试')),
-      );
-      return;
-    }
-
-    final image = await boundary.toImage(pixelRatio: 3);
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (bytes == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('周报图片生成失败，请稍后重试')),
-      );
-      return;
-    }
-
-    final savedAt = DateTime.now();
-    final fileName = 'lumbar_rhythm_weekly_${_dateStamp(savedAt)}.png';
-    final imageBytes = bytes.buffer.asUint8List();
-
-    try {
-      final result = await ref.read(galleryImageSaverProvider).savePng(
-            bytes: imageBytes,
-            fileName: fileName,
-          );
-
-      if (!mounted) {
-        return;
-      }
-
-      if (result.saved) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('已保存到相册：Lumbar Rhythm')),
-        );
-        return;
-      }
-    } catch (_) {
-      // Fall back to app documents below so the user still gets a saved image.
-    }
-
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File(p.join(directory.path, fileName));
-    await file.writeAsBytes(imageBytes, flush: true);
-
-    if (!mounted) {
-      return;
-    }
-
-    messenger.showSnackBar(
-      SnackBar(content: Text('相册保存失败，已保存到应用目录：${file.path}')),
-    );
-  }
-
-  String _dateStamp(DateTime value) {
-    final year = value.year.toString().padLeft(4, '0');
-    final month = value.month.toString().padLeft(2, '0');
-    final day = value.day.toString().padLeft(2, '0');
-    final hour = value.hour.toString().padLeft(2, '0');
-    final minute = value.minute.toString().padLeft(2, '0');
-    final second = value.second.toString().padLeft(2, '0');
-
-    return '$year$month${day}_$hour$minute$second';
-  }
 }
 
-class _DailyReportView extends StatelessWidget {
-  const _DailyReportView({
-    required this.report,
-    required this.weeklyReportImageKey,
-    required this.onSaveWeeklyImage,
-  });
+class _ReportContent extends StatelessWidget {
+  const _ReportContent({required this.report});
 
   final DailyReport report;
-  final GlobalKey weeklyReportImageKey;
-  final VoidCallback onSaveWeeklyImage;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.today_outlined),
-            title: const Text('今日记录总数'),
-            subtitle: Text('${report.totalCount} 条本地记录'),
-          ),
-        ),
+        _TodayPostureCard(summary: report.postureSummary),
         const SizedBox(height: 12),
-        GridView.count(
-          crossAxisCount: 2,
-          childAspectRatio: 2.7,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            for (final type in ActivityRecordType.values)
-              _ReportCountTile(
-                type: type,
-                count: report.countFor(type),
-              ),
-          ],
-        ),
+        _TodayRehabCard(summary: report.rehabSummary),
         const SizedBox(height: 12),
-        _LatestRecordCard(record: report.latestRecord),
+        _WeeklyPostureCard(summary: report.recentPostureSummary),
         const SizedBox(height: 12),
-        if (report.postureSummary != null) ...[
-          _PostureSummaryCard(summary: report.postureSummary!),
-          const SizedBox(height: 12),
-        ],
-        _RehabSummaryCard(
-          title: '今日康复记录',
-          summary: report.rehabSummary,
-        ),
-        const SizedBox(height: 12),
-        _SevenDayTrendCard(report: report),
-        const SizedBox(height: 12),
-        if (report.recentPostureSummary != null) ...[
-          _WeeklyPostureTrendCard(summary: report.recentPostureSummary!),
-          const SizedBox(height: 12),
-        ],
-        RepaintBoundary(
-          key: weeklyReportImageKey,
-          child: _WeeklyReportImageCard(report: report),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.image_outlined),
-            title: const Text('保存到相册'),
-            subtitle: const Text('把最近 7 天周报保存为相册 PNG 图片。'),
-            trailing: IconButton(
-              tooltip: '保存到相册',
-              icon: const Icon(Icons.download_outlined),
-              onPressed: onSaveWeeklyImage,
-            ),
-          ),
-        ),
+        _WeeklyRehabCard(summary: report.recentRehabSummary),
       ],
     );
   }
 }
 
-class _SevenDayTrendCard extends StatelessWidget {
-  const _SevenDayTrendCard({required this.report});
+class _TodayPostureCard extends StatelessWidget {
+  const _TodayPostureCard({required this.summary});
 
-  final DailyReport report;
+  final PostureSummary summary;
 
   @override
   Widget build(BuildContext context) {
-    final points = _dailyCounts();
+    return _MetricCard(
+      icon: Icons.timer_outlined,
+      title: '今日坐站节奏',
+      rows: [
+        ('累计坐姿时长', _formatDuration(summary.sittingTotal)),
+        ('累计站立时长', _formatDuration(summary.standingTotal)),
+        ('累计走动时长', _formatDuration(summary.walkingTotal)),
+        ('累计休息时长', _formatDuration(summary.restingTotal)),
+        ('最长连续坐姿', _formatDuration(summary.longestSitting)),
+        ('最长连续站立', _formatDuration(summary.longestStanding)),
+        ('姿势切换次数', '${summary.switchCount} 次'),
+      ],
+      footer: '仅展示个人记录，不代表医学判断。',
+    );
+  }
+}
+
+class _TodayRehabCard extends StatelessWidget {
+  const _TodayRehabCard({required this.summary});
+
+  final RehabSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final topAction = summary.mostCompletedAction();
+    final walkingTotal = summary.totalAmountForActionNamed('步行');
+    final walkingDisplay = walkingTotal % 1 == 0
+        ? walkingTotal.toInt().toString()
+        : '$walkingTotal';
+
+    return _MetricCard(
+      icon: Icons.accessibility_new_outlined,
+      title: '今日康复记录',
+      rows: [
+        ('今日康复记录次数', '${summary.totalCount} 次'),
+        ('今日步行总量', '$walkingDisplay 分钟'),
+        ('做后明显加重次数', '${summary.reactionCount(RehabReaction.muchWorse)} 次'),
+        ('完成最多动作', topAction?.name ?? '暂无'),
+      ],
+      footer: '康复记录只用于回顾完成量和做后反应。',
+    );
+  }
+}
+
+class _WeeklyPostureCard extends StatelessWidget {
+  const _WeeklyPostureCard({required this.summary});
+
+  final PostureSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = summary.recentDaySummaries(days: 7);
 
     return Card(
       child: Padding(
@@ -263,37 +142,34 @@ class _SevenDayTrendCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.show_chart_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '最近 7 天趋势',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-              ],
+            const _CardTitle(
+              icon: Icons.stacked_bar_chart_outlined,
+              title: '本周坐站趋势',
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 180,
-              child: CustomPaint(
-                painter: _SevenDayTrendPainter(
-                  points: points,
-                  lineColor: Theme.of(context).colorScheme.primary,
-                  fillColor: Theme.of(context).colorScheme.primaryContainer,
-                  axisColor: Theme.of(context).colorScheme.outlineVariant,
-                  textColor: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                child: const SizedBox.expand(),
+            for (final day in days) ...[
+              Text('${day.day.month}/${day.day.day}'),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _PostureChip(
+                      type: PostureType.sitting, duration: day.sitting),
+                  _PostureChip(
+                    type: PostureType.standing,
+                    duration: day.standing,
+                  ),
+                  _PostureChip(
+                      type: PostureType.walking, duration: day.walking),
+                  _PostureChip(
+                      type: PostureType.resting, duration: day.resting),
+                ],
               ),
-            ),
-            const SizedBox(height: 8),
+              const SizedBox(height: 10),
+            ],
             const Text(
-              '趋势只反映记录频率，不能代表疼痛程度或康复效果。',
+              '周报只汇总本地姿势记录。',
               style: TextStyle(fontSize: 12),
             ),
           ],
@@ -301,309 +177,99 @@ class _SevenDayTrendCard extends StatelessWidget {
       ),
     );
   }
-
-  List<_TrendPoint> _dailyCounts() {
-    final today = DateTime.now();
-    final start = DateTime(today.year, today.month, today.day)
-        .subtract(const Duration(days: 6));
-    final counts = {
-      for (var index = 0; index < 7; index++)
-        start.add(Duration(days: index)): 0,
-    };
-
-    for (final record in report.recentRecords) {
-      final day = DateTime(
-        record.createdAt.year,
-        record.createdAt.month,
-        record.createdAt.day,
-      );
-      if (counts.containsKey(day)) {
-        counts[day] = counts[day]! + 1;
-      }
-    }
-
-    return [
-      for (final entry in counts.entries)
-        _TrendPoint(
-          label: '${entry.key.month}/${entry.key.day}',
-          count: entry.value,
-        ),
-    ];
-  }
 }
 
-class _WeeklyReportImageCard extends StatelessWidget {
-  const _WeeklyReportImageCard({required this.report});
+class _WeeklyRehabCard extends StatelessWidget {
+  const _WeeklyRehabCard({required this.summary});
 
-  final DailyReport report;
+  final RehabSummary summary;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      child: Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.date_range_outlined),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      '腰椎节奏周报',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              const Text('最近 7 天本地记录汇总'),
-              const Divider(height: 28),
-              _WeeklyMetricRow(
-                label: '总记录',
-                value: '${report.recentTotalCount} 条',
-              ),
+    final topAction = summary.mostCompletedAction();
+
+    return _MetricCard(
+      icon: Icons.fact_check_outlined,
+      title: '本周康复摘要',
+      rows: [
+        ('康复记录次数', '${summary.totalCount} 次'),
+        (
+          '步行总量',
+          '${_formatNumber(summary.totalAmountForActionNamed('步行'))} 分钟'
+        ),
+        ('明显加重次数', '${summary.reactionCount(RehabReaction.muchWorse)} 次'),
+        ('完成最多动作', topAction?.name ?? '暂无'),
+      ],
+      footer: '周报只汇总康复记录，不评价康复效果。',
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({
+    required this.icon,
+    required this.title,
+    required this.rows,
+    required this.footer,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<(String, String)> rows;
+  final String footer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _CardTitle(icon: icon, title: title),
+            const SizedBox(height: 12),
+            for (final row in rows) ...[
+              _MetricRow(label: row.$1, value: row.$2),
               const SizedBox(height: 8),
-              _WeeklyMetricRow(
-                label: '有记录的天数',
-                value: '${report.activeDaysCount()} 天',
-              ),
-              const SizedBox(height: 8),
-              _WeeklyMetricRow(
-                label: '康复记录',
-                value: '${report.recentRehabSummary.totalCount} 条',
-              ),
-              const SizedBox(height: 8),
-              _WeeklyMetricRow(
-                label: '明显加重',
-                value:
-                    '${report.recentRehabSummary.reactionCount(RehabReaction.muchWorse)} 条',
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 160,
-                child: CustomPaint(
-                  painter: _SevenDayTrendPainter(
-                    points: _dailyCounts(),
-                    lineColor: Theme.of(context).colorScheme.primary,
-                    fillColor: Theme.of(context).colorScheme.primaryContainer,
-                    axisColor: Theme.of(context).colorScheme.outlineVariant,
-                    textColor: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  child: const SizedBox.expand(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final type in ActivityRecordType.values)
-                    Chip(
-                      avatar: Icon(_iconFor(type), size: 18),
-                      label:
-                          Text('${type.label} ${report.recentCountFor(type)}'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                '仅用于自我回顾，不提供诊断、治疗建议或复发判断。',
-                style: TextStyle(fontSize: 12),
-              ),
             ],
-          ),
+            Text(footer, style: const TextStyle(fontSize: 12)),
+          ],
         ),
       ),
     );
   }
-
-  List<_TrendPoint> _dailyCounts() {
-    final today = DateTime.now();
-    final start = DateTime(today.year, today.month, today.day)
-        .subtract(const Duration(days: 6));
-    final counts = {
-      for (var index = 0; index < 7; index++)
-        start.add(Duration(days: index)): 0,
-    };
-
-    for (final record in report.recentRecords) {
-      final day = DateTime(
-        record.createdAt.year,
-        record.createdAt.month,
-        record.createdAt.day,
-      );
-      if (counts.containsKey(day)) {
-        counts[day] = counts[day]! + 1;
-      }
-    }
-
-    return [
-      for (final entry in counts.entries)
-        _TrendPoint(
-          label: '${entry.key.month}/${entry.key.day}',
-          count: entry.value,
-        ),
-    ];
-  }
-
-  IconData _iconFor(ActivityRecordType type) {
-    return switch (type) {
-      ActivityRecordType.sitting => Icons.event_seat_outlined,
-      ActivityRecordType.standing => Icons.accessibility_new_outlined,
-      ActivityRecordType.symptom => Icons.healing_outlined,
-      ActivityRecordType.stretch => Icons.directions_walk_outlined,
-    };
-  }
 }
 
-class _TrendPoint {
-  const _TrendPoint({
-    required this.label,
-    required this.count,
+class _CardTitle extends StatelessWidget {
+  const _CardTitle({
+    required this.icon,
+    required this.title,
   });
 
-  final String label;
-  final int count;
-}
-
-class _SevenDayTrendPainter extends CustomPainter {
-  const _SevenDayTrendPainter({
-    required this.points,
-    required this.lineColor,
-    required this.fillColor,
-    required this.axisColor,
-    required this.textColor,
-  });
-
-  final List<_TrendPoint> points;
-  final Color lineColor;
-  final Color fillColor;
-  final Color axisColor;
-  final Color textColor;
+  final IconData icon;
+  final String title;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    if (points.isEmpty) {
-      return;
-    }
-
-    const leftPadding = 8.0;
-    const rightPadding = 8.0;
-    const topPadding = 16.0;
-    const bottomPadding = 34.0;
-    final chartHeight = size.height - topPadding - bottomPadding;
-    final chartWidth = size.width - leftPadding - rightPadding;
-    final maxCount = points
-        .map((point) => point.count)
-        .fold<int>(1, (max, count) => count > max ? count : max);
-    final stepX = points.length == 1 ? 0.0 : chartWidth / (points.length - 1);
-    final coordinates = [
-      for (var index = 0; index < points.length; index++)
-        Offset(
-          leftPadding + stepX * index,
-          topPadding +
-              chartHeight * (1 - (points[index].count / maxCount).clamp(0, 1)),
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
         ),
-    ];
-
-    final axisPaint = Paint()
-      ..color = axisColor
-      ..strokeWidth = 1;
-    for (var index = 0; index < 4; index++) {
-      final y = topPadding + chartHeight * index / 3;
-      canvas.drawLine(
-        Offset(leftPadding, y),
-        Offset(size.width - rightPadding, y),
-        axisPaint,
-      );
-    }
-
-    final fillPath = Path()
-      ..moveTo(coordinates.first.dx, topPadding + chartHeight);
-    for (final coordinate in coordinates) {
-      fillPath.lineTo(coordinate.dx, coordinate.dy);
-    }
-    fillPath.lineTo(coordinates.last.dx, topPadding + chartHeight);
-    fillPath.close();
-    canvas.drawPath(
-      fillPath,
-      Paint()..color = fillColor.withValues(alpha: 0.45),
+      ],
     );
-
-    final linePath = Path()..moveTo(coordinates.first.dx, coordinates.first.dy);
-    for (final coordinate in coordinates.skip(1)) {
-      linePath.lineTo(coordinate.dx, coordinate.dy);
-    }
-    canvas.drawPath(
-      linePath,
-      Paint()
-        ..color = lineColor
-        ..strokeWidth = 3
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-
-    final dotPaint = Paint()..color = lineColor;
-    for (var index = 0; index < coordinates.length; index++) {
-      final coordinate = coordinates[index];
-      canvas.drawCircle(coordinate, 5, dotPaint);
-      _drawCenteredText(
-        canvas,
-        points[index].count.toString(),
-        Offset(coordinate.dx, coordinate.dy - 22),
-        11,
-      );
-      _drawCenteredText(
-        canvas,
-        points[index].label,
-        Offset(coordinate.dx, size.height - 12),
-        10,
-      );
-    }
-  }
-
-  void _drawCenteredText(
-    Canvas canvas,
-    String text,
-    Offset center,
-    double fontSize,
-  ) {
-    final paragraphStyle = ui.ParagraphStyle(
-      textAlign: TextAlign.center,
-      fontSize: fontSize,
-    );
-    final textStyle = ui.TextStyle(color: textColor, fontSize: fontSize);
-    final builder = ui.ParagraphBuilder(paragraphStyle)
-      ..pushStyle(textStyle)
-      ..addText(text);
-    final paragraph = builder.build()
-      ..layout(const ui.ParagraphConstraints(width: 48));
-    canvas.drawParagraph(
-      paragraph,
-      Offset(center.dx - 24, center.dy - paragraph.height / 2),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _SevenDayTrendPainter oldDelegate) {
-    return oldDelegate.points != points ||
-        oldDelegate.lineColor != lineColor ||
-        oldDelegate.fillColor != fillColor ||
-        oldDelegate.axisColor != axisColor ||
-        oldDelegate.textColor != textColor;
   }
 }
 
-class _WeeklyMetricRow extends StatelessWidget {
-  const _WeeklyMetricRow({
+class _MetricRow extends StatelessWidget {
+  const _MetricRow({
     required this.label,
     required this.value,
   });
@@ -634,272 +300,8 @@ class _WeeklyMetricRow extends StatelessWidget {
   }
 }
 
-class _ReportCountTile extends StatelessWidget {
-  const _ReportCountTile({
-    required this.type,
-    required this.count,
-  });
-
-  final ActivityRecordType type;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: Icon(_iconFor(type)),
-        title: Text(type.label),
-        trailing: Text(
-          count.toString(),
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-        ),
-      ),
-    );
-  }
-
-  IconData _iconFor(ActivityRecordType type) {
-    return switch (type) {
-      ActivityRecordType.sitting => Icons.event_seat_outlined,
-      ActivityRecordType.standing => Icons.accessibility_new_outlined,
-      ActivityRecordType.symptom => Icons.healing_outlined,
-      ActivityRecordType.stretch => Icons.directions_walk_outlined,
-    };
-  }
-}
-
-class _LatestRecordCard extends StatelessWidget {
-  const _LatestRecordCard({required this.record});
-
-  final ActivityRecord? record;
-
-  @override
-  Widget build(BuildContext context) {
-    final currentRecord = record;
-
-    if (currentRecord == null) {
-      return const Card(
-        child: ListTile(
-          leading: Icon(Icons.inbox_outlined),
-          title: Text('暂无今日记录'),
-          subtitle: Text('在记录页添加内容后，这里会显示今日概览。'),
-        ),
-      );
-    }
-
-    final time =
-        '${currentRecord.createdAt.hour.toString().padLeft(2, '0')}:${currentRecord.createdAt.minute.toString().padLeft(2, '0')}';
-
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.update_outlined),
-        title: const Text('最近一条记录'),
-        subtitle: Text('$time · ${currentRecord.type.label}'),
-      ),
-    );
-  }
-}
-
-class _RehabSummaryCard extends StatelessWidget {
-  const _RehabSummaryCard({
-    required this.title,
-    required this.summary,
-  });
-
-  final String title;
-  final RehabSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.accessibility_new_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-                Text('${summary.totalCount} 条'),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final reaction in RehabReaction.values)
-                  Chip(
-                    label: Text(
-                      '${reaction.label} ${summary.reactionCount(reaction)}',
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PostureSummaryCard extends StatelessWidget {
-  const _PostureSummaryCard({required this.summary});
-
-  final PostureSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.timer_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '今日坐站节奏',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _WeeklyMetricRow(
-                label: '坐姿累计', value: _formatDuration(summary.sittingTotal)),
-            const SizedBox(height: 8),
-            _WeeklyMetricRow(
-                label: '站立累计', value: _formatDuration(summary.standingTotal)),
-            const SizedBox(height: 8),
-            _WeeklyMetricRow(
-                label: '走动累计', value: _formatDuration(summary.walkingTotal)),
-            const SizedBox(height: 8),
-            _WeeklyMetricRow(
-                label: '休息累计', value: _formatDuration(summary.restingTotal)),
-            const SizedBox(height: 8),
-            _WeeklyMetricRow(
-                label: '最长连续坐姿',
-                value: _formatDuration(summary.longestSitting)),
-            const SizedBox(height: 8),
-            _WeeklyMetricRow(
-                label: '最长连续站立',
-                value: _formatDuration(summary.longestStanding)),
-            const SizedBox(height: 8),
-            _WeeklyMetricRow(
-                label: '姿势切换次数', value: '${summary.switchCount} 次'),
-            const SizedBox(height: 8),
-            _WeeklyMetricRow(
-              label: '坐姿超过阈值',
-              value: '${summary.sittingOverThresholdCount} 次',
-            ),
-            const SizedBox(height: 8),
-            _WeeklyMetricRow(
-              label: '站立超过阈值',
-              value: '${summary.standingOverThresholdCount} 次',
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              '以上仅为个人记录汇总，不代表医学判断。',
-              style: TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WeeklyPostureTrendCard extends StatelessWidget {
-  const _WeeklyPostureTrendCard({required this.summary});
-
-  final PostureSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final days = summary.recentDaySummaries(days: 7);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.stacked_bar_chart_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '本周坐站趋势',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            for (final day in days) ...[
-              _PostureDayRow(day: day),
-              const SizedBox(height: 8),
-            ],
-            const Text(
-              '趋势仅展示记录时长，方便回顾自己的坐、站、走、休息节奏。',
-              style: TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PostureDayRow extends StatelessWidget {
-  const _PostureDayRow({required this.day});
-
-  final PostureDaySummary day;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('${day.day.month}/${day.day.day}'),
-        const SizedBox(height: 4),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _SmallPostureChip(type: PostureType.sitting, duration: day.sitting),
-            _SmallPostureChip(
-                type: PostureType.standing, duration: day.standing),
-            _SmallPostureChip(type: PostureType.walking, duration: day.walking),
-            _SmallPostureChip(type: PostureType.resting, duration: day.resting),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _SmallPostureChip extends StatelessWidget {
-  const _SmallPostureChip({
+class _PostureChip extends StatelessWidget {
+  const _PostureChip({
     required this.type,
     required this.duration,
   });
@@ -958,4 +360,8 @@ String _formatDuration(Duration duration) {
     return '$hours 小时 ${minutes.toString().padLeft(2, '0')} 分钟';
   }
   return '$minutes 分钟';
+}
+
+String _formatNumber(double value) {
+  return value % 1 == 0 ? value.toInt().toString() : '$value';
 }

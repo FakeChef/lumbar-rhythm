@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../actions/presentation/actions_page.dart';
 import '../../home/presentation/home_page.dart';
-import '../../records/presentation/records_page.dart';
 import '../../reports/presentation/reports_page.dart';
 import '../../settings/presentation/settings_page.dart';
 
@@ -19,10 +18,9 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomePage(onNavigate: _selectTab),
-      const RecordsPage(),
-      const ReportsPage(),
+      const HomePage(),
       const ActionsPage(),
+      const ReportsPage(),
       const SettingsPage(),
     ];
 
@@ -38,19 +36,14 @@ class _MainShellState extends State<MainShell> {
             label: '首页',
           ),
           NavigationDestination(
-            icon: Icon(Icons.edit_note_outlined),
-            selectedIcon: Icon(Icons.edit_note),
-            label: '记录',
+            icon: Icon(Icons.accessibility_new_outlined),
+            selectedIcon: Icon(Icons.accessibility_new),
+            label: '康复',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
             selectedIcon: Icon(Icons.bar_chart),
             label: '报告',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.accessibility_new_outlined),
-            selectedIcon: Icon(Icons.accessibility_new),
-            label: '康复',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

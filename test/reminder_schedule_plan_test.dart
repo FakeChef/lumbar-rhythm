@@ -35,6 +35,15 @@ void main() {
     expect(resting.kinds, isEmpty);
   });
 
+  test('null current posture cancels sitting and standing reminders', () {
+    final plan = buildReminderSchedulePlan(
+      enabled: true,
+      currentPosture: null,
+    );
+
+    expect(plan.kinds, isEmpty);
+  });
+
   test('disabled reminders cancel all posture reminders', () {
     final plan = buildReminderSchedulePlan(
       enabled: false,

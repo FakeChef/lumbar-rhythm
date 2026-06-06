@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/notifications/notification_service.dart';
+import '../../posture/application/posture_session_controller.dart';
 import '../../records/application/activity_records_controller.dart';
 import '../../reports/application/daily_report_controller.dart';
 import '../application/reminder_settings_controller.dart';
@@ -179,6 +180,7 @@ class SettingsPage extends ConsumerWidget {
 
     await ref.read(localDataRepositoryProvider).deleteAllLocalData();
     await ref.read(notificationServiceProvider).cancelScheduledReminders();
+    ref.invalidate(postureSessionControllerProvider);
     ref.invalidate(reminderSettingsControllerProvider);
     ref.invalidate(activityRecordsControllerProvider);
     ref.invalidate(dailyReportControllerProvider);
