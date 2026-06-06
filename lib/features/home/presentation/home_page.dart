@@ -81,15 +81,6 @@ class _HomePageState extends ConsumerState<HomePage> {
             ],
           ),
           const SizedBox(height: 20),
-          recoveryProfileState.when(
-            loading: () => const _HomeLoadingCard(title: '正在读取康复资料'),
-            error: (error, stackTrace) => _HomeErrorCard(
-              title: '康复资料读取失败',
-              onRetry: () => ref.invalidate(_homeRecoveryProfileProvider),
-            ),
-            data: (profile) => _RecoveryStatusCard(profile: profile),
-          ),
-          const SizedBox(height: 12),
           settingsState.when(
             loading: () => const _HomeLoadingCard(title: '正在读取提醒设置'),
             error: (error, stackTrace) => _HomeErrorCard(
@@ -124,6 +115,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                 },
               ),
             ),
+          ),
+          const SizedBox(height: 12),
+          recoveryProfileState.when(
+            loading: () => const _HomeLoadingCard(title: '正在读取康复资料'),
+            error: (error, stackTrace) => _HomeErrorCard(
+              title: '康复资料读取失败',
+              onRetry: () => ref.invalidate(_homeRecoveryProfileProvider),
+            ),
+            data: (profile) => _RecoveryStatusCard(profile: profile),
           ),
           const SizedBox(height: 12),
           rehabActionsState.when(
@@ -403,42 +403,103 @@ class _PostureStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final current = session;
+    final activeType = current?.type;
+    final displayType = activeType ?? selectedPosture;
+    final durationText =
+        current == null ? '00:00' : _formatDuration(current.durationAt(now));
+    final statusText =
+        current == null ? '尚未开始' : '正在${_postureMenuLabel(current.type)}';
+    final statusColor = _postureColor(context, displayType);
 
     return Card(
+      color: Theme.of(context).colorScheme.primaryContainer.withValues(
+            alpha: 0.56,
+          ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _CardHeader(
-              icon: Icons.timer_outlined,
-              title: '当前姿势',
-              trailing: current == null
-                  ? '00:00'
-                  : _formatDuration(current.durationAt(now)),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<PostureType>(
-              initialValue: selectedPosture,
-              decoration: const InputDecoration(labelText: '选择当前姿势'),
-              items: [
-                for (final type in PostureType.values)
-                  DropdownMenuItem(
-                    value: type,
-                    child: Text(_postureMenuLabel(type)),
+            Row(
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Icon(
+                      _postureIcon(displayType),
+                      color: statusColor,
+                      size: 30,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '坐站节奏',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '久坐久站提醒器',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
               ],
-              onChanged: onSelectedPostureChanged,
+            ),
+            const SizedBox(height: 22),
+            Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  durationText,
+                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             Text(
-              current == null
-                  ? '当前状态：未开始'
-                  : '当前状态：${_postureMenuLabel(current.type)}',
+              statusText,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w800,
+                  ),
             ),
-            const SizedBox(height: 4),
-            Text('当前提醒阈值：${_thresholdText(current?.type ?? selectedPosture)}'),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
+            Text(
+              '当前提醒阈值：${_thresholdText(displayType)}',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final type in PostureType.values)
+                  ChoiceChip(
+                    avatar: Icon(_postureIcon(type), size: 18),
+                    label: Text(_postureMenuLabel(type)),
+                    selected: selectedPosture == type,
+                    onSelected: (_) => onSelectedPostureChanged(type),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: onStartOrSwitch,
               icon: const Icon(Icons.play_arrow_outlined),
@@ -472,6 +533,24 @@ class _PostureStatusCard extends StatelessWidget {
       PostureType.standing => '站着',
       PostureType.walking => '走动',
       PostureType.resting => '休息',
+    };
+  }
+
+  IconData _postureIcon(PostureType type) {
+    return switch (type) {
+      PostureType.sitting => Icons.event_seat_outlined,
+      PostureType.standing => Icons.accessibility_new_outlined,
+      PostureType.walking => Icons.directions_walk_outlined,
+      PostureType.resting => Icons.bedtime_outlined,
+    };
+  }
+
+  Color _postureColor(BuildContext context, PostureType type) {
+    return switch (type) {
+      PostureType.sitting => Theme.of(context).colorScheme.primary,
+      PostureType.standing => const Color(0xFF2F7D5C),
+      PostureType.walking => const Color(0xFFE09F3E),
+      PostureType.resting => const Color(0xFF5B7CFA),
     };
   }
 
@@ -614,12 +693,10 @@ class _CardHeader extends StatelessWidget {
   const _CardHeader({
     required this.icon,
     required this.title,
-    this.trailing,
   });
 
   final IconData icon;
   final String title;
-  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -635,13 +712,6 @@ class _CardHeader extends StatelessWidget {
                 ),
           ),
         ),
-        if (trailing != null)
-          Text(
-            trailing!,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
       ],
     );
   }

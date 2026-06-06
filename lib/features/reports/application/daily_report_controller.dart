@@ -43,24 +43,24 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
     final now = DateTime.now();
     final rehabActions = await rehabRepository.loadActions();
     final range = _rangeFor(period, now);
+    final allRehabLogs = await rehabRepository.loadAllLogs();
+    final allPostureSessions = await postureRepository.loadAll();
     final recentRange = (
       start: DateTime(now.year, now.month, now.day).subtract(
         const Duration(days: 6),
       ),
       end: DateTime(now.year, now.month, now.day).add(const Duration(days: 1)),
     );
-    final rehabLogs = (await rehabRepository.loadAllLogs()).where((log) {
+    final rehabLogs = allRehabLogs.where((log) {
       return _isWithin(log.createdAt, range);
     }).toList();
-    final recentRehabLogs = (await rehabRepository.loadAllLogs()).where((log) {
+    final recentRehabLogs = allRehabLogs.where((log) {
       return _isWithin(log.createdAt, recentRange);
     }).toList();
-    final postureSessions =
-        (await postureRepository.loadAll()).where((session) {
+    final postureSessions = allPostureSessions.where((session) {
       return _isWithin(session.startedAt, range);
     }).toList();
-    final recentPostureSessions =
-        (await postureRepository.loadAll()).where((session) {
+    final recentPostureSessions = allPostureSessions.where((session) {
       return _isWithin(session.startedAt, recentRange);
     }).toList();
     final dailyNotes = await recoveryRepository.loadNotesBetween(
