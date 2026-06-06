@@ -3,10 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../actions/data/rehab_repository.dart';
 import '../../actions/domain/action_item.dart';
+import '../../calendar/domain/calendar_day_status.dart';
+import '../../milestones/data/recovery_milestone_repository.dart';
+import '../../milestones/domain/recovery_milestone.dart';
 import '../../posture/data/posture_session_repository.dart';
 import '../../posture/domain/posture_session.dart';
 import '../../recovery/data/recovery_repository.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
+import '../../recovery/domain/recovery_profile.dart';
+import 'calendar_day_detail_page.dart';
 
 final _calendarDataProvider = FutureProvider<_CalendarData>((ref) async {
   final now = DateTime.now();
@@ -15,6 +20,8 @@ final _calendarDataProvider = FutureProvider<_CalendarData>((ref) async {
   final rehabRepository = ref.watch(rehabRepositoryProvider);
   final postureRepository = ref.watch(postureSessionRepositoryProvider);
   final recoveryRepository = ref.watch(recoveryRepositoryProvider);
+  final milestoneRepository = ref.watch(recoveryMilestoneRepositoryProvider);
+
   final actions = await rehabRepository.loadActions();
   final logs = (await rehabRepository.loadAllLogs()).where((log) {
     return !log.createdAt.isBefore(monthStart) &&
@@ -28,6 +35,13 @@ final _calendarDataProvider = FutureProvider<_CalendarData>((ref) async {
     start: monthStart,
     end: monthEnd,
   );
+  final profile = await recoveryRepository.loadProfile();
+  final milestones = (await milestoneRepository.loadMilestones()).where((item) {
+    final completedAt = item.completedAt;
+    return completedAt != null &&
+        !completedAt.isBefore(monthStart) &&
+        completedAt.isBefore(monthEnd);
+  }).toList();
 
   return _CalendarData(
     month: monthStart,
@@ -35,21 +49,16 @@ final _calendarDataProvider = FutureProvider<_CalendarData>((ref) async {
     logs: logs,
     sessions: sessions,
     notes: notes,
+    profile: profile,
+    milestones: milestones,
   );
 });
 
-class CalendarPage extends ConsumerStatefulWidget {
+class CalendarPage extends ConsumerWidget {
   const CalendarPage({super.key});
 
   @override
-  ConsumerState<CalendarPage> createState() => _CalendarPageState();
-}
-
-class _CalendarPageState extends ConsumerState<CalendarPage> {
-  DateTime _selectedDate = DateTime.now();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(_calendarDataProvider);
 
     return ListView(
@@ -90,17 +99,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               ),
             ),
           ),
-          data: (data) => Column(
-            children: [
-              _MonthGrid(
-                data: data,
-                selectedDate: _selectedDate,
-                onSelected: (date) => setState(() => _selectedDate = date),
-              ),
-              const SizedBox(height: 12),
-              _DaySummaryCard(data: data, selectedDate: _selectedDate),
-            ],
-          ),
+          data: (data) => _MonthGrid(data: data),
         ),
       ],
     );
@@ -108,15 +107,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 }
 
 class _MonthGrid extends StatelessWidget {
-  const _MonthGrid({
-    required this.data,
-    required this.selectedDate,
-    required this.onSelected,
-  });
+  const _MonthGrid({required this.data});
 
   final _CalendarData data;
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +133,14 @@ class _MonthGrid extends StatelessWidget {
             Row(
               children: [
                 for (final label in ['一', '二', '三', '四', '五', '六', '日'])
-                  Expanded(child: Center(child: Text(label))),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        label,
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -158,43 +158,52 @@ class _MonthGrid extends StatelessWidget {
                 if (index < leadingBlanks) {
                   return const SizedBox.shrink();
                 }
+
                 final day = index - leadingBlanks + 1;
                 final date = DateTime(data.month.year, data.month.month, day);
-                final hasRecord = data.hasAnyRecord(date);
-                final selected = _isSameDay(date, selectedDate);
+                final status = data.statusFor(date);
+                final isToday = _isSameDay(date, DateTime.now());
 
                 return InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  onTap: () => onSelected(date),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => CalendarDayDetailPage(status: status),
+                      ),
+                    );
+                  },
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: selected
+                      color: isToday
                           ? Theme.of(context).colorScheme.primaryContainer
                           : Theme.of(context)
                               .colorScheme
                               .surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isToday
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.transparent,
+                      ),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('$day'),
-                        const SizedBox(height: 4),
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: hasRecord
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.transparent,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const SizedBox.square(dimension: 6),
+                        Text(
+                          '$day',
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
+                        const SizedBox(height: 5),
+                        _StatusDots(dots: status.dots),
                       ],
                     ),
                   ),
                 );
               },
             ),
+            const SizedBox(height: 14),
+            const _CalendarLegend(),
           ],
         ),
       ),
@@ -202,68 +211,72 @@ class _MonthGrid extends StatelessWidget {
   }
 }
 
-class _DaySummaryCard extends StatelessWidget {
-  const _DaySummaryCard({required this.data, required this.selectedDate});
+class _StatusDots extends StatelessWidget {
+  const _StatusDots({required this.dots});
 
-  final _CalendarData data;
-  final DateTime selectedDate;
-
-  @override
-  Widget build(BuildContext context) {
-    final logs = data.logsFor(selectedDate);
-    final sessions = data.sessionsFor(selectedDate);
-    final note = data.noteFor(selectedDate);
-    final walkingMinutes = data.walkingMinutesFor(selectedDate);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '${selectedDate.month} 月 ${selectedDate.day} 日',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            _MetricLine(label: '康复动作记录', value: '${logs.length} 次'),
-            _MetricLine(
-                label: '步行总量', value: '${_formatNumber(walkingMinutes)} 分钟'),
-            _MetricLine(label: '坐站记录段数', value: '${sessions.length} 段'),
-            _MetricLine(
-              label: '今日小结',
-              value: note == null ? '未记录' : note.overallFeeling.label,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MetricLine extends StatelessWidget {
-  const _MetricLine({required this.label, required this.value});
-
-  final String label;
-  final String value;
+  final List<CalendarStatusDot> dots;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Expanded(child: Text(label)),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (final dot in dots.take(3))
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1.5),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: _dotColor(context, dot),
+                shape: BoxShape.circle,
+              ),
+              child: const SizedBox.square(dimension: 6),
+            ),
           ),
-        ],
-      ),
+      ],
+    );
+  }
+}
+
+class _CalendarLegend extends StatelessWidget {
+  const _CalendarLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      children: [
+        _LegendItem(dot: CalendarStatusDot.rehabAction, label: '康复动作'),
+        _LegendItem(dot: CalendarStatusDot.postureStable, label: '坐站记录'),
+        _LegendItem(dot: CalendarStatusDot.postureExceeded, label: '超阈值'),
+        _LegendItem(dot: CalendarStatusDot.muchWorse, label: '明显加重'),
+        _LegendItem(dot: CalendarStatusDot.milestoneCompleted, label: '完成节点'),
+      ],
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  const _LegendItem({required this.dot, required this.label});
+
+  final CalendarStatusDot dot;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: _dotColor(context, dot),
+            shape: BoxShape.circle,
+          ),
+          child: const SizedBox.square(dimension: 8),
+        ),
+        const SizedBox(width: 5),
+        Text(label, style: Theme.of(context).textTheme.labelMedium),
+      ],
     );
   }
 }
@@ -275,6 +288,8 @@ class _CalendarData {
     required this.logs,
     required this.sessions,
     required this.notes,
+    required this.profile,
+    required this.milestones,
   });
 
   final DateTime month;
@@ -282,50 +297,45 @@ class _CalendarData {
   final List<RehabLog> logs;
   final List<PostureSession> sessions;
   final List<DailyRecoveryNote> notes;
+  final RecoveryProfile? profile;
+  final List<RecoveryMilestone> milestones;
 
-  bool hasAnyRecord(DateTime date) {
-    return logsFor(date).isNotEmpty ||
-        sessionsFor(date).isNotEmpty ||
-        noteFor(date) != null;
+  CalendarDayStatus statusFor(DateTime date) {
+    return CalendarDayStatus(
+      date: date,
+      actions: actions,
+      rehabLogs: logs.where((log) => _isSameDay(log.createdAt, date)).toList(),
+      postureSessions: sessions
+          .where((session) => _isSameDay(session.startedAt, date))
+          .toList(),
+      note: notes.cast<DailyRecoveryNote?>().firstWhere(
+            (note) => note != null && _isSameDay(note.date, date),
+            orElse: () => null,
+          ),
+      profile: profile,
+      milestones: milestones.where((milestone) {
+        final completedAt = milestone.completedAt;
+        return completedAt != null && _isSameDay(completedAt, date);
+      }).toList(),
+    );
   }
+}
 
-  List<RehabLog> logsFor(DateTime date) {
-    return logs.where((log) => _isSameDay(log.createdAt, date)).toList();
-  }
-
-  List<PostureSession> sessionsFor(DateTime date) {
-    return sessions
-        .where((session) => _isSameDay(session.startedAt, date))
-        .toList();
-  }
-
-  DailyRecoveryNote? noteFor(DateTime date) {
-    for (final note in notes) {
-      if (_isSameDay(note.date, date)) {
-        return note;
-      }
-    }
-    return null;
-  }
-
-  double walkingMinutesFor(DateTime date) {
-    final walkingActionIds = actions
-        .where((action) => action.name == '步行')
-        .map((action) => action.id)
-        .toSet();
-    return logsFor(date)
-        .where((log) => walkingActionIds.contains(log.actionId))
-        .map((log) => log.amountValue)
-        .fold(0.0, (sum, value) => sum + value);
-  }
+Color _dotColor(BuildContext context, CalendarStatusDot dot) {
+  final scheme = Theme.of(context).colorScheme;
+  return switch (dot) {
+    CalendarStatusDot.none => scheme.outlineVariant,
+    CalendarStatusDot.dailyStatus => Colors.green,
+    CalendarStatusDot.rehabAction => Colors.blue,
+    CalendarStatusDot.postureStable => Colors.green,
+    CalendarStatusDot.postureExceeded => Colors.orange,
+    CalendarStatusDot.muchWorse => Colors.red,
+    CalendarStatusDot.milestoneCompleted => Colors.purple,
+  };
 }
 
 bool _isSameDay(DateTime left, DateTime right) {
   return left.year == right.year &&
       left.month == right.month &&
       left.day == right.day;
-}
-
-String _formatNumber(double value) {
-  return value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(1);
 }
