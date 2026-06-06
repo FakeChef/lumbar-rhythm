@@ -45,14 +45,18 @@ class PostureSummary {
   int get sittingOverThresholdCount {
     return sessions
         .where((session) => session.type == PostureType.sitting)
-        .where((session) => session.durationAt(now) > sittingThreshold)
+        .where((session) =>
+            session.exceededSeconds > 0 ||
+            session.durationAt(now) > sittingThreshold)
         .length;
   }
 
   int get standingOverThresholdCount {
     return sessions
         .where((session) => session.type == PostureType.standing)
-        .where((session) => session.durationAt(now) > standingThreshold)
+        .where((session) =>
+            session.exceededSeconds > 0 ||
+            session.durationAt(now) > standingThreshold)
         .length;
   }
 
