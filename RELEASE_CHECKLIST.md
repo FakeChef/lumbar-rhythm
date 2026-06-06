@@ -43,6 +43,7 @@ This checklist is for preparing Lumbar Rhythm for Android and iOS review.
 - Release signing uses `android/key.properties` when a store keystore is available.
 - Keystore files and signing passwords are not committed to Git.
 - Release APK or AAB can be built for Android distribution.
+- Android beta testing guide is documented in `ANDROID_BETA_TESTING.md`.
 
 ## iOS
 
