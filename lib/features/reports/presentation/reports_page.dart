@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/media/gallery_image_saver.dart';
 import '../../records/domain/activity_record.dart';
 import '../../settings/data/local_data_repository.dart';
 import '../application/daily_report_controller.dart';
@@ -74,10 +75,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         Card(
           child: ListTile(
             leading: const Icon(Icons.file_download_outlined),
-            title: const Text('导出数据'),
-            subtitle: const Text('导出本地设置和本地记录为 JSON 文件。'),
+            title: const Text('备份数据'),
+            subtitle: const Text('高级功能：导出本地 JSON，主要用于备份或问题排查。'),
             trailing: IconButton(
-              tooltip: '导出数据',
+              tooltip: '备份数据',
               icon: const Icon(Icons.ios_share_outlined),
               onPressed: () => _exportLocalData(context, ref),
             ),
@@ -117,19 +118,40 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       return;
     }
 
-    final directory = await getApplicationDocumentsDirectory();
     final savedAt = DateTime.now();
-    final file = File(
-      p.join(directory.path, 'lumbar_rhythm_weekly_${_dateStamp(savedAt)}.png'),
-    );
-    await file.writeAsBytes(bytes.buffer.asUint8List(), flush: true);
+    final fileName = 'lumbar_rhythm_weekly_${_dateStamp(savedAt)}.png';
+    final imageBytes = bytes.buffer.asUint8List();
+
+    try {
+      final result = await ref.read(galleryImageSaverProvider).savePng(
+            bytes: imageBytes,
+            fileName: fileName,
+          );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (result.saved) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('已保存到相册：Lumbar Rhythm')),
+        );
+        return;
+      }
+    } catch (_) {
+      // Fall back to app documents below so the user still gets a saved image.
+    }
+
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File(p.join(directory.path, fileName));
+    await file.writeAsBytes(imageBytes, flush: true);
 
     if (!mounted) {
       return;
     }
 
     messenger.showSnackBar(
-      SnackBar(content: Text('已保存周报图片：${file.path}')),
+      SnackBar(content: Text('相册保存失败，已保存到应用目录：${file.path}')),
     );
   }
 
@@ -186,6 +208,8 @@ class _DailyReportView extends StatelessWidget {
         const SizedBox(height: 12),
         _LatestRecordCard(record: report.latestRecord),
         const SizedBox(height: 12),
+        _SevenDayTrendCard(report: report),
+        const SizedBox(height: 12),
         RepaintBoundary(
           key: weeklyReportImageKey,
           child: _WeeklyReportImageCard(report: report),
@@ -194,10 +218,10 @@ class _DailyReportView extends StatelessWidget {
         Card(
           child: ListTile(
             leading: const Icon(Icons.image_outlined),
-            title: const Text('保存周报图片'),
-            subtitle: const Text('把最近 7 天汇总保存为本地 PNG 图片。'),
+            title: const Text('保存到相册'),
+            subtitle: const Text('把最近 7 天周报保存为相册 PNG 图片。'),
             trailing: IconButton(
-              tooltip: '保存周报图片',
+              tooltip: '保存到相册',
               icon: const Icon(Icons.download_outlined),
               onPressed: onSaveWeeklyImage,
             ),
@@ -205,6 +229,90 @@ class _DailyReportView extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _SevenDayTrendCard extends StatelessWidget {
+  const _SevenDayTrendCard({required this.report});
+
+  final DailyReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final points = _dailyCounts();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.show_chart_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '最近 7 天趋势',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 180,
+              child: CustomPaint(
+                painter: _SevenDayTrendPainter(
+                  points: points,
+                  lineColor: Theme.of(context).colorScheme.primary,
+                  fillColor: Theme.of(context).colorScheme.primaryContainer,
+                  axisColor: Theme.of(context).colorScheme.outlineVariant,
+                  textColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                child: const SizedBox.expand(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '趋势只反映记录频率，不能代表疼痛程度或康复效果。',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<_TrendPoint> _dailyCounts() {
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day)
+        .subtract(const Duration(days: 6));
+    final counts = {
+      for (var index = 0; index < 7; index++)
+        start.add(Duration(days: index)): 0,
+    };
+
+    for (final record in report.recentRecords) {
+      final day = DateTime(
+        record.createdAt.year,
+        record.createdAt.month,
+        record.createdAt.day,
+      );
+      if (counts.containsKey(day)) {
+        counts[day] = counts[day]! + 1;
+      }
+    }
+
+    return [
+      for (final entry in counts.entries)
+        _TrendPoint(
+          label: '${entry.key.month}/${entry.key.day}',
+          count: entry.value,
+        ),
+    ];
   }
 }
 
@@ -251,6 +359,20 @@ class _WeeklyReportImageCard extends StatelessWidget {
                 value: '${report.activeDaysCount()} 天',
               ),
               const SizedBox(height: 16),
+              SizedBox(
+                height: 160,
+                child: CustomPaint(
+                  painter: _SevenDayTrendPainter(
+                    points: _dailyCounts(),
+                    lineColor: Theme.of(context).colorScheme.primary,
+                    fillColor: Theme.of(context).colorScheme.primaryContainer,
+                    axisColor: Theme.of(context).colorScheme.outlineVariant,
+                    textColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              const SizedBox(height: 16),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -275,6 +397,35 @@ class _WeeklyReportImageCard extends StatelessWidget {
     );
   }
 
+  List<_TrendPoint> _dailyCounts() {
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day)
+        .subtract(const Duration(days: 6));
+    final counts = {
+      for (var index = 0; index < 7; index++)
+        start.add(Duration(days: index)): 0,
+    };
+
+    for (final record in report.recentRecords) {
+      final day = DateTime(
+        record.createdAt.year,
+        record.createdAt.month,
+        record.createdAt.day,
+      );
+      if (counts.containsKey(day)) {
+        counts[day] = counts[day]! + 1;
+      }
+    }
+
+    return [
+      for (final entry in counts.entries)
+        _TrendPoint(
+          label: '${entry.key.month}/${entry.key.day}',
+          count: entry.value,
+        ),
+    ];
+  }
+
   IconData _iconFor(ActivityRecordType type) {
     return switch (type) {
       ActivityRecordType.sitting => Icons.event_seat_outlined,
@@ -282,6 +433,145 @@ class _WeeklyReportImageCard extends StatelessWidget {
       ActivityRecordType.symptom => Icons.healing_outlined,
       ActivityRecordType.stretch => Icons.directions_walk_outlined,
     };
+  }
+}
+
+class _TrendPoint {
+  const _TrendPoint({
+    required this.label,
+    required this.count,
+  });
+
+  final String label;
+  final int count;
+}
+
+class _SevenDayTrendPainter extends CustomPainter {
+  const _SevenDayTrendPainter({
+    required this.points,
+    required this.lineColor,
+    required this.fillColor,
+    required this.axisColor,
+    required this.textColor,
+  });
+
+  final List<_TrendPoint> points;
+  final Color lineColor;
+  final Color fillColor;
+  final Color axisColor;
+  final Color textColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) {
+      return;
+    }
+
+    const leftPadding = 8.0;
+    const rightPadding = 8.0;
+    const topPadding = 16.0;
+    const bottomPadding = 34.0;
+    final chartHeight = size.height - topPadding - bottomPadding;
+    final chartWidth = size.width - leftPadding - rightPadding;
+    final maxCount = points
+        .map((point) => point.count)
+        .fold<int>(1, (max, count) => count > max ? count : max);
+    final stepX = points.length == 1 ? 0.0 : chartWidth / (points.length - 1);
+    final coordinates = [
+      for (var index = 0; index < points.length; index++)
+        Offset(
+          leftPadding + stepX * index,
+          topPadding +
+              chartHeight * (1 - (points[index].count / maxCount).clamp(0, 1)),
+        ),
+    ];
+
+    final axisPaint = Paint()
+      ..color = axisColor
+      ..strokeWidth = 1;
+    for (var index = 0; index < 4; index++) {
+      final y = topPadding + chartHeight * index / 3;
+      canvas.drawLine(
+        Offset(leftPadding, y),
+        Offset(size.width - rightPadding, y),
+        axisPaint,
+      );
+    }
+
+    final fillPath = Path()
+      ..moveTo(coordinates.first.dx, topPadding + chartHeight);
+    for (final coordinate in coordinates) {
+      fillPath.lineTo(coordinate.dx, coordinate.dy);
+    }
+    fillPath.lineTo(coordinates.last.dx, topPadding + chartHeight);
+    fillPath.close();
+    canvas.drawPath(
+      fillPath,
+      Paint()..color = fillColor.withValues(alpha: 0.45),
+    );
+
+    final linePath = Path()..moveTo(coordinates.first.dx, coordinates.first.dy);
+    for (final coordinate in coordinates.skip(1)) {
+      linePath.lineTo(coordinate.dx, coordinate.dy);
+    }
+    canvas.drawPath(
+      linePath,
+      Paint()
+        ..color = lineColor
+        ..strokeWidth = 3
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    final dotPaint = Paint()..color = lineColor;
+    for (var index = 0; index < coordinates.length; index++) {
+      final coordinate = coordinates[index];
+      canvas.drawCircle(coordinate, 5, dotPaint);
+      _drawCenteredText(
+        canvas,
+        points[index].count.toString(),
+        Offset(coordinate.dx, coordinate.dy - 22),
+        11,
+      );
+      _drawCenteredText(
+        canvas,
+        points[index].label,
+        Offset(coordinate.dx, size.height - 12),
+        10,
+      );
+    }
+  }
+
+  void _drawCenteredText(
+    Canvas canvas,
+    String text,
+    Offset center,
+    double fontSize,
+  ) {
+    final paragraphStyle = ui.ParagraphStyle(
+      textAlign: TextAlign.center,
+      fontSize: fontSize,
+    );
+    final textStyle = ui.TextStyle(color: textColor, fontSize: fontSize);
+    final builder = ui.ParagraphBuilder(paragraphStyle)
+      ..pushStyle(textStyle)
+      ..addText(text);
+    final paragraph = builder.build()
+      ..layout(const ui.ParagraphConstraints(width: 48));
+    canvas.drawParagraph(
+      paragraph,
+      Offset(center.dx - 24, center.dy - paragraph.height / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SevenDayTrendPainter oldDelegate) {
+    return oldDelegate.points != points ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.fillColor != fillColor ||
+        oldDelegate.axisColor != axisColor ||
+        oldDelegate.textColor != textColor;
   }
 }
 

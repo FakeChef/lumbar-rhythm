@@ -69,13 +69,19 @@ class HomePage extends ConsumerWidget {
             data: (settings) => _RhythmCard(
               settings: settings,
               onTestReminderPressed: () async {
-                await ref.read(notificationServiceProvider).showTestReminder();
+                final sent = await ref
+                    .read(notificationServiceProvider)
+                    .showTestReminder();
                 if (!context.mounted) {
                   return;
                 }
 
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('已发送测试提醒')),
+                  SnackBar(
+                    content: Text(
+                      sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限',
+                    ),
+                  ),
                 );
               },
             ),

@@ -53,10 +53,16 @@ class SettingsPage extends ConsumerWidget {
                   .setStandingIntervalMinutes(value);
             },
             onTestReminderPressed: () async {
-              await ref.read(notificationServiceProvider).showTestReminder();
+              final sent = await ref
+                  .read(notificationServiceProvider)
+                  .showTestReminder();
               if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('已发送测试提醒')),
+                SnackBar(
+                  content: Text(
+                    sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限',
+                  ),
+                ),
               );
             },
           ),
@@ -69,10 +75,10 @@ class SettingsPage extends ConsumerWidget {
         ),
         ListTile(
           leading: const Icon(Icons.ios_share_outlined),
-          title: const Text('导出数据'),
-          subtitle: const Text('生成一份本地 JSON 文件，包含设置和记录。'),
+          title: const Text('备份数据'),
+          subtitle: const Text('高级功能：导出本地 JSON，主要用于备份或问题排查。'),
           trailing: IconButton(
-            tooltip: '导出数据',
+            tooltip: '备份数据',
             icon: const Icon(Icons.file_download_outlined),
             onPressed: () => _exportLocalData(context, ref),
           ),

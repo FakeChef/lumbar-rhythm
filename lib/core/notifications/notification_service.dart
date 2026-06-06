@@ -82,10 +82,10 @@ class NotificationService {
     await _plugin.cancel(_standingReminderId);
   }
 
-  Future<void> showTestReminder() async {
+  Future<bool> showTestReminder() async {
     final permissionGranted = await requestPermissions();
     if (!permissionGranted) {
-      return;
+      return false;
     }
 
     await _plugin.show(
@@ -94,6 +94,7 @@ class NotificationService {
       '本地通知已可用。后续提醒会按你的设置安排。',
       _notificationDetails(),
     );
+    return true;
   }
 
   Future<void> _scheduleReminder({

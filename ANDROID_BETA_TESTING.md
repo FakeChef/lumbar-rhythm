@@ -30,9 +30,9 @@ You can send this text to testers:
 2. 首页文字和布局是否正常。
 3. 测试提醒是否能发出。
 4. 能否新增久坐、久站、症状记录、活动/拉伸记录。
-5. 报告页统计是否看得懂。
-6. 周报图片是否能保存。
-7. 导出 JSON 和删除全部本地数据是否可用。
+5. 报告页统计和最近 7 天趋势图是否看得懂。
+6. 周报图片是否能保存到手机相册。
+7. 备份 JSON 和删除全部本地数据是否可用。
 8. 有没有卡顿、闪退、看不懂、容易误解或让人焦虑的地方。
 
 注意：这个 App 不是医疗器械，不提供诊断、治疗建议或复发判断。出现明显异常或严重症状时，请及时就医。
@@ -58,9 +58,10 @@ Ask each tester to complete these tasks:
 6. Add one movement/stretch record.
 7. Search or filter records on the records page.
 8. Open the reports page and check today's counts.
-9. Save the recent seven-day report image.
-10. Export local JSON data.
-11. Delete all local data and confirm that reports become empty.
+9. Check the recent seven-day trend chart.
+10. Save the recent seven-day report image to the gallery.
+11. Export local JSON data if the tester understands it is an advanced backup feature.
+12. Delete all local data and confirm that reports become empty.
 
 ## Feedback template
 
@@ -72,8 +73,9 @@ Android 版本：
 通知是否成功：
 记录是否成功：
 报告是否清楚：
-周报图片是否成功：
-导出/删除是否成功：
+最近 7 天趋势图是否清楚：
+周报图片是否成功保存到相册：
+备份 JSON/删除是否成功：
 是否有闪退或卡顿：
 哪里看不懂：
 哪里让你不舒服或焦虑：
