@@ -50,7 +50,7 @@ class _MainShellState extends State<MainShell> {
           NavigationDestination(
             icon: Icon(Icons.accessibility_new_outlined),
             selectedIcon: Icon(Icons.accessibility_new),
-            label: '动作',
+            label: '康复',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

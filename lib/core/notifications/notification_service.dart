@@ -3,9 +3,45 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../features/posture/domain/posture_session.dart';
+
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService();
 });
+
+enum ReminderKind {
+  sitting,
+  standing,
+}
+
+class ReminderSchedulePlan {
+  const ReminderSchedulePlan({required this.kinds});
+
+  final List<ReminderKind> kinds;
+
+  bool get shouldCancelOnly => kinds.isEmpty;
+}
+
+ReminderSchedulePlan buildReminderSchedulePlan({
+  required bool enabled,
+  required PostureType? currentPosture,
+}) {
+  if (!enabled || currentPosture == null) {
+    return const ReminderSchedulePlan(kinds: []);
+  }
+
+  return switch (currentPosture) {
+    PostureType.sitting => const ReminderSchedulePlan(
+        kinds: [ReminderKind.sitting],
+      ),
+    PostureType.standing => const ReminderSchedulePlan(
+        kinds: [ReminderKind.standing],
+      ),
+    PostureType.walking || PostureType.resting => const ReminderSchedulePlan(
+        kinds: [],
+      ),
+  };
+}
 
 class NotificationService {
   static const _sittingReminderId = 101;
@@ -57,10 +93,16 @@ class NotificationService {
     required bool enabled,
     required int sittingIntervalMinutes,
     required int standingIntervalMinutes,
+    PostureType? currentPosture,
   }) async {
     await cancelScheduledReminders();
 
-    if (!enabled) {
+    final plan = buildReminderSchedulePlan(
+      enabled: enabled,
+      currentPosture: currentPosture,
+    );
+
+    if (plan.shouldCancelOnly) {
       return;
     }
 
@@ -69,18 +111,24 @@ class NotificationService {
       return;
     }
 
-    await _scheduleReminder(
-      id: _sittingReminderId,
-      title: '该起身活动一下了',
-      body: '已经接近久坐提醒间隔，建议短暂站立或走动。',
-      minutesFromNow: sittingIntervalMinutes,
-    );
-    await _scheduleReminder(
-      id: _standingReminderId,
-      title: '该坐下休息一下了',
-      body: '已经接近久站提醒间隔，建议短暂坐下放松。',
-      minutesFromNow: standingIntervalMinutes,
-    );
+    for (final kind in plan.kinds) {
+      switch (kind) {
+        case ReminderKind.sitting:
+          await _scheduleReminder(
+            id: _sittingReminderId,
+            title: '该起身活动一下了',
+            body: '已经接近久坐提醒间隔，建议短暂站立或走动。',
+            minutesFromNow: sittingIntervalMinutes,
+          );
+        case ReminderKind.standing:
+          await _scheduleReminder(
+            id: _standingReminderId,
+            title: '该坐下休息一下了',
+            body: '已经接近久站提醒间隔，建议短暂坐下放松。',
+            minutesFromNow: standingIntervalMinutes,
+          );
+      }
+    }
   }
 
   Future<void> cancelScheduledReminders() async {

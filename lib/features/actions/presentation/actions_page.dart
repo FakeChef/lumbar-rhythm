@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../records/application/activity_records_controller.dart';
-import '../../records/domain/activity_record.dart';
 import '../../reports/application/daily_report_controller.dart';
+import '../data/rehab_repository.dart';
 import '../domain/action_item.dart';
 
 class ActionsPage extends ConsumerWidget {
@@ -11,11 +10,13 @@ class ActionsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final actionsState = ref.watch(_rehabActionsProvider);
+
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         Text(
-          '动作',
+          '康复',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
@@ -24,30 +25,64 @@ class ActionsPage extends ConsumerWidget {
         const Card(
           child: ListTile(
             leading: Icon(Icons.info_outline),
-            title: Text('温和活动提示'),
-            subtitle: Text('动作仅用于久坐久站后的轻量活动提醒；如果疼痛明显加重，应停止并及时咨询专业人员。'),
+            title: Text('康复记录'),
+            subtitle: Text('这里的动作只是记录模板，用于回顾完成量和做后反应，不作为治疗处方。'),
           ),
         ),
         const SizedBox(height: 12),
-        for (final item in actionLibrary) ...[
-          _ActionItemCard(
-            item: item,
-            onCompleted: () => _markCompleted(context, ref, item),
+        actionsState.when(
+          loading: () => const Card(
+            child: ListTile(
+              leading: CircularProgressIndicator(),
+              title: Text('正在读取康复模板'),
+            ),
           ),
-          const SizedBox(height: 12),
-        ],
+          error: (error, stackTrace) => Card(
+            child: ListTile(
+              leading: const Icon(Icons.error_outline),
+              title: const Text('康复模板读取失败'),
+              trailing: TextButton(
+                onPressed: () => ref.invalidate(_rehabActionsProvider),
+                child: const Text('重试'),
+              ),
+            ),
+          ),
+          data: (actions) => Column(
+            children: [
+              for (final action in actions) ...[
+                _RehabActionCard(
+                  action: action,
+                  onRecord: () => _showLogDialog(context, ref, action),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  Future<void> _markCompleted(
+  Future<void> _showLogDialog(
     BuildContext context,
     WidgetRef ref,
-    ActionItem item,
+    RehabAction action,
   ) async {
-    await ref.read(activityRecordsControllerProvider.notifier).addRecord(
-          type: ActivityRecordType.stretch,
-          note: '完成动作：${item.name}',
+    final result = await showDialog<_RehabLogDraft>(
+      context: context,
+      builder: (context) => _RehabLogDialog(action: action),
+    );
+    if (result == null) {
+      return;
+    }
+
+    await ref.read(rehabRepositoryProvider).addLog(
+          action: action,
+          amount: result.amount,
+          unit: result.unit,
+          reaction: result.reaction,
+          symptomTag: result.symptomTag,
+          note: result.note,
         );
     ref.invalidate(dailyReportControllerProvider);
 
@@ -55,20 +90,33 @@ class ActionsPage extends ConsumerWidget {
       return;
     }
 
+    if (result.reaction == RehabReaction.muchWorse) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('建议减少量、暂停观察，必要时咨询医生或康复师。'),
+        ),
+      );
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已记录：${item.name}')),
+      SnackBar(content: Text('已记录：${action.name}')),
     );
   }
 }
 
-class _ActionItemCard extends StatelessWidget {
-  const _ActionItemCard({
-    required this.item,
-    required this.onCompleted,
+final _rehabActionsProvider = FutureProvider<List<RehabAction>>((ref) {
+  return ref.watch(rehabRepositoryProvider).loadActions();
+});
+
+class _RehabActionCard extends StatelessWidget {
+  const _RehabActionCard({
+    required this.action,
+    required this.onRecord,
   });
 
-  final ActionItem item;
-  final VoidCallback onCompleted;
+  final RehabAction action;
+  final VoidCallback onRecord;
 
   @override
   Widget build(BuildContext context) {
@@ -84,24 +132,24 @@ class _ActionItemCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    item.name,
+                    action.name,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
                   ),
                 ),
-                Text(item.duration),
+                Text(action.defaultUnit),
               ],
             ),
             const SizedBox(height: 8),
-            Text(item.instructions),
+            Text(action.guidance),
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
               child: FilledButton.icon(
-                onPressed: onCompleted,
-                icon: const Icon(Icons.check_outlined),
-                label: const Text('已完成'),
+                onPressed: onRecord,
+                icon: const Icon(Icons.add_task_outlined),
+                label: const Text('记录'),
               ),
             ),
           ],
@@ -109,4 +157,133 @@ class _ActionItemCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _RehabLogDialog extends StatefulWidget {
+  const _RehabLogDialog({required this.action});
+
+  final RehabAction action;
+
+  @override
+  State<_RehabLogDialog> createState() => _RehabLogDialogState();
+}
+
+class _RehabLogDialogState extends State<_RehabLogDialog> {
+  late final TextEditingController _amountController;
+  late final TextEditingController _unitController;
+  final _symptomController = TextEditingController();
+  final _noteController = TextEditingController();
+  RehabReaction _reaction = RehabReaction.noChange;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController = TextEditingController(text: '1');
+    _unitController = TextEditingController(text: widget.action.defaultUnit);
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _unitController.dispose();
+    _symptomController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('记录：${widget.action.name}'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _amountController,
+                    decoration: const InputDecoration(labelText: '完成量'),
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _unitController,
+                    decoration: const InputDecoration(labelText: '单位'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<RehabReaction>(
+              initialValue: _reaction,
+              decoration: const InputDecoration(labelText: '做后反应'),
+              items: [
+                for (final reaction in RehabReaction.values)
+                  DropdownMenuItem(
+                    value: reaction,
+                    child: Text(reaction.label),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _reaction = value);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _symptomController,
+              decoration: const InputDecoration(labelText: '可选症状标签'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _noteController,
+              decoration: const InputDecoration(labelText: '备注'),
+              maxLines: 2,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.of(context).pop(
+              _RehabLogDraft(
+                amount: _amountController.text,
+                unit: _unitController.text,
+                reaction: _reaction,
+                symptomTag: _symptomController.text,
+                note: _noteController.text,
+              ),
+            );
+          },
+          child: const Text('保存'),
+        ),
+      ],
+    );
+  }
+}
+
+class _RehabLogDraft {
+  const _RehabLogDraft({
+    required this.amount,
+    required this.unit,
+    required this.reaction,
+    required this.symptomTag,
+    required this.note,
+  });
+
+  final String amount;
+  final String unit;
+  final RehabReaction reaction;
+  final String symptomTag;
+  final String note;
 }

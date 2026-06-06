@@ -1,6 +1,6 @@
 # Release Checklist
 
-This checklist is for preparing Lumbar Rhythm for Android and iOS review.
+This checklist is for preparing Lumbar Rhythm for Android review.
 
 ## Product Scope
 
@@ -45,27 +45,26 @@ This checklist is for preparing Lumbar Rhythm for Android and iOS review.
 - Release APK or AAB can be built for Android distribution.
 - Android beta testing guide is documented in `ANDROID_BETA_TESTING.md`.
 
-## iOS
-
-- App name is correct.
-- Notification permission flow has been checked.
-- Local notification test works after permission is granted.
-- Export and delete local data have been checked on a device or simulator.
-- App Store privacy labels match the local-only data model.
-
 ## Functional QA
 
 - Home page opens without errors.
+- Current posture can switch between sitting, standing, walking, and resting.
+- Posture sessions are saved when the user changes state.
+- Sitting reminders are scheduled only when the current posture is sitting.
+- Standing reminders are scheduled only when the current posture is standing.
+- Walking and resting cancel sitting and standing reminders.
 - Records can be created, searched, filtered, and deleted.
-- Actions can be marked as completed.
+- Rehabilitation logs can be created from built-in templates.
 - Reports show today's summary.
+- Reports show today's rehabilitation summary.
 - Reports show the recent seven-day summary.
+- Reports show recent seven-day rehabilitation summary.
 - Reports show the recent seven-day trend chart.
 - Weekly report image can be saved to the Android gallery as a PNG file.
 - Settings can save reminder intervals.
 - Test notification can be triggered.
-- Local JSON export contains app metadata, settings, and records.
-- Delete all local data clears records and settings.
+- Local JSON export contains app metadata, settings, records, posture sessions, rehabilitation actions, and rehabilitation logs.
+- Delete all local data clears records, settings, posture sessions, and rehabilitation logs while keeping built-in rehabilitation templates available.
 
 ## Build Verification
 

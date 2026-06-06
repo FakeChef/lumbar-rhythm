@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/notifications/notification_service.dart';
 import '../core/theme/app_theme.dart';
+import '../features/posture/data/posture_session_repository.dart';
 import '../features/settings/data/reminder_settings_repository.dart';
 import '../features/shell/presentation/main_shell.dart';
 
@@ -27,10 +28,13 @@ class _LumbarRhythmAppState extends ConsumerState<LumbarRhythmApp> {
 
       final settings =
           await ref.read(reminderSettingsRepositoryProvider).load();
+      final openSession =
+          await ref.read(postureSessionRepositoryProvider).loadOpenSession();
       await notificationService.scheduleNextReminders(
         enabled: settings.remindersEnabled,
         sittingIntervalMinutes: settings.sittingIntervalMinutes,
         standingIntervalMinutes: settings.standingIntervalMinutes,
+        currentPosture: openSession?.type,
       );
     } catch (_) {
       // Notification setup should never prevent the app from opening.

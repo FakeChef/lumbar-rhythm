@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/notifications/notification_service.dart';
+import '../../posture/data/posture_session_repository.dart';
 import '../data/reminder_settings_repository.dart';
 import '../domain/reminder_settings.dart';
 
@@ -41,10 +42,13 @@ class ReminderSettingsController extends AsyncNotifier<ReminderSettings> {
     state = AsyncData(next);
     await ref.read(reminderSettingsRepositoryProvider).save(next);
     try {
+      final openSession =
+          await ref.read(postureSessionRepositoryProvider).loadOpenSession();
       await ref.read(notificationServiceProvider).scheduleNextReminders(
             enabled: next.remindersEnabled,
             sittingIntervalMinutes: next.sittingIntervalMinutes,
             standingIntervalMinutes: next.standingIntervalMinutes,
+            currentPosture: openSession?.type,
           );
     } catch (_) {
       // Settings remain saved even if the platform cannot schedule reminders.

@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
+import 'package:lumbar_rhythm/features/posture/data/posture_session_repository.dart';
+import 'package:lumbar_rhythm/features/posture/domain/posture_session.dart';
 import 'package:lumbar_rhythm/features/settings/application/reminder_settings_controller.dart';
 import 'package:lumbar_rhythm/features/settings/data/reminder_settings_repository.dart';
 import 'package:lumbar_rhythm/features/settings/domain/reminder_settings.dart';
@@ -62,6 +64,9 @@ ProviderContainer _createContainer(
   return ProviderContainer(
     overrides: [
       reminderSettingsRepositoryProvider.overrideWithValue(repository),
+      postureSessionRepositoryProvider.overrideWithValue(
+        _FakePostureSessionRepository(),
+      ),
       if (notificationService != null)
         notificationServiceProvider.overrideWithValue(notificationService),
     ],
@@ -84,6 +89,37 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
   }
 }
 
+class _FakePostureSessionRepository implements PostureSessionRepository {
+  @override
+  Future<void> endCurrent({DateTime? now}) async {}
+
+  @override
+  Future<List<PostureSession>> loadAll() async {
+    return const [];
+  }
+
+  @override
+  Future<PostureSession?> loadOpenSession() async {
+    return PostureSession(
+      id: 1,
+      type: PostureType.sitting,
+      startedAt: DateTime(2026, 6, 6, 9),
+    );
+  }
+
+  @override
+  Future<PostureSession> switchTo({
+    required PostureType type,
+    DateTime? now,
+  }) async {
+    return PostureSession(
+      id: 2,
+      type: type,
+      startedAt: now ?? DateTime(2026, 6, 6, 10),
+    );
+  }
+}
+
 class _FakeNotificationService extends NotificationService {
   final scheduledSettings = <_ScheduledSettings>[];
 
@@ -92,6 +128,7 @@ class _FakeNotificationService extends NotificationService {
     required bool enabled,
     required int sittingIntervalMinutes,
     required int standingIntervalMinutes,
+    PostureType? currentPosture,
   }) async {
     scheduledSettings.add(
       _ScheduledSettings(

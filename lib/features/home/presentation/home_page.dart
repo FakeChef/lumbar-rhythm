@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/notifications/notification_service.dart';
+import '../../posture/application/posture_session_controller.dart';
+import '../../posture/domain/posture_session.dart';
 import '../../records/application/activity_records_controller.dart';
 import '../../records/domain/activity_record.dart';
 import '../../reports/application/daily_report_controller.dart';
@@ -25,6 +27,9 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final reportState = ref.watch(dailyReportControllerProvider);
     final settingsState = ref.watch(reminderSettingsControllerProvider);
+    final postureState = ref.watch(postureSessionControllerProvider);
+    final postureNow =
+        ref.watch(postureClockProvider).valueOrNull ?? DateTime.now();
     final testReminderFeedback = ref.watch(_testReminderFeedbackProvider);
     final testReminderSending = testReminderFeedback == '正在发送测试提醒…';
 
@@ -65,6 +70,23 @@ class HomePage extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           _QuickActionsCard(onNavigate: onNavigate),
+          const SizedBox(height: 12),
+          postureState.when(
+            loading: () => const _HomeLoadingCard(title: '正在读取当前姿势'),
+            error: (error, stackTrace) => _HomeErrorCard(
+              title: '当前姿势读取失败',
+              onRetry: () => ref.invalidate(postureSessionControllerProvider),
+            ),
+            data: (session) => _PostureStatusCard(
+              session: session,
+              now: postureNow,
+              onSelect: (type) async {
+                await ref
+                    .read(postureSessionControllerProvider.notifier)
+                    .switchTo(type);
+              },
+            ),
+          ),
           const SizedBox(height: 12),
           settingsState.when(
             loading: () => const _HomeLoadingCard(title: '正在读取提醒设置'),
@@ -125,9 +147,90 @@ class HomePage extends ConsumerWidget {
   }
 
   void _refresh(WidgetRef ref) {
+    ref.invalidate(postureSessionControllerProvider);
     ref.invalidate(reminderSettingsControllerProvider);
     ref.invalidate(activityRecordsControllerProvider);
     ref.invalidate(dailyReportControllerProvider);
+  }
+}
+
+class _PostureStatusCard extends StatelessWidget {
+  const _PostureStatusCard({
+    required this.session,
+    required this.now,
+    required this.onSelect,
+  });
+
+  final PostureSession? session;
+  final DateTime now;
+  final ValueChanged<PostureType> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = session;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.timer_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    current == null
+                        ? '当前姿势：未开始'
+                        : '当前姿势：${current.type.shortLabel}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+                Text(
+                  current == null
+                      ? '00:00'
+                      : _formatDuration(current.durationAt(now)),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final type in PostureType.values)
+                  ChoiceChip(
+                    selected: current?.type == type,
+                    label: Text(type.label),
+                    onSelected: (_) => onSelect(type),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '切换状态时会自动保存上一段持续时间，并按当前状态安排提醒。',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    final seconds = duration.inSeconds.remainder(60);
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 }
 
@@ -163,7 +266,7 @@ class _QuickActionsCard extends StatelessWidget {
                 FilledButton.tonalIcon(
                   onPressed: () => onNavigate(3),
                   icon: const Icon(Icons.accessibility_new_outlined),
-                  label: const Text('做动作'),
+                  label: const Text('记康复'),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: () => onNavigate(2),

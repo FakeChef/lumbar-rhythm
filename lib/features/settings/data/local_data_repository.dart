@@ -16,13 +16,16 @@ class LocalDataRepository {
 
   static const appName = 'Lumbar Rhythm';
   static const appVersion = '0.1.0+1';
-  static const exportSchemaVersion = 1;
+  static const exportSchemaVersion = 2;
 
   final LocalDatabase _database;
 
   Future<File> exportToJson() async {
     final records = await _database.readAllRecords();
     final settings = await _database.readAllSettings();
+    final postureSessions = await _database.readAllPostureSessions();
+    final rehabActions = await _database.readAllRehabActions();
+    final rehabLogs = await _database.readAllRehabLogs();
     final directory = await getApplicationDocumentsDirectory();
     final exportedAt = DateTime.now();
     final fileName = 'lumbar_rhythm_export_${_dateStamp(exportedAt)}.json';
@@ -37,8 +40,14 @@ class LocalDataRepository {
           'This file was created locally by user action. Lumbar Rhythm does not upload health data.',
       'record_count': records.length,
       'setting_count': settings.length,
+      'posture_session_count': postureSessions.length,
+      'rehab_action_count': rehabActions.length,
+      'rehab_log_count': rehabLogs.length,
       'settings': settings,
       'records': records,
+      'posture_sessions': postureSessions,
+      'rehab_actions': rehabActions,
+      'rehab_logs': rehabLogs,
     };
 
     return file.writeAsString(

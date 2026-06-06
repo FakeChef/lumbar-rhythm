@@ -1,39 +1,132 @@
-class ActionItem {
-  const ActionItem({
+class RehabAction {
+  const RehabAction({
+    required this.id,
     required this.name,
-    required this.duration,
-    required this.instructions,
+    required this.defaultUnit,
+    required this.guidance,
   });
 
+  final int id;
   final String name;
-  final String duration;
-  final String instructions;
+  final String defaultUnit;
+  final String guidance;
 }
 
 const actionLibrary = [
-  ActionItem(
-    name: '站起走动',
-    duration: '2-3 分钟',
-    instructions: '离开座位，缓慢走动，让身体从固定姿势中放松出来。',
+  RehabAction(
+    id: 1,
+    name: '步行',
+    defaultUnit: '分钟',
+    guidance: '按自己舒适节奏记录一次步行。',
   ),
-  ActionItem(
-    name: '肩背放松',
-    duration: '1 分钟',
-    instructions: '自然站立或坐直，轻轻打开肩背，避免用力后仰或快速扭转。',
+  RehabAction(
+    id: 2,
+    name: '室内慢走',
+    defaultUnit: '分钟',
+    guidance: '在室内缓慢走动，留意身体反应。',
   ),
-  ActionItem(
-    name: '髋部轻活动',
-    duration: '1-2 分钟',
-    instructions: '扶稳桌面或墙面，缓慢活动髋部和下肢，保持动作温和。',
+  RehabAction(
+    id: 3,
+    name: '腹式呼吸',
+    defaultUnit: '次',
+    guidance: '选择舒适姿势，放慢呼吸并记录完成量。',
   ),
-  ActionItem(
-    name: '呼吸休息',
-    duration: '1 分钟',
-    instructions: '保持舒适姿势，放慢呼吸，观察身体感受，不强行拉伸。',
+  RehabAction(
+    id: 4,
+    name: '肩胛后收',
+    defaultUnit: '次',
+    guidance: '轻轻向后收肩胛，避免憋气和猛发力。',
   ),
-  ActionItem(
-    name: '短暂坐下',
-    duration: '2 分钟',
-    instructions: '久站后短暂坐下休息，调整姿势，避免长时间保持同一状态。',
+  RehabAction(
+    id: 5,
+    name: '坐站转换',
+    defaultUnit: '次',
+    guidance: '从坐到站缓慢转换，记录完成次数。',
+  ),
+  RehabAction(
+    id: 6,
+    name: '仰卧放松',
+    defaultUnit: '分钟',
+    guidance: '仰卧或舒适躺姿休息，记录持续时间。',
+  ),
+  RehabAction(
+    id: 7,
+    name: '腹横肌轻收紧',
+    defaultUnit: '次',
+    guidance: '轻柔收紧核心，保持自然呼吸。',
+  ),
+  RehabAction(
+    id: 8,
+    name: 'Bird-dog 简化版',
+    defaultUnit: '次',
+    guidance: '降低幅度，按可接受的范围记录。',
+  ),
+  RehabAction(
+    id: 9,
+    name: '侧桥简化版',
+    defaultUnit: '次',
+    guidance: '采用简化支撑方式，记录完成次数。',
+  ),
+  RehabAction(
+    id: 10,
+    name: '一脚垫高放松站姿',
+    defaultUnit: '分钟',
+    guidance: '一脚轻放垫高物，观察站姿放松感。',
   ),
 ];
+
+enum RehabReaction {
+  moreComfortable,
+  noChange,
+  slightlyWorse,
+  muchWorse,
+}
+
+extension RehabReactionLabel on RehabReaction {
+  String get storageValue => name;
+
+  String get label {
+    return switch (this) {
+      RehabReaction.moreComfortable => '更舒服',
+      RehabReaction.noChange => '没变化',
+      RehabReaction.slightlyWorse => '有点加重',
+      RehabReaction.muchWorse => '明显加重',
+    };
+  }
+}
+
+class RehabLog {
+  const RehabLog({
+    required this.id,
+    required this.actionId,
+    required this.amount,
+    required this.unit,
+    required this.reaction,
+    required this.createdAt,
+    this.symptomTag,
+    this.note,
+  });
+
+  final int id;
+  final int actionId;
+  final String amount;
+  final String unit;
+  final RehabReaction reaction;
+  final String? symptomTag;
+  final String? note;
+  final DateTime createdAt;
+}
+
+class RehabSummary {
+  const RehabSummary({
+    required this.logs,
+  });
+
+  final List<RehabLog> logs;
+
+  int get totalCount => logs.length;
+
+  int reactionCount(RehabReaction reaction) {
+    return logs.where((log) => log.reaction == reaction).length;
+  }
+}

@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/media/gallery_image_saver.dart';
+import '../../actions/domain/action_item.dart';
 import '../../records/domain/activity_record.dart';
 import '../../settings/data/local_data_repository.dart';
 import '../application/daily_report_controller.dart';
@@ -208,6 +209,11 @@ class _DailyReportView extends StatelessWidget {
         const SizedBox(height: 12),
         _LatestRecordCard(record: report.latestRecord),
         const SizedBox(height: 12),
+        _RehabSummaryCard(
+          title: '今日康复记录',
+          summary: report.rehabSummary,
+        ),
+        const SizedBox(height: 12),
         _SevenDayTrendCard(report: report),
         const SizedBox(height: 12),
         RepaintBoundary(
@@ -357,6 +363,17 @@ class _WeeklyReportImageCard extends StatelessWidget {
               _WeeklyMetricRow(
                 label: '有记录的天数',
                 value: '${report.activeDaysCount()} 天',
+              ),
+              const SizedBox(height: 8),
+              _WeeklyMetricRow(
+                label: '康复记录',
+                value: '${report.recentRehabSummary.totalCount} 条',
+              ),
+              const SizedBox(height: 8),
+              _WeeklyMetricRow(
+                label: '明显加重',
+                value:
+                    '${report.recentRehabSummary.reactionCount(RehabReaction.muchWorse)} 条',
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -669,6 +686,58 @@ class _LatestRecordCard extends StatelessWidget {
         leading: const Icon(Icons.update_outlined),
         title: const Text('最近一条记录'),
         subtitle: Text('$time · ${currentRecord.type.label}'),
+      ),
+    );
+  }
+}
+
+class _RehabSummaryCard extends StatelessWidget {
+  const _RehabSummaryCard({
+    required this.title,
+    required this.summary,
+  });
+
+  final String title;
+  final RehabSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.accessibility_new_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+                Text('${summary.totalCount} 条'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final reaction in RehabReaction.values)
+                  Chip(
+                    label: Text(
+                      '${reaction.label} ${summary.reactionCount(reaction)}',
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
