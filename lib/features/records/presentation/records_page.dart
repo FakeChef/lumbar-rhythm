@@ -61,7 +61,7 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.info_outline),
           title: Text('症状记录仅用于自我回顾'),
-          subtitle: Text('这里不会进行诊断、治疗建议或复发判断。'),
+          subtitle: Text('这里只做个人记录，不输出医学判断。'),
         ),
         const Divider(height: 32),
         Text(

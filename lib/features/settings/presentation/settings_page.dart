@@ -141,7 +141,7 @@ class SettingsPage extends ConsumerWidget {
         ListTile(
           leading: const Icon(Icons.info_outline),
           title: const Text('免责声明'),
-          subtitle: const Text('查看健康提醒工具的医疗边界。'),
+          subtitle: const Text('查看本 App 的使用边界。'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showDisclaimerDialog(context),
         ),
@@ -334,8 +334,8 @@ class SettingsPage extends ConsumerWidget {
           title: '免责声明',
           items: [
             '本 App 是健康提醒和自我记录工具。',
-            '不提供疾病诊断、治疗建议或复发判断。',
-            '不替代医生、康复师或其他专业医疗建议。',
+            '本报告仅用于个人康复记录回顾，不作为医疗诊断或治疗依据。',
+            '不替代医生、康复师或其他专业人员的线下指导。',
             '出现大小便异常、鞍区麻木、进行性下肢无力、术后伤口红肿发热渗液、疼痛突然明显加重等情况，应及时就医。',
           ],
         );

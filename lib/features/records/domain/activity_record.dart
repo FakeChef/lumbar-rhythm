@@ -21,7 +21,7 @@ extension ActivityRecordTypeLabel on ActivityRecordType {
     return switch (this) {
       ActivityRecordType.sitting => '记录一次较长时间坐姿',
       ActivityRecordType.standing => '记录一次较长时间站立',
-      ActivityRecordType.symptom => '仅记录主观感受，不做诊断判断',
+      ActivityRecordType.symptom => '仅记录主观感受，不做医学判断',
       ActivityRecordType.stretch => '记录一次活动、走动或拉伸',
     };
   }
