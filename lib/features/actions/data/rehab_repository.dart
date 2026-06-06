@@ -16,6 +16,8 @@ abstract class RehabRepository {
     required String unit,
     required RehabReaction reaction,
     String? symptomTag,
+    List<String> symptomTags = const [],
+    String source = 'manual',
     String? note,
     DateTime? createdAt,
   });
@@ -48,6 +50,8 @@ class SqfliteRehabRepository implements RehabRepository {
     required String unit,
     required RehabReaction reaction,
     String? symptomTag,
+    List<String> symptomTags = const [],
+    String source = 'manual',
     String? note,
     DateTime? createdAt,
   }) async {
@@ -55,13 +59,21 @@ class SqfliteRehabRepository implements RehabRepository {
     final cleanedAmount = amount.trim().isEmpty ? '1' : amount.trim();
     final cleanedUnit = unit.trim().isEmpty ? action.defaultUnit : unit.trim();
     final cleanedSymptom = _cleanOptional(symptomTag);
+    final cleanedTags = symptomTags
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toList();
+    final amountValue = double.tryParse(cleanedAmount) ?? 0;
     final cleanedNote = _cleanOptional(note);
     final id = await _database.insertRehabLog(
       actionId: action.id,
       amount: cleanedAmount,
+      amountValue: amountValue,
       unit: cleanedUnit,
       reaction: reaction.storageValue,
       symptomTag: cleanedSymptom,
+      symptomTags: cleanedTags.isEmpty ? cleanedSymptom : cleanedTags.join(','),
+      source: source,
       note: cleanedNote,
       createdAt: savedAt,
     );
@@ -70,9 +82,14 @@ class SqfliteRehabRepository implements RehabRepository {
       id: id,
       actionId: action.id,
       amount: cleanedAmount,
+      amountValue: amountValue,
       unit: cleanedUnit,
       reaction: reaction,
+      source: source,
       symptomTag: cleanedSymptom,
+      symptomTags: cleanedTags.isEmpty
+          ? [if (cleanedSymptom != null) cleanedSymptom]
+          : cleanedTags,
       note: cleanedNote,
       createdAt: savedAt,
     );
@@ -127,12 +144,16 @@ class SqfliteRehabRepository implements RehabRepository {
       id: row['id'] as int,
       actionId: row['action_id'] as int,
       amount: row['amount'] as String,
+      amountValue: (row['amount_value'] as num?)?.toDouble() ??
+          (double.tryParse(row['amount'] as String) ?? 0),
       unit: row['unit'] as String,
       reaction: RehabReaction.values.firstWhere(
         (reaction) => reaction.storageValue == reactionValue,
         orElse: () => RehabReaction.noChange,
       ),
+      source: (row['source'] as String?) ?? 'manual',
       symptomTag: row['symptom_tag'] as String?,
+      symptomTags: _tagsFromRow(row),
       note: row['note'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String),
     );
@@ -141,5 +162,18 @@ class SqfliteRehabRepository implements RehabRepository {
   String? _cleanOptional(String? value) {
     final trimmed = value?.trim();
     return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  List<String> _tagsFromRow(Map<String, Object?> row) {
+    final tags = row['symptom_tags'] as String?;
+    if (tags == null || tags.trim().isEmpty) {
+      final legacy = row['symptom_tag'] as String?;
+      return legacy == null || legacy.trim().isEmpty ? const [] : [legacy];
+    }
+    return tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toList();
   }
 }

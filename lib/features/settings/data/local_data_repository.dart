@@ -16,7 +16,7 @@ class LocalDataRepository {
 
   static const appName = 'Lumbar Rhythm';
   static const appVersion = '0.1.0+1';
-  static const exportSchemaVersion = 2;
+  static const exportSchemaVersion = 3;
 
   final LocalDatabase _database;
 
@@ -26,6 +26,9 @@ class LocalDataRepository {
     final postureSessions = await _database.readAllPostureSessions();
     final rehabActions = await _database.readAllRehabActions();
     final rehabLogs = await _database.readAllRehabLogs();
+    final recoveryProfile = await _database.readRecoveryProfile();
+    final dailyRecoveryNotes = await _database.readAllDailyRecoveryNotes();
+    final recoveryMilestones = await _database.readAllRecoveryMilestones();
     final directory = await getApplicationDocumentsDirectory();
     final exportedAt = DateTime.now();
     final fileName = 'lumbar_rhythm_export_${_dateStamp(exportedAt)}.json';
@@ -43,11 +46,16 @@ class LocalDataRepository {
       'posture_session_count': postureSessions.length,
       'rehab_action_count': rehabActions.length,
       'rehab_log_count': rehabLogs.length,
+      'daily_recovery_note_count': dailyRecoveryNotes.length,
+      'recovery_milestone_count': recoveryMilestones.length,
       'settings': settings,
       'records': records,
       'posture_sessions': postureSessions,
       'rehab_actions': rehabActions,
       'rehab_logs': rehabLogs,
+      'recovery_profile': recoveryProfile,
+      'daily_recovery_notes': dailyRecoveryNotes,
+      'recovery_milestones': recoveryMilestones,
     };
 
     return file.writeAsString(

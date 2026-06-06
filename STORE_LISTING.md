@@ -8,29 +8,27 @@ Lumbar Rhythm
 
 ## Subtitle
 
-Local sitting and standing reminders
+Post-surgery recovery journal and local reminder app
 
 ## Short Description
 
-Lumbar Rhythm is a free, local-first reminder and self-recording app for people who want to reduce long periods of sitting or standing.
+Lumbar Rhythm is a free, local-first post-surgery recovery journal and local reminder app.
 
 ## Full Description
 
-Lumbar Rhythm helps you build a gentler daily rhythm around sitting, standing, walking, resting, short movement breaks, and self-recording.
+Lumbar Rhythm helps you keep a local journal of post-surgery recovery activities, sitting and standing rhythm, symptom changes, recovery milestones, and simple reports.
 
-The app is designed for people with lumbar discomfort concerns, post-surgery recovery needs, and desk workers who spend long hours in one posture. It provides local posture timers, reminders, simple records, rehabilitation activity logs, and local reports so you can review your own routine without creating an account or uploading health data.
+The app is designed for people who want a private local journal during lumbar disc post-surgery recovery. Sitting and standing reminders remain a basic tool, while the main focus is daily recovery logging and local review without creating an account or uploading health data.
 
 Core features:
 
+- Recovery profile with optional surgery date
+- Daily recovery notes for overall feeling and symptom scores
 - Current posture timer for sitting, standing, walking, and resting
-- Sitting reminder intervals when the current posture is sitting
-- Standing reminder intervals when the current posture is standing
-- Local notification test
-- Quick local records for sitting, standing, symptoms, and movement
+- Sitting and standing local reminders based on current posture
 - Rehabilitation activity record templates
-- Today's local report
-- Recent seven-day local report
-- Record search and filtering
+- Recovery milestones for personal notes and review points
+- Daily, seven-day, and stage-style local recovery reports
 - Local JSON export
 - Delete all local data
 

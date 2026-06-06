@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../home/presentation/home_page.dart';
+import '../../milestones/presentation/milestones_page.dart';
 import '../../reports/presentation/reports_page.dart';
 import '../../settings/presentation/settings_page.dart';
 
@@ -18,6 +19,7 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final pages = [
       const HomePage(),
+      const MilestonesPage(),
       const ReportsPage(),
       const SettingsPage(),
     ];
@@ -32,6 +34,11 @@ class _MainShellState extends State<MainShell> {
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: '首页',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.flag_outlined),
+            selectedIcon: Icon(Icons.flag),
+            label: '节点',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),

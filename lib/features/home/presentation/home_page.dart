@@ -5,12 +5,19 @@ import '../../actions/data/rehab_repository.dart';
 import '../../actions/domain/action_item.dart';
 import '../../posture/application/posture_session_controller.dart';
 import '../../posture/domain/posture_session.dart';
+import '../../recovery/data/recovery_repository.dart';
+import '../../recovery/domain/daily_recovery_note.dart';
+import '../../recovery/domain/recovery_profile.dart';
 import '../../reports/application/daily_report_controller.dart';
 import '../../settings/application/reminder_settings_controller.dart';
 import '../../settings/domain/reminder_settings.dart';
 
 final _homeRehabActionsProvider = FutureProvider<List<RehabAction>>((ref) {
   return ref.watch(rehabRepositoryProvider).loadActions();
+});
+
+final _homeRecoveryProfileProvider = FutureProvider((ref) {
+  return ref.watch(recoveryRepositoryProvider).loadProfile();
 });
 
 class HomePage extends ConsumerStatefulWidget {
@@ -34,6 +41,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final settingsState = ref.watch(reminderSettingsControllerProvider);
     final postureState = ref.watch(postureSessionControllerProvider);
     final rehabActionsState = ref.watch(_homeRehabActionsProvider);
+    final recoveryProfileState = ref.watch(_homeRecoveryProfileProvider);
     final postureNow =
         ref.watch(postureClockProvider).valueOrNull ?? DateTime.now();
 
@@ -59,7 +67,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '久坐久站提醒与本地自我记录',
+                      '术后康复日志、坐站提醒与本地报告',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                   ],
@@ -73,6 +81,15 @@ class _HomePageState extends ConsumerState<HomePage> {
             ],
           ),
           const SizedBox(height: 20),
+          recoveryProfileState.when(
+            loading: () => const _HomeLoadingCard(title: '正在读取康复资料'),
+            error: (error, stackTrace) => _HomeErrorCard(
+              title: '康复资料读取失败',
+              onRetry: () => ref.invalidate(_homeRecoveryProfileProvider),
+            ),
+            data: (profile) => _RecoveryStatusCard(profile: profile),
+          ),
+          const SizedBox(height: 12),
           settingsState.when(
             loading: () => const _HomeLoadingCard(title: '正在读取提醒设置'),
             error: (error, stackTrace) => _HomeErrorCard(
@@ -150,6 +167,10 @@ class _HomePageState extends ConsumerState<HomePage> {
               );
             },
           ),
+          const SizedBox(height: 12),
+          _DailyRecoveryNoteCard(
+            onTap: () => _showDailyRecoveryNoteDialog(context),
+          ),
         ],
       ),
     );
@@ -159,6 +180,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     ref.invalidate(postureSessionControllerProvider);
     ref.invalidate(reminderSettingsControllerProvider);
     ref.invalidate(_homeRehabActionsProvider);
+    ref.invalidate(_homeRecoveryProfileProvider);
   }
 
   Future<void> _saveRehabLog(List<RehabAction> actions) async {
@@ -186,6 +208,176 @@ class _HomePageState extends ConsumerState<HomePage> {
         : '已保存康复记录';
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _showDailyRecoveryNoteDialog(BuildContext context) async {
+    final repository = ref.read(recoveryRepositoryProvider);
+    final today = DateTime.now();
+    final existing = await repository.loadNote(today);
+    if (!context.mounted) return;
+
+    var feeling = existing?.overallFeeling ?? OverallFeeling.same;
+    var backPain = existing?.backPainScore ?? 0;
+    var legSymptom = existing?.legSymptomScore ?? 0;
+    var fatigue = existing?.fatigueScore ?? 0;
+    var note = existing?.note ?? '';
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('今日康复小结'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DropdownButtonFormField<OverallFeeling>(
+                      initialValue: feeling,
+                      decoration: const InputDecoration(labelText: '总体感觉'),
+                      items: [
+                        for (final value in OverallFeeling.values)
+                          DropdownMenuItem(
+                            value: value,
+                            child: Text(value.label),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => feeling = value);
+                        }
+                      },
+                    ),
+                    _ScoreSlider(
+                      label: '腰部不适',
+                      value: backPain,
+                      onChanged: (value) =>
+                          setDialogState(() => backPain = value),
+                    ),
+                    _ScoreSlider(
+                      label: '腿部症状',
+                      value: legSymptom,
+                      onChanged: (value) =>
+                          setDialogState(() => legSymptom = value),
+                    ),
+                    _ScoreSlider(
+                      label: '疲劳感',
+                      value: fatigue,
+                      onChanged: (value) =>
+                          setDialogState(() => fatigue = value),
+                    ),
+                    TextFormField(
+                      initialValue: note,
+                      decoration: const InputDecoration(labelText: '备注（可选）'),
+                      maxLines: 3,
+                      onChanged: (value) => note = value,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('保存'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (saved != true) return;
+
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(this.context);
+    await repository.saveNote(
+      date: today,
+      overallFeeling: feeling,
+      backPainScore: backPain,
+      legSymptomScore: legSymptom,
+      fatigueScore: fatigue,
+      note: note,
+    );
+    ref.invalidate(dailyReportControllerProvider);
+    if (!mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(content: Text('已保存今日康复小结')),
+    );
+  }
+}
+
+class _RecoveryStatusCard extends StatelessWidget {
+  const _RecoveryStatusCard({required this.profile});
+
+  final RecoveryProfile? profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final day = profile?.postSurgeryDay(DateTime.now());
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.timeline_outlined),
+        title: Text(day == null ? '康复资料' : '术后第 $day 天'),
+        subtitle: Text(day == null ? '可在设置中添加手术日期。' : '持续记录自己的康复之路。'),
+      ),
+    );
+  }
+}
+
+class _DailyRecoveryNoteCard extends StatelessWidget {
+  const _DailyRecoveryNoteCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.edit_note_outlined),
+        title: const Text('今日康复小结'),
+        subtitle: const Text('记录总体感觉、腰部不适、腿部症状和疲劳感。'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _ScoreSlider extends StatelessWidget {
+  const _ScoreSlider({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 12),
+        Text('$label：$value/10'),
+        Slider(
+          value: value.toDouble(),
+          min: 0,
+          max: 10,
+          divisions: 10,
+          label: '$value',
+          onChanged: (value) => onChanged(value.round()),
+        ),
+      ],
+    );
   }
 }
 

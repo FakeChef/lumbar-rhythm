@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/notifications/notification_service.dart';
 import '../../posture/application/posture_session_controller.dart';
 import '../../records/application/activity_records_controller.dart';
+import '../../recovery/data/recovery_repository.dart';
 import '../../reports/application/daily_report_controller.dart';
 import '../application/reminder_settings_controller.dart';
 import '../data/local_data_repository.dart';
@@ -94,6 +95,14 @@ class SettingsPage extends ConsumerWidget {
           secondary: const Icon(Icons.nightlight_round_outlined),
           title: const Text('夜间勿扰'),
           subtitle: const Text('开启后用于提醒自己夜间减少打扰；当前版本不请求额外系统权限。'),
+        ),
+        const Divider(height: 32),
+        ListTile(
+          leading: const Icon(Icons.badge_outlined),
+          title: const Text('我的康复资料'),
+          subtitle: const Text('可添加手术日期、手术类型和当前目标，也可以跳过。'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _showRecoveryProfileDialog(context, ref),
         ),
         const Divider(height: 32),
         const ListTile(
@@ -202,6 +211,103 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
+  Future<void> _showRecoveryProfileDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final repository = ref.read(recoveryRepositoryProvider);
+    final profile = await repository.loadProfile();
+    if (!context.mounted) return;
+
+    DateTime? surgeryDate = profile?.surgeryDate;
+    var surgeryType = profile?.surgeryType ?? '';
+    var mainGoal = profile?.mainGoal ?? '';
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('我的康复资料'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.event_outlined),
+                      title: Text(
+                        surgeryDate == null
+                            ? '未设置手术日期'
+                            : _formatDate(surgeryDate!),
+                      ),
+                      subtitle: const Text('可跳过，也可用于显示术后第几天。'),
+                      trailing: TextButton(
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: surgeryDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime.now().add(
+                              const Duration(days: 365),
+                            ),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => surgeryDate = picked);
+                          }
+                        },
+                        child: const Text('选择'),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setDialogState(() => surgeryDate = null),
+                      child: const Text('跳过手术日期'),
+                    ),
+                    TextFormField(
+                      initialValue: surgeryType,
+                      decoration: const InputDecoration(labelText: '手术类型（可选）'),
+                      onChanged: (value) => surgeryType = value,
+                    ),
+                    TextFormField(
+                      initialValue: mainGoal,
+                      decoration: const InputDecoration(labelText: '当前目标（可选）'),
+                      onChanged: (value) => mainGoal = value,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('保存'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (saved != true) return;
+
+    await repository.saveProfile(
+      surgeryDate: surgeryDate,
+      surgeryType: surgeryType,
+      mainGoal: mainGoal,
+    );
+    ref.invalidate(dailyReportControllerProvider);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已保存康复资料')),
+    );
+  }
+
   void _showPrivacyDialog(BuildContext context) {
     showDialog<void>(
       context: context,
@@ -272,6 +378,10 @@ class SettingsPage extends ConsumerWidget {
       },
     );
   }
+}
+
+String _formatDate(DateTime date) {
+  return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }
 
 class _ReminderSettingsSection extends StatelessWidget {

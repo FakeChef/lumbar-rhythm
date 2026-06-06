@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../actions/data/rehab_repository.dart';
+import '../../milestones/data/recovery_milestone_repository.dart';
+import '../../posture/data/posture_session_repository.dart';
 import '../../posture/domain/posture_summary.dart';
+import '../../recovery/data/recovery_repository.dart';
 import '../domain/daily_report.dart';
 
 enum ReportPeriod {
@@ -33,21 +36,55 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
   @override
   Future<DailyReport> build() async {
     final rehabRepository = ref.watch(rehabRepositoryProvider);
+    final postureRepository = ref.watch(postureSessionRepositoryProvider);
+    final recoveryRepository = ref.watch(recoveryRepositoryProvider);
+    final milestoneRepository = ref.watch(recoveryMilestoneRepositoryProvider);
     final period = ref.watch(reportPeriodProvider);
     final now = DateTime.now();
     final rehabActions = await rehabRepository.loadActions();
     final range = _rangeFor(period, now);
+    final recentRange = (
+      start: DateTime(now.year, now.month, now.day).subtract(
+        const Duration(days: 6),
+      ),
+      end: DateTime(now.year, now.month, now.day).add(const Duration(days: 1)),
+    );
     final rehabLogs = (await rehabRepository.loadAllLogs()).where((log) {
       return _isWithin(log.createdAt, range);
     }).toList();
-    final emptyPostureSummary = PostureSummary(sessions: const [], now: now);
+    final recentRehabLogs = (await rehabRepository.loadAllLogs()).where((log) {
+      return _isWithin(log.createdAt, recentRange);
+    }).toList();
+    final postureSessions =
+        (await postureRepository.loadAll()).where((session) {
+      return _isWithin(session.startedAt, range);
+    }).toList();
+    final recentPostureSessions =
+        (await postureRepository.loadAll()).where((session) {
+      return _isWithin(session.startedAt, recentRange);
+    }).toList();
+    final dailyNotes = await recoveryRepository.loadNotesBetween(
+      start: range.start,
+      end: range.end,
+    );
+    final recentDailyNotes = await recoveryRepository.loadNotesBetween(
+      start: recentRange.start,
+      end: recentRange.end,
+    );
 
     return DailyReport(
+      profile: await recoveryRepository.loadProfile(),
       rehabLogs: rehabLogs,
-      recentRehabLogs: rehabLogs,
+      recentRehabLogs: recentRehabLogs,
       rehabActions: rehabActions,
-      postureSummary: emptyPostureSummary,
-      recentPostureSummary: emptyPostureSummary,
+      dailyNotes: dailyNotes,
+      recentDailyNotes: recentDailyNotes,
+      milestones: await milestoneRepository.loadMilestones(),
+      postureSummary: PostureSummary(sessions: postureSessions, now: now),
+      recentPostureSummary: PostureSummary(
+        sessions: recentPostureSessions,
+        now: now,
+      ),
     );
   }
 

@@ -100,19 +100,25 @@ class RehabLog {
     required this.id,
     required this.actionId,
     required this.amount,
+    required this.amountValue,
     required this.unit,
     required this.reaction,
+    required this.source,
     required this.createdAt,
     this.symptomTag,
+    this.symptomTags = const [],
     this.note,
   });
 
   final int id;
   final int actionId;
   final String amount;
+  final double amountValue;
   final String unit;
   final RehabReaction reaction;
+  final String source;
   final String? symptomTag;
+  final List<String> symptomTags;
   final String? note;
   final DateTime createdAt;
 }
@@ -139,7 +145,7 @@ class RehabSummary {
         .toSet();
     return logs
         .where((log) => matchingActionIds.contains(log.actionId))
-        .map((log) => double.tryParse(log.amount) ?? 0)
+        .map((log) => log.amountValue)
         .fold(0.0, (sum, amount) => sum + amount);
   }
 

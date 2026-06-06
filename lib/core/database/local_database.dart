@@ -11,7 +11,7 @@ final localDatabaseProvider = Provider<LocalDatabase>((ref) {
 class LocalDatabase {
   LocalDatabase({String? databasePath}) : _databasePath = databasePath;
 
-  static const schemaVersion = 2;
+  static const schemaVersion = 3;
 
   final String? _databasePath;
   Database? _database;
@@ -30,12 +30,19 @@ class LocalDatabase {
       onCreate: (db, version) async {
         await _createV1Tables(db);
         await _createV2Tables(db);
+        await _createV3Tables(db);
         await _seedRehabActions(db);
+        await _seedRecoveryMilestones(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await _createV2Tables(db);
           await _seedRehabActions(db);
+        }
+        if (oldVersion < 3) {
+          await _createV3Tables(db);
+          await _migrateRehabLogsToV3(db);
+          await _seedRecoveryMilestones(db);
         }
       },
     );
@@ -139,9 +146,13 @@ class LocalDatabase {
       await transaction.delete('records');
       await transaction.delete('posture_sessions');
       await transaction.delete('rehab_logs');
+      await transaction.delete('daily_recovery_notes');
+      await transaction.delete('recovery_profile');
+      await transaction.delete('recovery_milestones');
       await transaction.delete('settings');
       await transaction.delete('rehab_actions');
       await _seedRehabActions(transaction);
+      await _seedRecoveryMilestones(transaction);
     });
   }
 
@@ -227,9 +238,12 @@ class LocalDatabase {
   Future<int> insertRehabLog({
     required int actionId,
     required String amount,
+    required double amountValue,
     required String unit,
     required String reaction,
     required String? symptomTag,
+    required String? symptomTags,
+    required String source,
     required String? note,
     required DateTime createdAt,
   }) async {
@@ -239,9 +253,12 @@ class LocalDatabase {
       {
         'action_id': actionId,
         'amount': amount,
+        'amount_value': amountValue,
         'unit': unit,
         'reaction': reaction,
         'symptom_tag': symptomTag,
+        'symptom_tags': symptomTags,
+        'source': source,
         'note': note,
         'created_at': createdAt.toIso8601String(),
       },
@@ -264,6 +281,147 @@ class LocalDatabase {
   Future<List<Map<String, Object?>>> readAllRehabLogs() async {
     final database = await instance;
     return database.query('rehab_logs', orderBy: 'created_at DESC');
+  }
+
+  Future<Map<String, Object?>?> readRecoveryProfile() async {
+    final database = await instance;
+    final rows = await database.query('recovery_profile', limit: 1);
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  Future<void> upsertRecoveryProfile({
+    required DateTime? surgeryDate,
+    required String? surgeryType,
+    required String? mainGoal,
+    required DateTime now,
+  }) async {
+    final database = await instance;
+    final existing = await readRecoveryProfile();
+    await database.insert(
+      'recovery_profile',
+      {
+        'id': 1,
+        'surgery_date': surgeryDate?.toIso8601String(),
+        'surgery_type': surgeryType,
+        'main_goal': mainGoal,
+        'created_at': existing?['created_at'] ?? now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Map<String, Object?>?> readDailyRecoveryNote(DateTime date) async {
+    final database = await instance;
+    final rows = await database.query(
+      'daily_recovery_notes',
+      where: 'date = ?',
+      whereArgs: [_dateKey(date)],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  Future<void> upsertDailyRecoveryNote({
+    required DateTime date,
+    required String overallFeeling,
+    required int backPainScore,
+    required int legSymptomScore,
+    required int fatigueScore,
+    required String? note,
+    required DateTime now,
+  }) async {
+    final database = await instance;
+    final existing = await readDailyRecoveryNote(date);
+    await database.insert(
+      'daily_recovery_notes',
+      {
+        'date': _dateKey(date),
+        'overall_feeling': overallFeeling,
+        'back_pain_score': backPainScore,
+        'leg_symptom_score': legSymptomScore,
+        'fatigue_score': fatigueScore,
+        'note': note,
+        'created_at': existing?['created_at'] ?? now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, Object?>>> readDailyRecoveryNotesBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final database = await instance;
+    return database.query(
+      'daily_recovery_notes',
+      where: 'date >= ? AND date < ?',
+      whereArgs: [_dateKey(start), _dateKey(end)],
+      orderBy: 'date ASC',
+    );
+  }
+
+  Future<List<Map<String, Object?>>> readAllDailyRecoveryNotes() async {
+    final database = await instance;
+    return database.query('daily_recovery_notes', orderBy: 'date DESC');
+  }
+
+  Future<List<Map<String, Object?>>> readRecoveryMilestones() async {
+    final database = await instance;
+    await _ensureRecoveryMilestonesSeeded(database);
+    return database.query('recovery_milestones', orderBy: 'sort_order ASC');
+  }
+
+  Future<int> insertRecoveryMilestone({
+    required String title,
+    required String category,
+    required int? plannedDayOffset,
+    required DateTime? targetDate,
+    required String status,
+    required String? note,
+    required int sortOrder,
+  }) async {
+    final database = await instance;
+    return database.insert(
+      'recovery_milestones',
+      {
+        'title': title,
+        'category': category,
+        'planned_day_offset': plannedDayOffset,
+        'target_date': targetDate?.toIso8601String(),
+        'completed_at': null,
+        'status': status,
+        'note': note,
+        'is_builtin': 0,
+        'sort_order': sortOrder,
+      },
+    );
+  }
+
+  Future<void> updateRecoveryMilestone({
+    required int id,
+    required String status,
+    required DateTime? targetDate,
+    required DateTime? completedAt,
+    required String? note,
+  }) async {
+    final database = await instance;
+    await database.update(
+      'recovery_milestones',
+      {
+        'status': status,
+        'target_date': targetDate?.toIso8601String(),
+        'completed_at': completedAt?.toIso8601String(),
+        'note': note,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<List<Map<String, Object?>>> readAllRecoveryMilestones() {
+    return readRecoveryMilestones();
   }
 
   Future<void> _createV1Tables(DatabaseExecutor db) async {
@@ -307,19 +465,112 @@ class LocalDatabase {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         action_id INTEGER NOT NULL,
         amount TEXT NOT NULL,
+        amount_value REAL,
         unit TEXT NOT NULL,
         reaction TEXT NOT NULL,
         symptom_tag TEXT,
+        symptom_tags TEXT,
+        source TEXT NOT NULL DEFAULT 'manual',
         note TEXT,
         created_at TEXT NOT NULL
       )
     ''');
   }
 
+  Future<void> _createV3Tables(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS recovery_profile (
+        id INTEGER PRIMARY KEY,
+        surgery_date TEXT,
+        surgery_type TEXT,
+        main_goal TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS daily_recovery_notes (
+        date TEXT PRIMARY KEY,
+        overall_feeling TEXT NOT NULL,
+        back_pain_score INTEGER NOT NULL,
+        leg_symptom_score INTEGER NOT NULL,
+        fatigue_score INTEGER NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS recovery_milestones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        planned_day_offset INTEGER,
+        target_date TEXT,
+        completed_at TEXT,
+        status TEXT NOT NULL,
+        note TEXT,
+        is_builtin INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL
+      )
+    ''');
+    await _addColumnIfMissing(db, 'rehab_logs', 'amount_value', 'REAL');
+    await _addColumnIfMissing(
+        db, 'rehab_logs', 'source', "TEXT NOT NULL DEFAULT 'manual'");
+    await _addColumnIfMissing(db, 'rehab_logs', 'symptom_tags', 'TEXT');
+  }
+
+  Future<void> _addColumnIfMissing(
+    DatabaseExecutor db,
+    String table,
+    String column,
+    String definition,
+  ) async {
+    final rows = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = rows.any((row) => row['name'] == column);
+    if (!exists) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+    }
+  }
+
+  Future<void> _migrateRehabLogsToV3(DatabaseExecutor db) async {
+    final rows = await db.query('rehab_logs');
+    for (final row in rows) {
+      final amountValue = row['amount_value'] as num?;
+      if (amountValue != null) {
+        continue;
+      }
+      final parsed = double.tryParse((row['amount'] as String?) ?? '') ?? 0;
+      final symptomTag = row['symptom_tag'] as String?;
+      await db.update(
+        'rehab_logs',
+        {
+          'amount_value': parsed,
+          'source': row['source'] ?? 'manual',
+          'symptom_tags':
+              symptomTag == null || symptomTag.isEmpty ? null : symptomTag,
+        },
+        where: 'id = ?',
+        whereArgs: [row['id']],
+      );
+    }
+  }
+
   Future<void> _ensureRehabActionsSeeded(DatabaseExecutor db) async {
     final rows = await db.query('rehab_actions', limit: 1);
     if (rows.isEmpty) {
       await _seedRehabActions(db);
+    }
+  }
+
+  Future<void> _ensureRecoveryMilestonesSeeded(DatabaseExecutor db) async {
+    final rows = await db.query(
+      'recovery_milestones',
+      where: 'is_builtin = 1',
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      await _seedRecoveryMilestones(db);
     }
   }
 
@@ -350,5 +601,38 @@ class LocalDatabase {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
+  }
+
+  Future<void> _seedRecoveryMilestones(DatabaseExecutor db) async {
+    const milestones = [
+      ('第一周康复日志', '日志', 7),
+      ('第一个月康复回顾', '回顾', 30),
+      ('第一次复诊备注', '复诊', null),
+      ('复工复学备注', '生活', null),
+      ('三个月康复回顾', '回顾', 90),
+    ];
+    for (var index = 0; index < milestones.length; index++) {
+      final item = milestones[index];
+      await db.insert(
+        'recovery_milestones',
+        {
+          'title': item.$1,
+          'category': item.$2,
+          'planned_day_offset': item.$3,
+          'target_date': null,
+          'completed_at': null,
+          'status': 'planned',
+          'note': null,
+          'is_builtin': 1,
+          'sort_order': index + 1,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+  }
+
+  String _dateKey(DateTime date) {
+    final normalized = DateTime(date.year, date.month, date.day);
+    return normalized.toIso8601String().substring(0, 10);
   }
 }

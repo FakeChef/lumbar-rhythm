@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../actions/domain/action_item.dart';
+import '../../recovery/domain/daily_recovery_note.dart';
 import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
 
@@ -54,7 +55,7 @@ class ReportsPage extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         const Text(
-          '报告只汇总康复动作记录，不提供诊断、治疗建议或复发判断。',
+          '本报告仅用于个人康复记录回顾，不作为医疗诊断或治疗依据。',
           style: TextStyle(fontSize: 12),
         ),
       ],
@@ -71,16 +72,20 @@ class _ReportContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summary = report.rehabSummary;
+    final hasAnyRecord = summary.totalCount > 0 ||
+        report.postureSummary.sessions.isNotEmpty ||
+        report.dailyNotes.isNotEmpty ||
+        report.milestones.any((milestone) => milestone.isCompleted);
 
-    if (summary.totalCount == 0) {
+    if (!hasAnyRecord) {
       return _EmptyCard(
-        title: '${_periodTitle(period)}康复记录',
-        message: '当前时间范围内还没有康复动作记录。你可以在首页保存一次康复记录后再回来查看。',
+        title: '${_periodTitle(period)}康复报告',
+        message: '当前时间范围内还没有康复日志。你可以在首页记录康复动作、坐站节奏或今日康复小结。',
       );
     }
 
     if (period == ReportPeriod.day) {
-      return _DailyRehabOverview(summary: summary);
+      return _DailyRehabOverview(report: report);
     }
 
     return _RehabTrendOverview(report: report, period: period);
@@ -88,41 +93,59 @@ class _ReportContent extends StatelessWidget {
 }
 
 class _DailyRehabOverview extends StatelessWidget {
-  const _DailyRehabOverview({required this.summary});
+  const _DailyRehabOverview({required this.report});
 
-  final RehabSummary summary;
+  final DailyReport report;
 
   @override
   Widget build(BuildContext context) {
+    final summary = report.rehabSummary;
+    final posture = report.postureSummary;
     final walkingTotal = summary.totalAmountForActionNamed('步行');
     final muchWorseCount = summary.reactionCount(RehabReaction.muchWorse);
-    final topAction = summary.mostCompletedAction()?.name ?? '暂无';
-    final observationActions = summary.observationActionNames();
+    final postSurgeryDay = report.postSurgeryDay(DateTime.now());
 
     return Column(
       children: [
+        _SectionCard(
+          title: '今日康复报告',
+          subtitle:
+              postSurgeryDay == null ? '可在设置中添加手术日期' : '术后第 $postSurgeryDay 天',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SoftMetricRow(
+                  label: '有记录天数', value: '${report.recordedDayCount} 天'),
+              _SoftMetricRow(
+                label: '已完成康复节点',
+                value: '${report.completedMilestoneCount} 个',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         _OverviewGrid(
           cards: [
             _OverviewCardData(
-              icon: Icons.fact_check_outlined,
+              icon: Icons.event_seat_outlined,
               color: _ReportColors.primary,
-              title: '记录次数',
-              value: '${summary.totalCount} 次',
-              subtitle: '今日保存的康复动作记录',
+              title: '坐姿累计',
+              value: _formatDuration(posture.sittingTotal),
+              subtitle: '最长 ${_formatDuration(posture.longestSitting)}',
+            ),
+            _OverviewCardData(
+              icon: Icons.accessibility_new_outlined,
+              color: _ReportColors.walking,
+              title: '站立累计',
+              value: _formatDuration(posture.standingTotal),
+              subtitle: '最长 ${_formatDuration(posture.longestStanding)}',
             ),
             _OverviewCardData(
               icon: Icons.directions_walk_outlined,
-              color: _ReportColors.walking,
+              color: _ReportColors.highlight,
               title: '步行总量',
               value: '${_formatNumber(walkingTotal)} 分钟',
-              subtitle: '来自“步行”动作记录',
-            ),
-            _OverviewCardData(
-              icon: Icons.star_outline,
-              color: _ReportColors.highlight,
-              title: '完成最多',
-              value: topAction,
-              subtitle: '按记录次数统计',
+              subtitle: '来自康复动作记录',
             ),
             _OverviewCardData(
               icon: Icons.visibility_outlined,
@@ -137,12 +160,9 @@ class _DailyRehabOverview extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _SectionCard(
-          title: '做后反应',
-          subtitle: '只用于回顾个人记录',
-          child: _ObservationPanel(
-            muchWorseCount: muchWorseCount,
-            observationActions: observationActions,
-          ),
+          title: '今日康复小结',
+          subtitle: '腰部、腿部和疲劳评分',
+          child: _DailyNotePanel(report: report),
         ),
       ],
     );
@@ -162,7 +182,7 @@ class _RehabTrendOverview extends StatelessWidget {
     return Column(
       children: [
         _TrendCard(
-          title: '${_periodTitle(period)}记录趋势',
+          title: '${_periodTitle(period)}康复动作趋势',
           subtitle: '按天统计康复记录次数',
           bins: bins,
           valueFor: (bin) => bin.rehabCount.toDouble(),
@@ -180,6 +200,8 @@ class _RehabTrendOverview extends StatelessWidget {
           color: _ReportColors.walking,
           emptyMessage: '当前时间范围内还没有步行记录。',
         ),
+        const SizedBox(height: 12),
+        _SymptomTrendCard(report: report),
         const SizedBox(height: 12),
         _TrendSummaryCard(report: report),
       ],
@@ -284,40 +306,80 @@ class _OverviewCard extends StatelessWidget {
   }
 }
 
-class _ObservationPanel extends StatelessWidget {
-  const _ObservationPanel({
-    required this.muchWorseCount,
-    required this.observationActions,
-  });
+class _DailyNotePanel extends StatelessWidget {
+  const _DailyNotePanel({required this.report});
 
-  final int muchWorseCount;
-  final String observationActions;
+  final DailyReport report;
 
   @override
   Widget build(BuildContext context) {
-    final hasObservation = muchWorseCount > 0;
+    final note = report.dailyNotes.isEmpty ? null : report.dailyNotes.last;
+    if (note == null) {
+      return const Text('今天还没有康复小结。');
+    }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(
-          hasObservation
-              ? Icons.visibility_outlined
-              : Icons.check_circle_outline,
-          color: hasObservation ? _ReportColors.warning : _ReportColors.primary,
+        _SoftMetricRow(label: '总体感觉', value: note.overallFeeling.label),
+        _ScoreBars(
+          backPain: note.backPainScore,
+          legSymptom: note.legSymptomScore,
+          fatigue: note.fatigueScore,
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('明显加重 $muchWorseCount 次'),
-              const SizedBox(height: 6),
-              Text('需观察动作：$observationActions'),
-            ],
-          ),
-        ),
+        if (note.note != null && note.note!.isNotEmpty) Text(note.note!),
       ],
+    );
+  }
+}
+
+class _ScoreBars extends StatelessWidget {
+  const _ScoreBars({
+    required this.backPain,
+    required this.legSymptom,
+    required this.fatigue,
+  });
+
+  final int backPain;
+  final int legSymptom;
+  final int fatigue;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _ScoreBar(label: '腰部不适', value: backPain),
+        _ScoreBar(label: '腿部症状', value: legSymptom),
+        _ScoreBar(label: '疲劳感', value: fatigue),
+      ],
+    );
+  }
+}
+
+class _ScoreBar extends StatelessWidget {
+  const _ScoreBar({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(width: 72, child: Text(label)),
+          Expanded(
+            child: LinearProgressIndicator(
+              value: value / 10,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('$value/10'),
+        ],
+      ),
     );
   }
 }
@@ -428,14 +490,31 @@ class _TrendSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summary = report.rehabSummary;
+    final posture = report.postureSummary;
     final topAction = summary.mostCompletedAction()?.name ?? '暂无';
+    final day = report.postSurgeryDay(DateTime.now());
 
     return _SectionCard(
-      title: '汇总',
+      title: '术后阶段报告',
       subtitle: '当前时间范围',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _SoftMetricRow(
+              label: '术后第几天', value: day == null ? '未设置' : '第 $day 天'),
+          _SoftMetricRow(label: '有记录天数', value: '${report.recordedDayCount} 天'),
+          _SoftMetricRow(
+              label: '坐姿累计', value: _formatDuration(posture.sittingTotal)),
+          _SoftMetricRow(
+            label: '最长连续坐姿',
+            value: _formatDuration(posture.longestSitting),
+          ),
+          _SoftMetricRow(
+              label: '站立累计', value: _formatDuration(posture.standingTotal)),
+          _SoftMetricRow(
+            label: '最长连续站立',
+            value: _formatDuration(posture.longestStanding),
+          ),
           _SoftMetricRow(label: '康复记录', value: '${summary.totalCount} 次'),
           _SoftMetricRow(
             label: '步行总量',
@@ -446,6 +525,10 @@ class _TrendSummaryCard extends StatelessWidget {
           _SoftMetricRow(
             label: '明显加重',
             value: '${summary.reactionCount(RehabReaction.muchWorse)} 次',
+          ),
+          _SoftMetricRow(
+            label: '已完成康复节点',
+            value: '${report.completedMilestoneCount} 个',
           ),
         ],
       ),
@@ -599,6 +682,34 @@ class _TrendBin {
   final double walkingMinutes;
 }
 
+class _SymptomTrendCard extends StatelessWidget {
+  const _SymptomTrendCard({required this.report});
+
+  final DailyReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final notes = report.recentDailyNotes;
+    return _SectionCard(
+      title: '最近 7 天康复小结趋势',
+      subtitle: '分数越高代表当天主观感受越强',
+      child: notes.isEmpty
+          ? const Text('最近 7 天还没有康复小结。')
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final note in notes)
+                  _SoftMetricRow(
+                    label: '${note.date.month}/${note.date.day}',
+                    value:
+                        '腰 ${note.backPainScore} · 腿 ${note.legSymptomScore} · 疲劳 ${note.fatigueScore}',
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
 abstract final class _ReportColors {
   static const primary = Color(0xFF2F6B5F);
   static const walking = Color(0xFFE09F3E);
@@ -674,4 +785,16 @@ double _barHeight(double value, double maxValue) {
 
 String _formatNumber(double value) {
   return value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(1);
+}
+
+String _formatDuration(Duration duration) {
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  if (hours > 0 && minutes > 0) {
+    return '$hours 小时 $minutes 分钟';
+  }
+  if (hours > 0) {
+    return '$hours 小时';
+  }
+  return '$minutes 分钟';
 }
