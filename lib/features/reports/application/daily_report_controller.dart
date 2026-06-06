@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../actions/data/rehab_repository.dart';
-import '../../posture/data/posture_session_repository.dart';
 import '../../posture/domain/posture_summary.dart';
 import '../domain/daily_report.dart';
 
@@ -34,7 +33,6 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
   @override
   Future<DailyReport> build() async {
     final rehabRepository = ref.watch(rehabRepositoryProvider);
-    final postureRepository = ref.watch(postureSessionRepositoryProvider);
     final period = ref.watch(reportPeriodProvider);
     final now = DateTime.now();
     final rehabActions = await rehabRepository.loadActions();
@@ -42,20 +40,14 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
     final rehabLogs = (await rehabRepository.loadAllLogs()).where((log) {
       return _isWithin(log.createdAt, range);
     }).toList();
-    final postureSessions =
-        (await postureRepository.loadAll()).where((session) {
-      return _isWithin(session.startedAt, range);
-    }).toList();
+    final emptyPostureSummary = PostureSummary(sessions: const [], now: now);
 
     return DailyReport(
       rehabLogs: rehabLogs,
       recentRehabLogs: rehabLogs,
       rehabActions: rehabActions,
-      postureSummary: PostureSummary(sessions: postureSessions, now: now),
-      recentPostureSummary: PostureSummary(
-        sessions: postureSessions,
-        now: now,
-      ),
+      postureSummary: emptyPostureSummary,
+      recentPostureSummary: emptyPostureSummary,
     );
   }
 
