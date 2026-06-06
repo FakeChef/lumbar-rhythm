@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/local_database.dart';
+import '../../settings/domain/reminder_settings.dart';
 import '../domain/posture_session.dart';
 
 final postureSessionRepositoryProvider = Provider<PostureSessionRepository>(
@@ -13,9 +14,21 @@ abstract class PostureSessionRepository {
   Future<PostureSession> switchTo({
     required PostureType type,
     DateTime? now,
+    int? sittingThresholdMinutes,
+    int? standingThresholdMinutes,
+    String endReason = 'user_switch',
+    String source = 'manual',
+    String? note,
   });
 
-  Future<void> endCurrent({DateTime? now});
+  Future<void> endCurrent({
+    DateTime? now,
+    int? sittingThresholdMinutes,
+    int? standingThresholdMinutes,
+    String endReason = 'manual_end',
+    String source = 'manual',
+    String? note,
+  });
 
   Future<List<PostureSession>> loadAll();
 
@@ -42,6 +55,11 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
   Future<PostureSession> switchTo({
     required PostureType type,
     DateTime? now,
+    int? sittingThresholdMinutes,
+    int? standingThresholdMinutes,
+    String endReason = 'user_switch',
+    String source = 'manual',
+    String? note,
   }) async {
     final current = await loadOpenSession();
     if (current?.type == type) {
@@ -49,10 +67,24 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
     }
 
     final startedAt = now ?? DateTime.now();
-    await _database.closeOpenPostureSessions(endedAt: startedAt);
+    await _database.closeOpenPostureSessions(
+      endedAt: startedAt,
+      sittingThresholdSeconds: _thresholdSeconds(
+        sittingThresholdMinutes,
+        ReminderSettings.defaults.sittingIntervalMinutes,
+      ),
+      standingThresholdSeconds: _thresholdSeconds(
+        standingThresholdMinutes,
+        ReminderSettings.defaults.standingIntervalMinutes,
+      ),
+      endReason: endReason,
+      source: source,
+      note: note,
+    );
     final id = await _database.insertPostureSession(
       type: type.storageValue,
       startedAt: startedAt,
+      source: source,
     );
     return PostureSession(
       id: id,
@@ -62,8 +94,28 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
   }
 
   @override
-  Future<void> endCurrent({DateTime? now}) {
-    return _database.closeOpenPostureSessions(endedAt: now ?? DateTime.now());
+  Future<void> endCurrent({
+    DateTime? now,
+    int? sittingThresholdMinutes,
+    int? standingThresholdMinutes,
+    String endReason = 'manual_end',
+    String source = 'manual',
+    String? note,
+  }) {
+    return _database.closeOpenPostureSessions(
+      endedAt: now ?? DateTime.now(),
+      sittingThresholdSeconds: _thresholdSeconds(
+        sittingThresholdMinutes,
+        ReminderSettings.defaults.sittingIntervalMinutes,
+      ),
+      standingThresholdSeconds: _thresholdSeconds(
+        standingThresholdMinutes,
+        ReminderSettings.defaults.standingIntervalMinutes,
+      ),
+      endReason: endReason,
+      source: source,
+      note: note,
+    );
   }
 
   @override
@@ -113,6 +165,15 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
           ? null
           : DateTime.parse(row['ended_at'] as String),
       durationSeconds: row['duration_seconds'] as int?,
+      thresholdSeconds: row['threshold_seconds'] as int?,
+      exceededSeconds: (row['exceeded_seconds'] as int?) ?? 0,
+      endReason: row['end_reason'] as String?,
+      source: (row['source'] as String?) ?? 'manual',
+      note: row['note'] as String?,
     );
+  }
+
+  int _thresholdSeconds(int? minutes, int defaultMinutes) {
+    return (minutes ?? defaultMinutes) * 60;
   }
 }

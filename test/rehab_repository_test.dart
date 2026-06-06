@@ -36,6 +36,8 @@ void main() {
       unit: '分钟',
       reaction: RehabReaction.muchWorse,
       symptomTag: '腿麻',
+      preSymptomScore: 2,
+      postSymptomScore: 5,
       note: '今天量偏多',
       createdAt: DateTime(2026, 6, 6, 9),
     );
@@ -44,6 +46,9 @@ void main() {
     expect(actions.length, 10);
     expect(log.reaction, RehabReaction.muchWorse);
     expect(log.symptomTag, '腿麻');
+    expect(log.symptomTags, ['腿麻']);
+    expect(log.preSymptomScore, 2);
+    expect(log.postSymptomScore, 5);
     expect(logs.single.note, '今天量偏多');
   });
 }

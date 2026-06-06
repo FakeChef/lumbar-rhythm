@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/local_database.dart';
@@ -18,6 +20,8 @@ abstract class RehabRepository {
     String? symptomTag,
     List<String> symptomTags = const [],
     String source = 'manual',
+    int? preSymptomScore,
+    int? postSymptomScore,
     String? note,
     DateTime? createdAt,
   });
@@ -52,6 +56,8 @@ class SqfliteRehabRepository implements RehabRepository {
     String? symptomTag,
     List<String> symptomTags = const [],
     String source = 'manual',
+    int? preSymptomScore,
+    int? postSymptomScore,
     String? note,
     DateTime? createdAt,
   }) async {
@@ -72,8 +78,10 @@ class SqfliteRehabRepository implements RehabRepository {
       unit: cleanedUnit,
       reaction: reaction.storageValue,
       symptomTag: cleanedSymptom,
-      symptomTags: cleanedTags.isEmpty ? cleanedSymptom : cleanedTags.join(','),
+      symptomTags: _encodeTags(cleanedTags, cleanedSymptom),
       source: source,
+      preSymptomScore: _normalizeScore(preSymptomScore),
+      postSymptomScore: _normalizeScore(postSymptomScore),
       note: cleanedNote,
       createdAt: savedAt,
     );
@@ -90,6 +98,8 @@ class SqfliteRehabRepository implements RehabRepository {
       symptomTags: cleanedTags.isEmpty
           ? [if (cleanedSymptom != null) cleanedSymptom]
           : cleanedTags,
+      preSymptomScore: _normalizeScore(preSymptomScore),
+      postSymptomScore: _normalizeScore(postSymptomScore),
       note: cleanedNote,
       createdAt: savedAt,
     );
@@ -154,6 +164,8 @@ class SqfliteRehabRepository implements RehabRepository {
       source: (row['source'] as String?) ?? 'manual',
       symptomTag: row['symptom_tag'] as String?,
       symptomTags: _tagsFromRow(row),
+      preSymptomScore: row['pre_symptom_score'] as int?,
+      postSymptomScore: row['post_symptom_score'] as int?,
       note: row['note'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String),
     );
@@ -170,10 +182,31 @@ class SqfliteRehabRepository implements RehabRepository {
       final legacy = row['symptom_tag'] as String?;
       return legacy == null || legacy.trim().isEmpty ? const [] : [legacy];
     }
+    try {
+      final decoded = jsonDecode(tags);
+      if (decoded is List) {
+        return decoded
+            .whereType<String>()
+            .map((tag) => tag.trim())
+            .where((tag) => tag.isNotEmpty)
+            .toList();
+      }
+    } on FormatException {
+      // Older local rows may contain comma-separated tags instead of JSON.
+    }
     return tags
         .split(',')
         .map((tag) => tag.trim())
         .where((tag) => tag.isNotEmpty)
         .toList();
+  }
+
+  String? _encodeTags(List<String> tags, String? legacyTag) {
+    final values = tags.isEmpty ? [if (legacyTag != null) legacyTag] : tags;
+    return values.isEmpty ? null : jsonEncode(values);
+  }
+
+  int? _normalizeScore(int? value) {
+    return value?.clamp(0, 10).toInt();
   }
 }

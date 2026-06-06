@@ -25,6 +25,7 @@ class DailyRecoveryNote {
     required this.fatigueScore,
     required this.createdAt,
     required this.updatedAt,
+    this.tags = const [],
     this.note,
   });
 
@@ -33,6 +34,7 @@ class DailyRecoveryNote {
   final int backPainScore;
   final int legSymptomScore;
   final int fatigueScore;
+  final List<String> tags;
   final String? note;
   final DateTime createdAt;
   final DateTime updatedAt;

@@ -91,7 +91,14 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 
 class _FakePostureSessionRepository implements PostureSessionRepository {
   @override
-  Future<void> endCurrent({DateTime? now}) async {}
+  Future<void> endCurrent({
+    DateTime? now,
+    int? sittingThresholdMinutes,
+    int? standingThresholdMinutes,
+    String endReason = 'manual_end',
+    String source = 'manual',
+    String? note,
+  }) async {}
 
   @override
   Future<List<PostureSession>> loadAll() async {
@@ -124,6 +131,11 @@ class _FakePostureSessionRepository implements PostureSessionRepository {
   Future<PostureSession> switchTo({
     required PostureType type,
     DateTime? now,
+    int? sittingThresholdMinutes,
+    int? standingThresholdMinutes,
+    String endReason = 'user_switch',
+    String source = 'manual',
+    String? note,
   }) async {
     return PostureSession(
       id: 2,

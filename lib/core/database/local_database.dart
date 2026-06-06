@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
@@ -159,6 +161,8 @@ class LocalDatabase {
   Future<int> insertPostureSession({
     required String type,
     required DateTime startedAt,
+    String source = 'manual',
+    String? note,
   }) async {
     final database = await instance;
     return database.insert(
@@ -166,6 +170,8 @@ class LocalDatabase {
       {
         'type': type,
         'started_at': startedAt.toIso8601String(),
+        'source': source,
+        'note': note,
       },
     );
   }
@@ -183,6 +189,11 @@ class LocalDatabase {
 
   Future<int> closeOpenPostureSessions({
     required DateTime endedAt,
+    required int sittingThresholdSeconds,
+    required int standingThresholdSeconds,
+    String endReason = 'manual_end',
+    String source = 'manual',
+    String? note,
   }) async {
     final database = await instance;
     final rows = await database.query(
@@ -192,11 +203,26 @@ class LocalDatabase {
     for (final row in rows) {
       final startedAt = DateTime.parse(row['started_at'] as String);
       final durationSeconds = endedAt.difference(startedAt).inSeconds;
+      final normalizedDuration = durationSeconds < 0 ? 0 : durationSeconds;
+      final type = row['type'] as String;
+      final thresholdSeconds = switch (type) {
+        'sitting' => sittingThresholdSeconds,
+        'standing' => standingThresholdSeconds,
+        _ => null,
+      };
+      final exceededSeconds = thresholdSeconds == null
+          ? 0
+          : (normalizedDuration - thresholdSeconds).clamp(0, 1 << 31).toInt();
       await database.update(
         'posture_sessions',
         {
           'ended_at': endedAt.toIso8601String(),
-          'duration_seconds': durationSeconds < 0 ? 0 : durationSeconds,
+          'duration_seconds': normalizedDuration,
+          'threshold_seconds': thresholdSeconds,
+          'exceeded_seconds': exceededSeconds,
+          'end_reason': endReason,
+          'source': source,
+          'note': note ?? row['note'],
         },
         where: 'id = ?',
         whereArgs: [row['id']],
@@ -244,6 +270,8 @@ class LocalDatabase {
     required String? symptomTag,
     required String? symptomTags,
     required String source,
+    int? preSymptomScore,
+    int? postSymptomScore,
     required String? note,
     required DateTime createdAt,
   }) async {
@@ -259,6 +287,8 @@ class LocalDatabase {
         'symptom_tag': symptomTag,
         'symptom_tags': symptomTags,
         'source': source,
+        'pre_symptom_score': preSymptomScore,
+        'post_symptom_score': postSymptomScore,
         'note': note,
         'created_at': createdAt.toIso8601String(),
       },
@@ -292,6 +322,7 @@ class LocalDatabase {
   Future<void> upsertRecoveryProfile({
     required DateTime? surgeryDate,
     required String? surgeryType,
+    required String? mainSegment,
     required String? mainGoal,
     required DateTime now,
   }) async {
@@ -303,6 +334,7 @@ class LocalDatabase {
         'id': 1,
         'surgery_date': surgeryDate?.toIso8601String(),
         'surgery_type': surgeryType,
+        'main_segment': mainSegment,
         'main_goal': mainGoal,
         'created_at': existing?['created_at'] ?? now.toIso8601String(),
         'updated_at': now.toIso8601String(),
@@ -328,6 +360,7 @@ class LocalDatabase {
     required int backPainScore,
     required int legSymptomScore,
     required int fatigueScore,
+    required String? tags,
     required String? note,
     required DateTime now,
   }) async {
@@ -341,6 +374,7 @@ class LocalDatabase {
         'back_pain_score': backPainScore,
         'leg_symptom_score': legSymptomScore,
         'fatigue_score': fatigueScore,
+        'tags': tags,
         'note': note,
         'created_at': existing?['created_at'] ?? now.toIso8601String(),
         'updated_at': now.toIso8601String(),
@@ -448,7 +482,12 @@ class LocalDatabase {
         type TEXT NOT NULL,
         started_at TEXT NOT NULL,
         ended_at TEXT,
-        duration_seconds INTEGER
+        duration_seconds INTEGER,
+        threshold_seconds INTEGER,
+        exceeded_seconds INTEGER NOT NULL DEFAULT 0,
+        end_reason TEXT,
+        source TEXT NOT NULL DEFAULT 'manual',
+        note TEXT
       )
     ''');
     await db.execute('''
@@ -471,6 +510,8 @@ class LocalDatabase {
         symptom_tag TEXT,
         symptom_tags TEXT,
         source TEXT NOT NULL DEFAULT 'manual',
+        pre_symptom_score INTEGER,
+        post_symptom_score INTEGER,
         note TEXT,
         created_at TEXT NOT NULL
       )
@@ -483,6 +524,7 @@ class LocalDatabase {
         id INTEGER PRIMARY KEY,
         surgery_date TEXT,
         surgery_type TEXT,
+        main_segment TEXT,
         main_goal TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -495,6 +537,7 @@ class LocalDatabase {
         back_pain_score INTEGER NOT NULL,
         leg_symptom_score INTEGER NOT NULL,
         fatigue_score INTEGER NOT NULL,
+        tags TEXT,
         note TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -518,6 +561,19 @@ class LocalDatabase {
     await _addColumnIfMissing(
         db, 'rehab_logs', 'source', "TEXT NOT NULL DEFAULT 'manual'");
     await _addColumnIfMissing(db, 'rehab_logs', 'symptom_tags', 'TEXT');
+    await _addColumnIfMissing(db, 'rehab_logs', 'pre_symptom_score', 'INTEGER');
+    await _addColumnIfMissing(
+        db, 'rehab_logs', 'post_symptom_score', 'INTEGER');
+    await _addColumnIfMissing(
+        db, 'posture_sessions', 'threshold_seconds', 'INTEGER');
+    await _addColumnIfMissing(db, 'posture_sessions', 'exceeded_seconds',
+        'INTEGER NOT NULL DEFAULT 0');
+    await _addColumnIfMissing(db, 'posture_sessions', 'end_reason', 'TEXT');
+    await _addColumnIfMissing(
+        db, 'posture_sessions', 'source', "TEXT NOT NULL DEFAULT 'manual'");
+    await _addColumnIfMissing(db, 'posture_sessions', 'note', 'TEXT');
+    await _addColumnIfMissing(db, 'recovery_profile', 'main_segment', 'TEXT');
+    await _addColumnIfMissing(db, 'daily_recovery_notes', 'tags', 'TEXT');
   }
 
   Future<void> _addColumnIfMissing(
@@ -547,8 +603,9 @@ class LocalDatabase {
         {
           'amount_value': parsed,
           'source': row['source'] ?? 'manual',
-          'symptom_tags':
-              symptomTag == null || symptomTag.isEmpty ? null : symptomTag,
+          'symptom_tags': symptomTag == null || symptomTag.isEmpty
+              ? null
+              : jsonEncode([symptomTag]),
         },
         where: 'id = ?',
         whereArgs: [row['id']],

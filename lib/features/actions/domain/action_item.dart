@@ -107,6 +107,8 @@ class RehabLog {
     required this.createdAt,
     this.symptomTag,
     this.symptomTags = const [],
+    this.preSymptomScore,
+    this.postSymptomScore,
     this.note,
   });
 
@@ -119,6 +121,8 @@ class RehabLog {
   final String source;
   final String? symptomTag;
   final List<String> symptomTags;
+  final int? preSymptomScore;
+  final int? postSymptomScore;
   final String? note;
   final DateTime createdAt;
 }

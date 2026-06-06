@@ -27,8 +27,11 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
   }
 
   Future<void> switchTo(PostureType type) async {
+    final settings = await ref.read(reminderSettingsRepositoryProvider).load();
     final session = await ref.read(postureSessionRepositoryProvider).switchTo(
           type: type,
+          sittingThresholdMinutes: settings.sittingIntervalMinutes,
+          standingThresholdMinutes: settings.standingIntervalMinutes,
         );
     state = AsyncData(session);
     ref.invalidate(dailyReportControllerProvider);
@@ -36,7 +39,11 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
   }
 
   Future<void> endCurrent() async {
-    await ref.read(postureSessionRepositoryProvider).endCurrent();
+    final settings = await ref.read(reminderSettingsRepositoryProvider).load();
+    await ref.read(postureSessionRepositoryProvider).endCurrent(
+          sittingThresholdMinutes: settings.sittingIntervalMinutes,
+          standingThresholdMinutes: settings.standingIntervalMinutes,
+        );
     state = const AsyncData(null);
     await _scheduleFor(null);
   }

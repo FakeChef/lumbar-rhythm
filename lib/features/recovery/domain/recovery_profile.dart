@@ -5,12 +5,14 @@ class RecoveryProfile {
     required this.updatedAt,
     this.surgeryDate,
     this.surgeryType,
+    this.mainSegment,
     this.mainGoal,
   });
 
   final int id;
   final DateTime? surgeryDate;
   final String? surgeryType;
+  final String? mainSegment;
   final String? mainGoal;
   final DateTime createdAt;
   final DateTime updatedAt;
