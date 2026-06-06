@@ -125,6 +125,13 @@ class SettingsPage extends ConsumerWidget {
           onTap: () => _showDisclaimerDialog(context),
         ),
         ListTile(
+          leading: const Icon(Icons.notifications_paused_outlined),
+          title: const Text('提醒不准怎么办'),
+          subtitle: const Text('查看 Android 本地提醒可能延迟或不显示的常见原因。'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _showReminderHelpDialog(context),
+        ),
+        ListTile(
           leading: const Icon(Icons.help_outline),
           title: const Text('关于腰椎节奏'),
           subtitle: const Text('版本 0.1.0+1，永久免费、无广告、无账号。'),
@@ -211,6 +218,24 @@ class SettingsPage extends ConsumerWidget {
             '不提供疾病诊断、治疗建议或复发判断。',
             '不替代医生、康复师或其他专业医疗建议。',
             '出现大小便异常、鞍区麻木、进行性下肢无力、术后伤口红肿发热渗液、疼痛突然明显加重等情况，应及时就医。',
+          ],
+        );
+      },
+    );
+  }
+
+  void _showReminderHelpDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return const _InfoDialog(
+          title: '提醒不准怎么办',
+          items: [
+            '确认系统通知权限已允许。',
+            '确认手机没有把 App 加入严格省电或后台限制。',
+            '部分 Android 手机会为了省电延迟本地提醒，这是系统行为。',
+            '本 App 不使用精确闹钟权限，也不依赖云端推送。',
+            '如果提醒没有弹出，可以先用首页或设置页的测试提醒确认权限状态。',
           ],
         );
       },

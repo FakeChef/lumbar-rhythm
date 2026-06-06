@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/media/gallery_image_saver.dart';
 import '../../actions/domain/action_item.dart';
+import '../../posture/domain/posture_summary.dart';
+import '../../posture/domain/posture_session.dart';
 import '../../records/domain/activity_record.dart';
 import '../../settings/data/local_data_repository.dart';
 import '../application/daily_report_controller.dart';
@@ -209,6 +211,10 @@ class _DailyReportView extends StatelessWidget {
         const SizedBox(height: 12),
         _LatestRecordCard(record: report.latestRecord),
         const SizedBox(height: 12),
+        if (report.postureSummary != null) ...[
+          _PostureSummaryCard(summary: report.postureSummary!),
+          const SizedBox(height: 12),
+        ],
         _RehabSummaryCard(
           title: '今日康复记录',
           summary: report.rehabSummary,
@@ -216,6 +222,10 @@ class _DailyReportView extends StatelessWidget {
         const SizedBox(height: 12),
         _SevenDayTrendCard(report: report),
         const SizedBox(height: 12),
+        if (report.recentPostureSummary != null) ...[
+          _WeeklyPostureTrendCard(summary: report.recentPostureSummary!),
+          const SizedBox(height: 12),
+        ],
         RepaintBoundary(
           key: weeklyReportImageKey,
           child: _WeeklyReportImageCard(report: report),
@@ -743,6 +753,166 @@ class _RehabSummaryCard extends StatelessWidget {
   }
 }
 
+class _PostureSummaryCard extends StatelessWidget {
+  const _PostureSummaryCard({required this.summary});
+
+  final PostureSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.timer_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '今日坐站节奏',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _WeeklyMetricRow(
+                label: '坐姿累计', value: _formatDuration(summary.sittingTotal)),
+            const SizedBox(height: 8),
+            _WeeklyMetricRow(
+                label: '站立累计', value: _formatDuration(summary.standingTotal)),
+            const SizedBox(height: 8),
+            _WeeklyMetricRow(
+                label: '走动累计', value: _formatDuration(summary.walkingTotal)),
+            const SizedBox(height: 8),
+            _WeeklyMetricRow(
+                label: '休息累计', value: _formatDuration(summary.restingTotal)),
+            const SizedBox(height: 8),
+            _WeeklyMetricRow(
+                label: '最长连续坐姿',
+                value: _formatDuration(summary.longestSitting)),
+            const SizedBox(height: 8),
+            _WeeklyMetricRow(
+                label: '最长连续站立',
+                value: _formatDuration(summary.longestStanding)),
+            const SizedBox(height: 8),
+            _WeeklyMetricRow(
+                label: '姿势切换次数', value: '${summary.switchCount} 次'),
+            const SizedBox(height: 8),
+            _WeeklyMetricRow(
+              label: '坐姿超过阈值',
+              value: '${summary.sittingOverThresholdCount} 次',
+            ),
+            const SizedBox(height: 8),
+            _WeeklyMetricRow(
+              label: '站立超过阈值',
+              value: '${summary.standingOverThresholdCount} 次',
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '以上仅为个人记录汇总，不代表医学判断。',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeeklyPostureTrendCard extends StatelessWidget {
+  const _WeeklyPostureTrendCard({required this.summary});
+
+  final PostureSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = summary.recentDaySummaries(days: 7);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.stacked_bar_chart_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '本周坐站趋势',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            for (final day in days) ...[
+              _PostureDayRow(day: day),
+              const SizedBox(height: 8),
+            ],
+            const Text(
+              '趋势仅展示记录时长，方便回顾自己的坐、站、走、休息节奏。',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PostureDayRow extends StatelessWidget {
+  const _PostureDayRow({required this.day});
+
+  final PostureDaySummary day;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('${day.day.month}/${day.day.day}'),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _SmallPostureChip(type: PostureType.sitting, duration: day.sitting),
+            _SmallPostureChip(
+                type: PostureType.standing, duration: day.standing),
+            _SmallPostureChip(type: PostureType.walking, duration: day.walking),
+            _SmallPostureChip(type: PostureType.resting, duration: day.resting),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SmallPostureChip extends StatelessWidget {
+  const _SmallPostureChip({
+    required this.type,
+    required this.duration,
+  });
+
+  final PostureType type;
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(label: Text('${type.shortLabel} ${_formatDuration(duration)}'));
+  }
+}
+
 class _ReportLoading extends StatelessWidget {
   const _ReportLoading();
 
@@ -779,4 +949,13 @@ class _ReportError extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatDuration(Duration duration) {
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  if (hours > 0) {
+    return '$hours 小时 ${minutes.toString().padLeft(2, '0')} 分钟';
+  }
+  return '$minutes 分钟';
 }

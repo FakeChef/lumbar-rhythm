@@ -199,6 +199,19 @@ class LocalDatabase {
     return database.query('posture_sessions', orderBy: 'started_at DESC');
   }
 
+  Future<List<Map<String, Object?>>> readPostureSessionsStartedBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final database = await instance;
+    return database.query(
+      'posture_sessions',
+      where: 'started_at >= ? AND started_at < ?',
+      whereArgs: [start.toIso8601String(), end.toIso8601String()],
+      orderBy: 'started_at DESC',
+    );
+  }
+
   Future<List<Map<String, Object?>>> readRehabActions() async {
     final database = await instance;
     await _ensureRehabActionsSeeded(database);

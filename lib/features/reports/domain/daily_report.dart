@@ -1,4 +1,5 @@
 import '../../actions/domain/action_item.dart';
+import '../../posture/domain/posture_summary.dart';
 import '../../records/domain/activity_record.dart';
 
 class DailyReport {
@@ -7,12 +8,16 @@ class DailyReport {
     this.recentRecords = const [],
     this.rehabLogs = const [],
     this.recentRehabLogs = const [],
+    this.postureSummary,
+    this.recentPostureSummary,
   });
 
   final List<ActivityRecord> records;
   final List<ActivityRecord> recentRecords;
   final List<RehabLog> rehabLogs;
   final List<RehabLog> recentRehabLogs;
+  final PostureSummary? postureSummary;
+  final PostureSummary? recentPostureSummary;
 
   int get totalCount => records.length;
 

@@ -99,6 +99,19 @@ class _FakePostureSessionRepository implements PostureSessionRepository {
   }
 
   @override
+  Future<List<PostureSession>> loadToday({DateTime? now}) async {
+    return const [];
+  }
+
+  @override
+  Future<List<PostureSession>> loadRecentDays({
+    required int days,
+    DateTime? now,
+  }) async {
+    return const [];
+  }
+
+  @override
   Future<PostureSession?> loadOpenSession() async {
     return PostureSession(
       id: 1,

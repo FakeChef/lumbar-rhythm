@@ -16,7 +16,7 @@ class ActionsPage extends ConsumerWidget {
       padding: const EdgeInsets.all(20),
       children: [
         Text(
-          '康复',
+          '康复记录',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
@@ -169,11 +169,13 @@ class _RehabLogDialog extends StatefulWidget {
 }
 
 class _RehabLogDialogState extends State<_RehabLogDialog> {
+  static const _symptomTags = ['腰酸', '腰痛', '臀腿痛', '腿麻', '脚背刺痛', '疲劳'];
+
   late final TextEditingController _amountController;
   late final TextEditingController _unitController;
-  final _symptomController = TextEditingController();
   final _noteController = TextEditingController();
   RehabReaction _reaction = RehabReaction.noChange;
+  String? _symptomTag;
 
   @override
   void initState() {
@@ -186,7 +188,6 @@ class _RehabLogDialogState extends State<_RehabLogDialog> {
   void dispose() {
     _amountController.dispose();
     _unitController.dispose();
-    _symptomController.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -235,9 +236,23 @@ class _RehabLogDialogState extends State<_RehabLogDialog> {
               },
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _symptomController,
-              decoration: const InputDecoration(labelText: '可选症状标签'),
+            DropdownButtonFormField<String>(
+              initialValue: _symptomTag,
+              decoration: const InputDecoration(labelText: '症状标签'),
+              items: [
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('不选择'),
+                ),
+                for (final tag in _symptomTags)
+                  DropdownMenuItem(
+                    value: tag,
+                    child: Text(tag),
+                  ),
+              ],
+              onChanged: (value) {
+                setState(() => _symptomTag = value);
+              },
             ),
             const SizedBox(height: 12),
             TextField(
@@ -260,7 +275,7 @@ class _RehabLogDialogState extends State<_RehabLogDialog> {
                 amount: _amountController.text,
                 unit: _unitController.text,
                 reaction: _reaction,
-                symptomTag: _symptomController.text,
+                symptomTag: _symptomTag,
                 note: _noteController.text,
               ),
             );
@@ -284,6 +299,6 @@ class _RehabLogDraft {
   final String amount;
   final String unit;
   final RehabReaction reaction;
-  final String symptomTag;
+  final String? symptomTag;
   final String note;
 }

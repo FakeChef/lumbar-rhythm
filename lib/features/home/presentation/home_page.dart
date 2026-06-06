@@ -85,6 +85,11 @@ class HomePage extends ConsumerWidget {
                     .read(postureSessionControllerProvider.notifier)
                     .switchTo(type);
               },
+              onEndCurrent: () async {
+                await ref
+                    .read(postureSessionControllerProvider.notifier)
+                    .endCurrent();
+              },
             ),
           ),
           const SizedBox(height: 12),
@@ -159,11 +164,13 @@ class _PostureStatusCard extends StatelessWidget {
     required this.session,
     required this.now,
     required this.onSelect,
+    required this.onEndCurrent,
   });
 
   final PostureSession? session;
   final DateTime now;
   final ValueChanged<PostureType> onSelect;
+  final VoidCallback onEndCurrent;
 
   @override
   Widget build(BuildContext context) {
@@ -213,6 +220,17 @@ class _PostureStatusCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
+            if (current != null) ...[
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onEndCurrent,
+                  icon: const Icon(Icons.stop_circle_outlined),
+                  label: const Text('结束当前状态'),
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
             const Text(
               '切换状态时会自动保存上一段持续时间，并按当前状态安排提醒。',
               style: TextStyle(fontSize: 12),

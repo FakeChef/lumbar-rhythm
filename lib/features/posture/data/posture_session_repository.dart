@@ -18,6 +18,13 @@ abstract class PostureSessionRepository {
   Future<void> endCurrent({DateTime? now});
 
   Future<List<PostureSession>> loadAll();
+
+  Future<List<PostureSession>> loadToday({DateTime? now});
+
+  Future<List<PostureSession>> loadRecentDays({
+    required int days,
+    DateTime? now,
+  });
 }
 
 class SqflitePostureSessionRepository implements PostureSessionRepository {
@@ -36,6 +43,11 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
     required PostureType type,
     DateTime? now,
   }) async {
+    final current = await loadOpenSession();
+    if (current?.type == type) {
+      return current!;
+    }
+
     final startedAt = now ?? DateTime.now();
     await _database.closeOpenPostureSessions(endedAt: startedAt);
     final id = await _database.insertPostureSession(
@@ -57,6 +69,34 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
   @override
   Future<List<PostureSession>> loadAll() async {
     final rows = await _database.readAllPostureSessions();
+    return rows.map(_fromRow).toList();
+  }
+
+  @override
+  Future<List<PostureSession>> loadToday({DateTime? now}) async {
+    final anchor = now ?? DateTime.now();
+    final start = DateTime(anchor.year, anchor.month, anchor.day);
+    final end = start.add(const Duration(days: 1));
+    final rows = await _database.readPostureSessionsStartedBetween(
+      start: start,
+      end: end,
+    );
+    return rows.map(_fromRow).toList();
+  }
+
+  @override
+  Future<List<PostureSession>> loadRecentDays({
+    required int days,
+    DateTime? now,
+  }) async {
+    final anchor = now ?? DateTime.now();
+    final todayStart = DateTime(anchor.year, anchor.month, anchor.day);
+    final start = todayStart.subtract(Duration(days: days - 1));
+    final end = todayStart.add(const Duration(days: 1));
+    final rows = await _database.readPostureSessionsStartedBetween(
+      start: start,
+      end: end,
+    );
     return rows.map(_fromRow).toList();
   }
 
