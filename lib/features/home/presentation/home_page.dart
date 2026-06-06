@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../actions/domain/action_item.dart';
 import '../../posture/application/posture_session_controller.dart';
+import '../../posture/data/posture_session_repository.dart';
 import '../../posture/domain/posture_session.dart';
+import '../../posture/domain/posture_summary.dart';
 import '../../recovery/data/recovery_repository.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
 import '../../recovery/domain/recovery_profile.dart';
@@ -12,16 +14,31 @@ import '../../reports/application/daily_report_controller.dart';
 import '../../settings/application/reminder_settings_controller.dart';
 import '../../settings/domain/reminder_settings.dart';
 
-final _homeRehabActionsProvider = FutureProvider<List<RehabAction>>((ref) {
-  return ref.watch(rehabRepositoryProvider).loadActions();
-});
-
 final _homeRecoveryProfileProvider = FutureProvider((ref) {
   return ref.watch(recoveryRepositoryProvider).loadProfile();
 });
 
+final _homeTodayOverviewProvider = FutureProvider<_HomeTodayOverview>(
+  (ref) async {
+    final now = DateTime.now();
+    final rehabRepository = ref.watch(rehabRepositoryProvider);
+    final actions = await rehabRepository.loadActions();
+    final logs = await rehabRepository.loadToday(now: now);
+    final sessions =
+        await ref.watch(postureSessionRepositoryProvider).loadToday(now: now);
+    final note = await ref.watch(recoveryRepositoryProvider).loadNote(now);
+    return _HomeTodayOverview(
+      postureSummary: PostureSummary(sessions: sessions, now: now),
+      rehabSummary: RehabSummary(logs: logs, actions: actions),
+      dailyNote: note,
+    );
+  },
+);
+
 class HomePage extends ConsumerStatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.onOpenTab});
+
+  final ValueChanged<int>? onOpenTab;
 
   @override
   ConsumerState<HomePage> createState() => _HomePageState();
@@ -29,19 +46,13 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   PostureType _selectedPosture = PostureType.sitting;
-  RehabAction? _selectedAction;
-  String _rehabAmount = '1';
-  String _rehabUnit = '分钟';
-  RehabReaction _rehabReaction = RehabReaction.noChange;
-  String? _rehabSymptomTag;
-  String? _rehabNote;
 
   @override
   Widget build(BuildContext context) {
     final settingsState = ref.watch(reminderSettingsControllerProvider);
     final postureState = ref.watch(postureSessionControllerProvider);
-    final rehabActionsState = ref.watch(_homeRehabActionsProvider);
     final recoveryProfileState = ref.watch(_homeRecoveryProfileProvider);
+    final overviewState = ref.watch(_homeTodayOverviewProvider);
     final postureNow =
         ref.watch(postureClockProvider).valueOrNull ?? DateTime.now();
 
@@ -52,33 +63,19 @@ class _HomePageState extends ConsumerState<HomePage> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '腰椎节奏',
-                      style:
-                          Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '术后康复日志、坐站提醒与本地报告',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: '刷新首页',
-                icon: const Icon(Icons.refresh_outlined),
-                onPressed: () => _refresh(ref),
-              ),
-            ],
+          recoveryProfileState.when(
+            loading: () => _HomeHeader(
+              subtitle: '正在读取康复资料',
+              onRefresh: () => _refresh(ref),
+            ),
+            error: (error, stackTrace) => _HomeHeader(
+              subtitle: '可在设置中添加手术日期',
+              onRefresh: () => _refresh(ref),
+            ),
+            data: (profile) => _HomeHeader(
+              subtitle: _recoveryDayText(profile),
+              onRefresh: () => _refresh(ref),
+            ),
           ),
           const SizedBox(height: 20),
           settingsState.when(
@@ -117,59 +114,30 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           ),
           const SizedBox(height: 12),
-          recoveryProfileState.when(
-            loading: () => const _HomeLoadingCard(title: '正在读取康复资料'),
+          overviewState.when(
+            loading: () => const _HomeLoadingCard(title: '正在读取今日摘要'),
             error: (error, stackTrace) => _HomeErrorCard(
-              title: '康复资料读取失败',
-              onRetry: () => ref.invalidate(_homeRecoveryProfileProvider),
+              title: '今日摘要读取失败',
+              onRetry: () => ref.invalidate(_homeTodayOverviewProvider),
             ),
-            data: (profile) => _RecoveryStatusCard(profile: profile),
+            data: (overview) => _TodayPostureSummaryCard(
+              summary: overview.postureSummary,
+            ),
           ),
           const SizedBox(height: 12),
-          rehabActionsState.when(
-            loading: () => const _HomeLoadingCard(title: '正在读取康复动作'),
-            error: (error, stackTrace) => _HomeErrorCard(
-              title: '康复动作读取失败',
-              onRetry: () => ref.invalidate(_homeRehabActionsProvider),
+          overviewState.when(
+            loading: () => const SizedBox.shrink(),
+            error: (error, stackTrace) => const SizedBox.shrink(),
+            data: (overview) => _TodayRecoveryOverviewCard(
+              overview: overview,
+              onEditNote: () => _showDailyRecoveryNoteDialog(context),
             ),
-            data: (actions) {
-              final selectedAction = _selectedAction != null &&
-                      actions.any((action) => action.id == _selectedAction!.id)
-                  ? _selectedAction
-                  : (actions.isEmpty ? null : actions.first);
-              return _RehabEntryCard(
-                actions: actions,
-                selectedAction: selectedAction,
-                amount: _rehabAmount,
-                unit: _rehabUnit,
-                reaction: _rehabReaction,
-                symptomTag: _rehabSymptomTag,
-                note: _rehabNote,
-                onActionChanged: (action) {
-                  if (action == null) return;
-                  setState(() {
-                    _selectedAction = action;
-                    _rehabUnit = action.defaultUnit;
-                  });
-                },
-                onAmountChanged: (value) => _rehabAmount = value,
-                onUnitChanged: (value) {
-                  if (value != null) setState(() => _rehabUnit = value);
-                },
-                onReactionChanged: (value) {
-                  if (value != null) setState(() => _rehabReaction = value);
-                },
-                onSymptomTagChanged: (value) {
-                  setState(() => _rehabSymptomTag = value);
-                },
-                onNoteChanged: (value) => _rehabNote = value,
-                onSave: () => _saveRehabLog(actions),
-              );
-            },
           ),
           const SizedBox(height: 12),
-          _DailyRecoveryNoteCard(
-            onTap: () => _showDailyRecoveryNoteDialog(context),
+          _QuickEntryCard(
+            onOpenCalendar: () => widget.onOpenTab?.call(1),
+            onOpenRehab: () => widget.onOpenTab?.call(2),
+            onOpenReport: () => widget.onOpenTab?.call(3),
           ),
         ],
       ),
@@ -179,35 +147,8 @@ class _HomePageState extends ConsumerState<HomePage> {
   void _refresh(WidgetRef ref) {
     ref.invalidate(postureSessionControllerProvider);
     ref.invalidate(reminderSettingsControllerProvider);
-    ref.invalidate(_homeRehabActionsProvider);
     ref.invalidate(_homeRecoveryProfileProvider);
-  }
-
-  Future<void> _saveRehabLog(List<RehabAction> actions) async {
-    final action = _selectedAction ?? (actions.isEmpty ? null : actions.first);
-    if (action == null) {
-      return;
-    }
-
-    await ref.read(rehabRepositoryProvider).addLog(
-          action: action,
-          amount: _rehabAmount,
-          unit: _rehabUnit,
-          reaction: _rehabReaction,
-          symptomTag: _rehabSymptomTag,
-          note: _rehabNote,
-        );
-    ref.invalidate(dailyReportControllerProvider);
-
-    if (!mounted) {
-      return;
-    }
-
-    final message = _rehabReaction == RehabReaction.muchWorse
-        ? '建议减少量或暂停观察，必要时咨询医生或康复师。'
-        : '已保存康复记录';
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ref.invalidate(_homeTodayOverviewProvider);
   }
 
   Future<void> _showDailyRecoveryNoteDialog(BuildContext context) async {
@@ -306,46 +247,59 @@ class _HomePageState extends ConsumerState<HomePage> {
       note: note,
     );
     ref.invalidate(dailyReportControllerProvider);
+    ref.invalidate(_homeTodayOverviewProvider);
     if (!mounted) return;
     messenger.showSnackBar(
       const SnackBar(content: Text('已保存今日康复小结')),
     );
   }
-}
 
-class _RecoveryStatusCard extends StatelessWidget {
-  const _RecoveryStatusCard({required this.profile});
-
-  final RecoveryProfile? profile;
-
-  @override
-  Widget build(BuildContext context) {
+  String _recoveryDayText(RecoveryProfile? profile) {
     final day = profile?.postSurgeryDay(DateTime.now());
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.timeline_outlined),
-        title: Text(day == null ? '康复资料' : '术后第 $day 天'),
-        subtitle: Text(day == null ? '可在设置中添加手术日期。' : '持续记录自己的康复之路。'),
-      ),
-    );
+    return day == null ? '可在设置中添加手术日期' : '术后第 $day 天';
   }
 }
 
-class _DailyRecoveryNoteCard extends StatelessWidget {
-  const _DailyRecoveryNoteCard({required this.onTap});
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({
+    required this.subtitle,
+    required this.onRefresh,
+  });
 
-  final VoidCallback onTap;
+  final String subtitle;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.edit_note_outlined),
-        title: const Text('今日康复小结'),
-        subtitle: const Text('记录总体感觉、腰部不适、腿部症状和疲劳感。'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '腰椎节奏',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: '刷新首页',
+          icon: const Icon(Icons.refresh_outlined),
+          onPressed: onRefresh,
+        ),
+      ],
     );
   }
 }
@@ -379,6 +333,316 @@ class _ScoreSlider extends StatelessWidget {
       ],
     );
   }
+}
+
+class _TodayPostureSummaryCard extends StatelessWidget {
+  const _TodayPostureSummaryCard({required this.summary});
+
+  final PostureSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '今日坐站摘要',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 14),
+            _MiniMetricGrid(
+              items: [
+                _MiniMetricItem(
+                  label: '坐着',
+                  value: _formatShortDuration(summary.sittingTotal),
+                ),
+                _MiniMetricItem(
+                  label: '站着',
+                  value: _formatShortDuration(summary.standingTotal),
+                ),
+                _MiniMetricItem(
+                  label: '走动',
+                  value: _formatShortDuration(summary.walkingTotal),
+                ),
+                _MiniMetricItem(
+                  label: '休息',
+                  value: _formatShortDuration(summary.restingTotal),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SoftLine(
+                label: '最长连续坐着',
+                value: _formatShortDuration(summary.longestSitting)),
+            _SoftLine(
+                label: '最长连续站着',
+                value: _formatShortDuration(summary.longestStanding)),
+            _SoftLine(label: '姿势切换', value: '${summary.switchCount} 次'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TodayRecoveryOverviewCard extends StatelessWidget {
+  const _TodayRecoveryOverviewCard({
+    required this.overview,
+    required this.onEditNote,
+  });
+
+  final _HomeTodayOverview overview;
+  final VoidCallback onEditNote;
+
+  @override
+  Widget build(BuildContext context) {
+    final rehab = overview.rehabSummary;
+    final note = overview.dailyNote;
+    final muchWorse = rehab.reactionCount(RehabReaction.muchWorse);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '今日恢复概览',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: onEditNote,
+                  icon: const Icon(Icons.edit_note_outlined),
+                  label: const Text('小结'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _MiniMetricGrid(
+              items: [
+                _MiniMetricItem(label: '康复记录', value: '${rehab.totalCount} 次'),
+                _MiniMetricItem(
+                  label: '步行总量',
+                  value:
+                      '${_formatNumber(rehab.totalAmountForActionNamed('步行'))} 分',
+                ),
+                _MiniMetricItem(label: '明显加重', value: '$muchWorse 次'),
+                _MiniMetricItem(
+                  label: '今日小结',
+                  value: note == null ? '未记录' : note.overallFeeling.label,
+                ),
+              ],
+            ),
+            if (note != null) ...[
+              const SizedBox(height: 12),
+              _SoftLine(label: '腰部不适', value: '${note.backPainScore}/10'),
+              _SoftLine(label: '腿部症状', value: '${note.legSymptomScore}/10'),
+              _SoftLine(label: '疲劳感', value: '${note.fatigueScore}/10'),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickEntryCard extends StatelessWidget {
+  const _QuickEntryCard({
+    required this.onOpenCalendar,
+    required this.onOpenRehab,
+    required this.onOpenReport,
+  });
+
+  final VoidCallback onOpenCalendar;
+  final VoidCallback onOpenRehab;
+  final VoidCallback onOpenReport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+              child: Text(
+                '快捷入口',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ),
+            _QuickEntryButton(
+              icon: Icons.self_improvement_outlined,
+              title: '记录康复动作',
+              subtitle: '前往康复页填写完整记录',
+              onTap: onOpenRehab,
+            ),
+            _QuickEntryButton(
+              icon: Icons.calendar_month_outlined,
+              title: '查看康复日历',
+              subtitle: '按日期回看每日状态',
+              onTap: onOpenCalendar,
+            ),
+            _QuickEntryButton(
+              icon: Icons.bar_chart_outlined,
+              title: '查看康复报告',
+              subtitle: '汇总坐站节奏和康复记录',
+              onTap: onOpenReport,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickEntryButton extends StatelessWidget {
+  const _QuickEntryButton({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    );
+  }
+}
+
+class _MiniMetricGrid extends StatelessWidget {
+  const _MiniMetricGrid({required this.items});
+
+  final List<_MiniMetricItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 2.3,
+      ),
+      itemBuilder: (context, index) => _MiniMetricTile(item: items[index]),
+    );
+  }
+}
+
+class _MiniMetricItem {
+  const _MiniMetricItem({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+}
+
+class _MiniMetricTile extends StatelessWidget {
+  const _MiniMetricTile({required this.item});
+
+  final _MiniMetricItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              item.value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SoftLine extends StatelessWidget {
+  const _SoftLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Expanded(child: Text(label)),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeTodayOverview {
+  const _HomeTodayOverview({
+    required this.postureSummary,
+    required this.rehabSummary,
+    required this.dailyNote,
+  });
+
+  final PostureSummary postureSummary;
+  final RehabSummary rehabSummary;
+  final DailyRecoveryNote? dailyNote;
 }
 
 class _PostureStatusCard extends StatelessWidget {
@@ -565,158 +829,6 @@ class _PostureStatusCard extends StatelessWidget {
   }
 }
 
-class _RehabEntryCard extends StatelessWidget {
-  const _RehabEntryCard({
-    required this.actions,
-    required this.selectedAction,
-    required this.amount,
-    required this.unit,
-    required this.reaction,
-    required this.symptomTag,
-    required this.note,
-    required this.onActionChanged,
-    required this.onAmountChanged,
-    required this.onUnitChanged,
-    required this.onReactionChanged,
-    required this.onSymptomTagChanged,
-    required this.onNoteChanged,
-    required this.onSave,
-  });
-
-  static const _units = ['分钟', '次', '组', '秒'];
-  static const _symptomTags = ['腰酸', '腰痛', '臀腿痛', '腿麻', '脚背刺痛', '疲劳'];
-
-  final List<RehabAction> actions;
-  final RehabAction? selectedAction;
-  final String amount;
-  final String unit;
-  final RehabReaction reaction;
-  final String? symptomTag;
-  final String? note;
-  final ValueChanged<RehabAction?> onActionChanged;
-  final ValueChanged<String> onAmountChanged;
-  final ValueChanged<String?> onUnitChanged;
-  final ValueChanged<RehabReaction?> onReactionChanged;
-  final ValueChanged<String?> onSymptomTagChanged;
-  final ValueChanged<String> onNoteChanged;
-  final VoidCallback onSave;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const _CardHeader(
-              icon: Icons.accessibility_new_outlined,
-              title: '今日康复动作',
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<RehabAction>(
-              initialValue: selectedAction,
-              decoration: const InputDecoration(labelText: '选择康复动作'),
-              items: [
-                for (final action in actions)
-                  DropdownMenuItem(value: action, child: Text(action.name)),
-              ],
-              onChanged: onActionChanged,
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    initialValue: amount,
-                    decoration: const InputDecoration(labelText: '完成量'),
-                    keyboardType: TextInputType.number,
-                    onChanged: onAmountChanged,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: unit,
-                    decoration: const InputDecoration(labelText: '单位'),
-                    items: [
-                      for (final value in _units)
-                        DropdownMenuItem(value: value, child: Text(value)),
-                    ],
-                    onChanged: onUnitChanged,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<RehabReaction>(
-              initialValue: reaction,
-              decoration: const InputDecoration(labelText: '做后感觉'),
-              items: [
-                for (final value in RehabReaction.values)
-                  DropdownMenuItem(value: value, child: Text(value.label)),
-              ],
-              onChanged: onReactionChanged,
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: symptomTag,
-              decoration: const InputDecoration(labelText: '症状标签（可选）'),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('不选择')),
-                for (final value in _symptomTags)
-                  DropdownMenuItem(value: value, child: Text(value)),
-              ],
-              onChanged: onSymptomTagChanged,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              initialValue: note,
-              decoration: const InputDecoration(labelText: '备注（可选）'),
-              maxLines: 2,
-              onChanged: onNoteChanged,
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: selectedAction == null ? null : onSave,
-              icon: const Icon(Icons.save_outlined),
-              label: const Text('保存记录'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CardHeader extends StatelessWidget {
-  const _CardHeader({
-    required this.icon,
-    required this.title,
-  });
-
-  final IconData icon;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _HomeLoadingCard extends StatelessWidget {
   const _HomeLoadingCard({required this.title});
 
@@ -758,4 +870,20 @@ class _HomeErrorCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatShortDuration(Duration duration) {
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  if (hours > 0 && minutes > 0) {
+    return '$hours 小时 $minutes 分';
+  }
+  if (hours > 0) {
+    return '$hours 小时';
+  }
+  return '$minutes 分';
+}
+
+String _formatNumber(double value) {
+  return value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(1);
 }

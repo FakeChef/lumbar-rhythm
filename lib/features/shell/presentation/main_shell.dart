@@ -19,7 +19,7 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const HomePage(),
+      HomePage(onOpenTab: _selectTab),
       const CalendarPage(),
       const ActionsPage(),
       const ReportsPage(),
