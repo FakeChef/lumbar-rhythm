@@ -8,6 +8,9 @@ flutter_*.png
 # Android
 android/.gradle/
 android/local.properties
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
 android/app/debug
 android/app/profile
 android/app/release

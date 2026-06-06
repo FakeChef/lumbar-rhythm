@@ -40,6 +40,9 @@ This checklist is for preparing Lumbar Rhythm for Android and iOS review.
 - Debug build can be installed on an emulator or physical device.
 - Notification permission flow has been checked on Android 13 or later.
 - Export and delete local data have been checked on a device.
+- Release signing uses `android/key.properties` when a store keystore is available.
+- Keystore files and signing passwords are not committed to Git.
+- Release APK or AAB can be built for Android distribution.
 
 ## iOS
 
@@ -67,7 +70,9 @@ This checklist is for preparing Lumbar Rhythm for Android and iOS review.
 - `dart analyze lib test` passes.
 - `flutter test` passes when the local Flutter tool is healthy.
 - Android debug APK builds successfully.
-- Release build steps are documented before publishing.
+- Android release APK builds successfully.
+- Android App Bundle builds successfully when preparing for store upload.
+- Android release build steps are documented in `ANDROID_RELEASE.md`.
 
 ## Repository
 
