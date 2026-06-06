@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/local_database.dart';
@@ -14,6 +16,7 @@ abstract class RecoveryRepository {
   Future<void> saveProfile({
     DateTime? surgeryDate,
     String? surgeryType,
+    String? mainSegment,
     String? mainGoal,
   });
 
@@ -25,6 +28,7 @@ abstract class RecoveryRepository {
     required int backPainScore,
     required int legSymptomScore,
     required int fatigueScore,
+    List<String> tags = const [],
     String? note,
   });
 
@@ -49,11 +53,13 @@ class SqfliteRecoveryRepository implements RecoveryRepository {
   Future<void> saveProfile({
     DateTime? surgeryDate,
     String? surgeryType,
+    String? mainSegment,
     String? mainGoal,
   }) {
     return _database.upsertRecoveryProfile(
       surgeryDate: surgeryDate,
       surgeryType: _cleanOptional(surgeryType),
+      mainSegment: _cleanOptional(mainSegment),
       mainGoal: _cleanOptional(mainGoal),
       now: DateTime.now(),
     );
@@ -72,14 +78,18 @@ class SqfliteRecoveryRepository implements RecoveryRepository {
     required int backPainScore,
     required int legSymptomScore,
     required int fatigueScore,
+    List<String> tags = const [],
     String? note,
   }) {
+    final cleanedTags =
+        tags.map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toList();
     return _database.upsertDailyRecoveryNote(
       date: date,
       overallFeeling: overallFeeling.storageValue,
       backPainScore: backPainScore.clamp(0, 10),
       legSymptomScore: legSymptomScore.clamp(0, 10),
       fatigueScore: fatigueScore.clamp(0, 10),
+      tags: cleanedTags.isEmpty ? null : jsonEncode(cleanedTags),
       note: _cleanOptional(note),
       now: DateTime.now(),
     );
@@ -102,6 +112,7 @@ class SqfliteRecoveryRepository implements RecoveryRepository {
       id: row['id'] as int,
       surgeryDate: _parseOptionalDate(row['surgery_date'] as String?),
       surgeryType: row['surgery_type'] as String?,
+      mainSegment: row['main_segment'] as String?,
       mainGoal: row['main_goal'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String),
       updatedAt: DateTime.parse(row['updated_at'] as String),
@@ -119,6 +130,7 @@ class SqfliteRecoveryRepository implements RecoveryRepository {
       backPainScore: row['back_pain_score'] as int,
       legSymptomScore: row['leg_symptom_score'] as int,
       fatigueScore: row['fatigue_score'] as int,
+      tags: _tagsFromRow(row['tags'] as String?),
       note: row['note'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String),
       updatedAt: DateTime.parse(row['updated_at'] as String),
@@ -132,5 +144,28 @@ class SqfliteRecoveryRepository implements RecoveryRepository {
   String? _cleanOptional(String? value) {
     final trimmed = value?.trim();
     return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  List<String> _tagsFromRow(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return const [];
+    }
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is List) {
+        return decoded
+            .whereType<String>()
+            .map((tag) => tag.trim())
+            .where((tag) => tag.isNotEmpty)
+            .toList();
+      }
+    } on FormatException {
+      return value
+          .split(',')
+          .map((tag) => tag.trim())
+          .where((tag) => tag.isNotEmpty)
+          .toList();
+    }
+    return const [];
   }
 }

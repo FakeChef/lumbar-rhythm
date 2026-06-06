@@ -34,6 +34,11 @@ class PostureSession {
     required this.startedAt,
     this.endedAt,
     this.durationSeconds,
+    this.thresholdSeconds,
+    this.exceededSeconds = 0,
+    this.endReason,
+    this.source = 'manual',
+    this.note,
   });
 
   final int id;
@@ -41,6 +46,11 @@ class PostureSession {
   final DateTime startedAt;
   final DateTime? endedAt;
   final int? durationSeconds;
+  final int? thresholdSeconds;
+  final int exceededSeconds;
+  final String? endReason;
+  final String source;
+  final String? note;
 
   bool get isOpen => endedAt == null;
 

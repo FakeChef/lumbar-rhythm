@@ -26,7 +26,7 @@ class ActionsPage extends ConsumerWidget {
           child: ListTile(
             leading: Icon(Icons.info_outline),
             title: Text('康复记录'),
-            subtitle: Text('这里的动作只是记录模板，用于回顾完成量和做后反应，不作为治疗处方。'),
+            subtitle: Text('这里的动作只是记录模板，用于回顾完成量和做后反应，不代表固定方案。'),
           ),
         ),
         const SizedBox(height: 12),
@@ -83,7 +83,7 @@ class ActionsPage extends ConsumerWidget {
           amount: result.amount,
           unit: result.unit,
           reaction: result.reaction,
-          symptomTag: result.symptomTag,
+          symptomTags: result.symptomTags,
           note: result.note,
         );
     ref.invalidate(_rehabPageDataProvider);
@@ -127,7 +127,7 @@ class _RehabPageData {
   String todayAmountFor(RehabAction action) {
     final amount = todayLogs
         .where((log) => log.actionId == action.id)
-        .map((log) => double.tryParse(log.amount) ?? 0)
+        .map((log) => log.amountValue)
         .fold(0.0, (sum, value) => sum + value);
     if (amount == 0) {
       return '今日 0 ${action.defaultUnit}';
@@ -207,13 +207,13 @@ class RehabLogSheet extends StatefulWidget {
 }
 
 class _RehabLogSheetState extends State<RehabLogSheet> {
-  static const _symptomTags = ['腰酸', '腰痛', '臀腿痛', '腿麻', '脚背刺痛', '疲劳'];
+  static const _symptomTagOptions = ['腰酸', '腰痛', '臀腿痛', '腿麻', '脚背刺痛', '疲劳'];
 
   late final TextEditingController _amountController;
   late final TextEditingController _unitController;
   final _noteController = TextEditingController();
   RehabReaction _reaction = RehabReaction.noChange;
-  String? _symptomTag;
+  Set<String> _symptomTags = {};
 
   @override
   void initState() {
@@ -287,23 +287,26 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
               },
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _symptomTag,
-              decoration: const InputDecoration(labelText: '症状标签'),
-              items: [
-                const DropdownMenuItem(
-                  value: null,
-                  child: Text('不选择'),
-                ),
-                for (final tag in _symptomTags)
-                  DropdownMenuItem(
-                    value: tag,
-                    child: Text(tag),
+            Text('症状标签（可选）', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tag in _symptomTagOptions)
+                  FilterChip(
+                    label: Text(tag),
+                    selected: _symptomTags.contains(tag),
+                    onSelected: (selected) {
+                      setState(() {
+                        _symptomTags = {..._symptomTags};
+                        selected
+                            ? _symptomTags.add(tag)
+                            : _symptomTags.remove(tag);
+                      });
+                    },
                   ),
               ],
-              onChanged: (value) {
-                setState(() => _symptomTag = value);
-              },
             ),
             const SizedBox(height: 12),
             TextField(
@@ -327,7 +330,7 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                         amount: _amountController.text,
                         unit: _unitController.text,
                         reaction: _reaction,
-                        symptomTag: _symptomTag,
+                        symptomTags: _symptomTags.toList(),
                         note: _noteController.text,
                       ),
                     );
@@ -348,13 +351,13 @@ class _RehabLogDraft {
     required this.amount,
     required this.unit,
     required this.reaction,
-    required this.symptomTag,
+    required this.symptomTags,
     required this.note,
   });
 
   final String amount;
   final String unit;
   final RehabReaction reaction;
-  final String? symptomTag;
+  final List<String> symptomTags;
   final String note;
 }

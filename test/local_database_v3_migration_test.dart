@@ -43,6 +43,12 @@ void main() {
             duration_seconds INTEGER
           )
         ''');
+        await db.insert('posture_sessions', {
+          'type': 'sitting',
+          'started_at': DateTime(2026, 6, 6, 8).toIso8601String(),
+          'ended_at': DateTime(2026, 6, 6, 8, 20).toIso8601String(),
+          'duration_seconds': 1200,
+        });
         await db.execute('''
           CREATE TABLE rehab_actions (
             id INTEGER PRIMARY KEY,
@@ -79,10 +85,19 @@ void main() {
 
     final database = LocalDatabase(databasePath: dbPath);
     final rows = await database.readAllRehabLogs();
+    final postureRows = await database.readAllPostureSessions();
 
     expect(rows.single['amount_value'], 18.5);
     expect(rows.single['source'], 'manual');
-    expect(rows.single['symptom_tags'], '腰酸');
+    expect(rows.single['symptom_tags'], '["腰酸"]');
+    expect(rows.single.containsKey('pre_symptom_score'), isTrue);
+    expect(rows.single.containsKey('post_symptom_score'), isTrue);
+    expect(postureRows.single['type'], 'sitting');
+    expect(postureRows.single['duration_seconds'], 1200);
+    expect(postureRows.single['exceeded_seconds'], 0);
+    expect(postureRows.single.containsKey('threshold_seconds'), isTrue);
+    expect(postureRows.single.containsKey('end_reason'), isTrue);
+    expect(postureRows.single['source'], 'manual');
 
     await database.close();
     await databaseFactory.deleteDatabase(dbPath);

@@ -1,0 +1,448 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:lumbar_rhythm/features/actions/application/posture_reminder_rehab_link.dart';
+import 'package:lumbar_rhythm/features/actions/data/rehab_repository.dart';
+import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
+import 'package:lumbar_rhythm/features/actions/presentation/actions_page.dart';
+import 'package:lumbar_rhythm/features/milestones/data/recovery_milestone_repository.dart';
+import 'package:lumbar_rhythm/features/milestones/domain/recovery_milestone.dart';
+import 'package:lumbar_rhythm/features/posture/data/posture_session_repository.dart';
+import 'package:lumbar_rhythm/features/posture/domain/posture_session.dart';
+import 'package:lumbar_rhythm/features/posture/domain/posture_summary.dart';
+import 'package:lumbar_rhythm/features/recovery/data/recovery_repository.dart';
+import 'package:lumbar_rhythm/features/recovery/domain/daily_recovery_note.dart';
+import 'package:lumbar_rhythm/features/recovery/domain/recovery_profile.dart';
+import 'package:lumbar_rhythm/features/reports/application/daily_report_controller.dart';
+import 'package:lumbar_rhythm/features/reports/presentation/reports_page.dart';
+import 'package:lumbar_rhythm/features/settings/data/reminder_settings_repository.dart';
+import 'package:lumbar_rhythm/features/settings/domain/reminder_settings.dart';
+
+void main() {
+  test('dailyReportController reads real posture sessions and user thresholds',
+      () async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final container = _reportContainer(
+      postureSessions: [
+        PostureSession(
+          id: 1,
+          type: PostureType.sitting,
+          startedAt: today.add(const Duration(hours: 8)),
+          endedAt: today.add(const Duration(hours: 8, minutes: 20)),
+          durationSeconds: 1200,
+        ),
+        PostureSession(
+          id: 2,
+          type: PostureType.standing,
+          startedAt: today.add(const Duration(hours: 9)),
+          endedAt: today.add(const Duration(hours: 9, minutes: 20)),
+          durationSeconds: 1200,
+        ),
+        PostureSession(
+          id: 3,
+          type: PostureType.sitting,
+          startedAt: today.subtract(const Duration(days: 8)),
+          endedAt: today.subtract(const Duration(days: 8)).add(
+                const Duration(hours: 1),
+              ),
+          durationSeconds: 3600,
+        ),
+      ],
+      settings: const ReminderSettings(
+        remindersEnabled: true,
+        sittingIntervalMinutes: 15,
+        standingIntervalMinutes: 30,
+      ),
+    );
+    addTearDown(container.dispose);
+
+    final report = await container.read(dailyReportControllerProvider.future);
+
+    expect(report.postureSummary.sessions.length, 2);
+    expect(report.postureSummary.sittingTotal, const Duration(minutes: 20));
+    expect(report.postureSummary.sittingOverThresholdCount, 1);
+    expect(report.postureSummary.standingOverThresholdCount, 0);
+    expect(report.reminderSettings.sittingIntervalMinutes, 15);
+
+    container.read(reportPeriodProvider.notifier).state = ReportPeriod.week;
+    container.invalidate(dailyReportControllerProvider);
+    final weekly = await container.read(dailyReportControllerProvider.future);
+    expect(weekly.postureSummary.sessions.length, 2);
+  });
+
+  test('PostureSummary uses custom reminder thresholds', () {
+    final summary = PostureSummary(
+      now: DateTime(2026, 6, 7, 12),
+      sittingThreshold: const Duration(minutes: 15),
+      standingThreshold: const Duration(minutes: 45),
+      sessions: [
+        PostureSession(
+          id: 1,
+          type: PostureType.sitting,
+          startedAt: DateTime(2026, 6, 7, 8),
+          endedAt: DateTime(2026, 6, 7, 8, 20),
+        ),
+        PostureSession(
+          id: 2,
+          type: PostureType.standing,
+          startedAt: DateTime(2026, 6, 7, 9),
+          endedAt: DateTime(2026, 6, 7, 9, 20),
+        ),
+      ],
+    );
+
+    expect(summary.sittingOverThresholdCount, 1);
+    expect(summary.standingOverThresholdCount, 0);
+  });
+
+  testWidgets('report page shows sitting standing rhythm report',
+      (tester) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _reportOverrides(
+          postureSessions: [
+            PostureSession(
+              id: 1,
+              type: PostureType.sitting,
+              startedAt: today.add(const Duration(hours: 8)),
+              endedAt: today.add(const Duration(hours: 8, minutes: 50)),
+              durationSeconds: 3000,
+              exceededSeconds: 300,
+            ),
+            PostureSession(
+              id: 2,
+              type: PostureType.walking,
+              startedAt: today.add(const Duration(hours: 9)),
+              endedAt: today.add(const Duration(hours: 9, minutes: 10)),
+              durationSeconds: 600,
+            ),
+          ],
+        ),
+        child: const MaterialApp(home: Scaffold(body: ReportsPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('坐站节奏报告'), findsOneWidget);
+    expect(find.text('久坐超阈值次数'), findsOneWidget);
+    expect(find.text('姿势切换次数'), findsOneWidget);
+  });
+
+  test('RehabSummary uses amountValue for walking totals', () {
+    final summary = RehabSummary(
+      actions: actionLibrary,
+      logs: [
+        RehabLog(
+          id: 1,
+          actionId: 1,
+          amount: '旧文本',
+          amountValue: 3,
+          unit: '分钟',
+          reaction: RehabReaction.noChange,
+          source: 'manual',
+          createdAt: DateTime(2026, 6, 7),
+        ),
+      ],
+    );
+
+    expect(summary.totalAmountForActionNamed('步行'), 3);
+  });
+
+  testWidgets('rehab tab saves action log from record sheet', (tester) async {
+    final repository = _FakeRehabRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          rehabRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: const MaterialApp(home: Scaffold(body: ActionsPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('记录').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(repository.addedLogs, hasLength(1));
+    expect(repository.addedLogs.single.actionId, actionLibrary.first.id);
+    expect(repository.addedLogs.single.source, 'manual');
+  });
+
+  test('posture reminder link creates posture_reminder rehab logs', () async {
+    final repository = _FakeRehabRepository();
+    final link = PostureReminderRehabLink(repository);
+
+    final walk = await link.recordShortWalk(createdAt: DateTime(2026, 6, 7));
+    final rest = await link.recordRelaxationRest(
+      createdAt: DateTime(2026, 6, 7, 1),
+    );
+
+    expect(walk.source, 'posture_reminder');
+    expect(walk.amountValue, 3);
+    expect(walk.unit, '分钟');
+    expect(repository.actionNameFor(walk.actionId), '步行');
+    expect(rest.source, 'posture_reminder');
+    expect(repository.actionNameFor(rest.actionId), '仰卧放松');
+  });
+
+  test('app copy avoids unsupported medical promise wording', () {
+    const fixedDisclaimer = '本报告仅用于个人康复记录回顾，不作为医疗诊断或治疗依据。';
+    const forbidden = [
+      '治疗',
+      '治愈',
+      '预防复发',
+      '诊断',
+      '复发判断',
+      '复发风险',
+      '病情判断',
+      '神经恢复判断',
+      '纤维环愈合判断',
+      '医疗建议',
+    ];
+    final libFiles = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+
+    for (final file in libFiles) {
+      final text = file.readAsStringSync().replaceAll(fixedDisclaimer, '');
+      for (final word in forbidden) {
+        expect(text, isNot(contains(word)),
+            reason: '${file.path} contains $word');
+      }
+    }
+  });
+}
+
+ProviderContainer _reportContainer({
+  List<PostureSession> postureSessions = const [],
+  List<RehabLog> rehabLogs = const [],
+  ReminderSettings settings = ReminderSettings.defaults,
+}) {
+  return ProviderContainer(
+    overrides: _reportOverrides(
+      postureSessions: postureSessions,
+      rehabLogs: rehabLogs,
+      settings: settings,
+    ),
+  );
+}
+
+List<Override> _reportOverrides({
+  List<PostureSession> postureSessions = const [],
+  List<RehabLog> rehabLogs = const [],
+  ReminderSettings settings = ReminderSettings.defaults,
+}) {
+  return [
+    rehabRepositoryProvider.overrideWithValue(
+      _FakeRehabRepository(initialLogs: rehabLogs),
+    ),
+    postureSessionRepositoryProvider.overrideWithValue(
+      _FakePostureRepository(postureSessions),
+    ),
+    recoveryRepositoryProvider.overrideWithValue(_FakeRecoveryRepository()),
+    recoveryMilestoneRepositoryProvider.overrideWithValue(
+      _FakeMilestoneRepository(),
+    ),
+    reminderSettingsRepositoryProvider.overrideWithValue(
+      _FakeReminderSettingsRepository(settings),
+    ),
+  ];
+}
+
+class _FakeRehabRepository implements RehabRepository {
+  _FakeRehabRepository({List<RehabLog> initialLogs = const []})
+      : addedLogs = [...initialLogs];
+
+  final List<RehabLog> addedLogs;
+
+  @override
+  Future<RehabLog> addLog({
+    required RehabAction action,
+    required String amount,
+    required String unit,
+    required RehabReaction reaction,
+    String? symptomTag,
+    List<String> symptomTags = const [],
+    String source = 'manual',
+    int? preSymptomScore,
+    int? postSymptomScore,
+    String? note,
+    DateTime? createdAt,
+  }) async {
+    final amountValue = double.tryParse(amount.trim()) ?? 0;
+    final log = RehabLog(
+      id: addedLogs.length + 1,
+      actionId: action.id,
+      amount: amount,
+      amountValue: amountValue,
+      unit: unit,
+      reaction: reaction,
+      source: source,
+      symptomTag: symptomTag,
+      symptomTags: symptomTags,
+      preSymptomScore: preSymptomScore,
+      postSymptomScore: postSymptomScore,
+      note: note,
+      createdAt: createdAt ?? DateTime.now(),
+    );
+    addedLogs.add(log);
+    return log;
+  }
+
+  @override
+  Future<List<RehabAction>> loadActions() async => actionLibrary;
+
+  @override
+  Future<List<RehabLog>> loadAllLogs() async => addedLogs;
+
+  @override
+  Future<List<RehabLog>> loadRecentDays({
+    required int days,
+    DateTime? now,
+  }) async {
+    final anchor = now ?? DateTime.now();
+    final today = DateTime(anchor.year, anchor.month, anchor.day);
+    final start = today.subtract(Duration(days: days - 1));
+    final end = today.add(const Duration(days: 1));
+    return addedLogs.where((log) {
+      return !log.createdAt.isBefore(start) && log.createdAt.isBefore(end);
+    }).toList();
+  }
+
+  @override
+  Future<List<RehabLog>> loadToday({DateTime? now}) {
+    return loadRecentDays(days: 1, now: now);
+  }
+
+  String actionNameFor(int actionId) {
+    return actionLibrary.firstWhere((action) => action.id == actionId).name;
+  }
+}
+
+class _FakePostureRepository implements PostureSessionRepository {
+  const _FakePostureRepository(this.sessions);
+
+  final List<PostureSession> sessions;
+
+  @override
+  Future<void> endCurrent({
+    DateTime? now,
+    int? sittingThresholdMinutes,
+    int? standingThresholdMinutes,
+    String endReason = 'manual_end',
+    String source = 'manual',
+    String? note,
+  }) async {}
+
+  @override
+  Future<List<PostureSession>> loadAll() async => sessions;
+
+  @override
+  Future<PostureSession?> loadOpenSession() async => null;
+
+  @override
+  Future<List<PostureSession>> loadRecentDays({
+    required int days,
+    DateTime? now,
+  }) async {
+    final anchor = now ?? DateTime.now();
+    final today = DateTime(anchor.year, anchor.month, anchor.day);
+    final start = today.subtract(Duration(days: days - 1));
+    final end = today.add(const Duration(days: 1));
+    return sessions.where((session) {
+      return !session.startedAt.isBefore(start) &&
+          session.startedAt.isBefore(end);
+    }).toList();
+  }
+
+  @override
+  Future<List<PostureSession>> loadToday({DateTime? now}) {
+    return loadRecentDays(days: 1, now: now);
+  }
+
+  @override
+  Future<PostureSession> switchTo({
+    required PostureType type,
+    DateTime? now,
+    int? sittingThresholdMinutes,
+    int? standingThresholdMinutes,
+    String endReason = 'user_switch',
+    String source = 'manual',
+    String? note,
+  }) async {
+    return PostureSession(id: 99, type: type, startedAt: now ?? DateTime.now());
+  }
+}
+
+class _FakeRecoveryRepository implements RecoveryRepository {
+  @override
+  Future<RecoveryProfile?> loadProfile() async => null;
+
+  @override
+  Future<DailyRecoveryNote?> loadNote(DateTime date) async => null;
+
+  @override
+  Future<List<DailyRecoveryNote>> loadNotesBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async =>
+      const [];
+
+  @override
+  Future<void> saveNote({
+    required DateTime date,
+    required OverallFeeling overallFeeling,
+    required int backPainScore,
+    required int legSymptomScore,
+    required int fatigueScore,
+    List<String> tags = const [],
+    String? note,
+  }) async {}
+
+  @override
+  Future<void> saveProfile({
+    DateTime? surgeryDate,
+    String? surgeryType,
+    String? mainSegment,
+    String? mainGoal,
+  }) async {}
+}
+
+class _FakeMilestoneRepository implements RecoveryMilestoneRepository {
+  @override
+  Future<void> addCustom({
+    required String title,
+    String category = '自定义',
+    DateTime? targetDate,
+    String? note,
+  }) async {}
+
+  @override
+  Future<void> complete(int id, {String? note}) async {}
+
+  @override
+  Future<List<RecoveryMilestone>> loadMilestones() async => const [];
+
+  @override
+  Future<void> postpone(int id, DateTime targetDate, {String? note}) async {}
+}
+
+class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
+  const _FakeReminderSettingsRepository(this.settings);
+
+  final ReminderSettings settings;
+
+  @override
+  Future<ReminderSettings> load() async => settings;
+
+  @override
+  Future<void> save(ReminderSettings settings) async {}
+}

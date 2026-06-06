@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../milestones/data/recovery_milestone_repository.dart';
 import '../../posture/data/posture_session_repository.dart';
+import '../../posture/domain/posture_session.dart';
 import '../../posture/domain/posture_summary.dart';
 import '../../recovery/data/recovery_repository.dart';
+import '../../settings/data/reminder_settings_repository.dart';
+import '../../settings/domain/reminder_settings.dart';
 import '../domain/daily_report.dart';
 
 enum ReportPeriod {
@@ -39,9 +42,12 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
     final postureRepository = ref.watch(postureSessionRepositoryProvider);
     final recoveryRepository = ref.watch(recoveryRepositoryProvider);
     final milestoneRepository = ref.watch(recoveryMilestoneRepositoryProvider);
+    final reminderSettingsRepository =
+        ref.watch(reminderSettingsRepositoryProvider);
     final period = ref.watch(reportPeriodProvider);
     final now = DateTime.now();
     final rehabActions = await rehabRepository.loadActions();
+    final reminderSettings = await reminderSettingsRepository.load();
     final range = _rangeFor(period, now);
     final allRehabLogs = await rehabRepository.loadAllLogs();
     final allPostureSessions = await postureRepository.loadAll();
@@ -80,10 +86,19 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
       dailyNotes: dailyNotes,
       recentDailyNotes: recentDailyNotes,
       milestones: await milestoneRepository.loadMilestones(),
-      postureSummary: PostureSummary(sessions: postureSessions, now: now),
+      reminderSettings: reminderSettings,
+      postureSummary: _postureSummary(
+        sessions: postureSessions,
+        now: now,
+        settings: reminderSettings,
+      ),
       recentPostureSummary: PostureSummary(
         sessions: recentPostureSessions,
         now: now,
+        sittingThreshold:
+            Duration(minutes: reminderSettings.sittingIntervalMinutes),
+        standingThreshold:
+            Duration(minutes: reminderSettings.standingIntervalMinutes),
       ),
     );
   }
@@ -97,7 +112,7 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
           end: today.add(const Duration(days: 1))
         ),
       ReportPeriod.week => (
-          start: today.subtract(Duration(days: today.weekday - 1)),
+          start: today.subtract(const Duration(days: 6)),
           end: today.add(const Duration(days: 1)),
         ),
       ReportPeriod.month => (
@@ -109,5 +124,18 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
 
   bool _isWithin(DateTime value, ({DateTime start, DateTime end}) range) {
     return !value.isBefore(range.start) && value.isBefore(range.end);
+  }
+
+  PostureSummary _postureSummary({
+    required List<PostureSession> sessions,
+    required DateTime now,
+    required ReminderSettings settings,
+  }) {
+    return PostureSummary(
+      sessions: sessions,
+      now: now,
+      sittingThreshold: Duration(minutes: settings.sittingIntervalMinutes),
+      standingThreshold: Duration(minutes: settings.standingIntervalMinutes),
+    );
   }
 }

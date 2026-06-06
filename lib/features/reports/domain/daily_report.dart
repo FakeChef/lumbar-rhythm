@@ -3,11 +3,13 @@ import '../../milestones/domain/recovery_milestone.dart';
 import '../../posture/domain/posture_summary.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
 import '../../recovery/domain/recovery_profile.dart';
+import '../../settings/domain/reminder_settings.dart';
 
 class DailyReport {
   const DailyReport({
     required this.postureSummary,
     required this.recentPostureSummary,
+    this.reminderSettings = ReminderSettings.defaults,
     this.profile,
     this.rehabLogs = const [],
     this.recentRehabLogs = const [],
@@ -26,6 +28,7 @@ class DailyReport {
   final List<RecoveryMilestone> milestones;
   final PostureSummary postureSummary;
   final PostureSummary recentPostureSummary;
+  final ReminderSettings reminderSettings;
 
   RehabSummary get rehabSummary {
     return RehabSummary(logs: rehabLogs, actions: rehabActions);

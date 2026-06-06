@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../actions/domain/action_item.dart';
+import '../../posture/domain/posture_summary.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
 import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
@@ -124,6 +125,8 @@ class _DailyRehabOverview extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+        _SittingStandingReportCard(report: report),
+        const SizedBox(height: 12),
         _OverviewGrid(
           cards: [
             _OverviewCardData(
@@ -181,6 +184,8 @@ class _RehabTrendOverview extends StatelessWidget {
 
     return Column(
       children: [
+        _PostureRhythmTrendCard(report: report, period: period),
+        const SizedBox(height: 12),
         _TrendCard(
           title: '${_periodTitle(period)}康复动作趋势',
           subtitle: '按天统计康复记录次数',
@@ -205,6 +210,110 @@ class _RehabTrendOverview extends StatelessWidget {
         const SizedBox(height: 12),
         _TrendSummaryCard(report: report),
       ],
+    );
+  }
+}
+
+class _SittingStandingReportCard extends StatelessWidget {
+  const _SittingStandingReportCard({required this.report});
+
+  final DailyReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final posture = report.postureSummary;
+
+    return _SectionCard(
+      title: '坐站节奏报告',
+      subtitle: '记录显示，仅作为个人观察参考',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SoftMetricRow(
+              label: '坐姿累计', value: _formatDuration(posture.sittingTotal)),
+          _SoftMetricRow(
+              label: '站立累计', value: _formatDuration(posture.standingTotal)),
+          _SoftMetricRow(
+              label: '走动累计', value: _formatDuration(posture.walkingTotal)),
+          _SoftMetricRow(
+              label: '休息累计', value: _formatDuration(posture.restingTotal)),
+          _SoftMetricRow(
+            label: '最长连续坐姿',
+            value: _formatDuration(posture.longestSitting),
+          ),
+          _SoftMetricRow(
+            label: '最长连续站立',
+            value: _formatDuration(posture.longestStanding),
+          ),
+          _SoftMetricRow(
+            label: '久坐超阈值次数',
+            value: '${posture.sittingOverThresholdCount} 次',
+          ),
+          _SoftMetricRow(
+            label: '久站超阈值次数',
+            value: '${posture.standingOverThresholdCount} 次',
+          ),
+          _SoftMetricRow(label: '姿势切换次数', value: '${posture.switchCount} 次'),
+        ],
+      ),
+    );
+  }
+}
+
+class _PostureRhythmTrendCard extends StatelessWidget {
+  const _PostureRhythmTrendCard({
+    required this.report,
+    required this.period,
+  });
+
+  final DailyReport report;
+  final ReportPeriod period;
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = _recentPostureStats(report);
+    final bins = _postureTrendBinsFor(report, period);
+    final sittingExceeded =
+        report.recentPostureSummary.sittingOverThresholdCount;
+    final standingExceeded =
+        report.recentPostureSummary.standingOverThresholdCount;
+    final discomfortAfterTimeout = report.recentRehabLogs.where((log) {
+      return log.source == 'posture_reminder' &&
+          log.reaction == RehabReaction.muchWorse;
+    }).length;
+
+    return _SectionCard(
+      title: period == ReportPeriod.week ? '最近 7 天坐站节奏报告' : '本月坐站节奏报告',
+      subtitle: '坐站趋势来自姿势记录',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SoftMetricRow(
+            label: '平均最长坐姿',
+            value: _formatDuration(stats.averageLongestSitting),
+          ),
+          _SoftMetricRow(
+            label: '平均最长站立',
+            value: _formatDuration(stats.averageLongestStanding),
+          ),
+          _SoftMetricRow(
+            label: '久坐 / 久站超阈值总次数',
+            value: '$sittingExceeded / $standingExceeded 次',
+          ),
+          _SoftMetricRow(
+            label: '超时后明显不适次数',
+            value: '$discomfortAfterTimeout 次',
+          ),
+          const SizedBox(height: 8),
+          Text(
+            period == ReportPeriod.week
+                ? '本周记录显示，你有 $sittingExceeded 次坐姿超过设定提醒时间，可作为下周观察参考。'
+                : '本月记录显示，你有 $sittingExceeded 次坐姿超过设定提醒时间，可作为观察参考。',
+          ),
+          const SizedBox(height: 16),
+          _StackedPostureBars(bins: bins),
+        ],
+      ),
     );
   }
 }
@@ -482,6 +591,100 @@ class _TrendBar extends StatelessWidget {
   }
 }
 
+class _StackedPostureBars extends StatelessWidget {
+  const _StackedPostureBars({required this.bins});
+
+  final List<_PostureTrendBin> bins;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxMinutes = bins.fold<double>(0, (max, bin) {
+      final value = bin.totalMinutes;
+      return value > max ? value : max;
+    });
+
+    if (maxMinutes <= 0) {
+      return const Text('当前时间范围内还没有坐站节奏记录。');
+    }
+
+    return SizedBox(
+      height: 190,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (final bin in bins)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    SizedBox(
+                      height: 128,
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: _PostureStackBar(
+                          bin: bin,
+                          maxMinutes: maxMinutes,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      bin.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PostureStackBar extends StatelessWidget {
+  const _PostureStackBar({required this.bin, required this.maxMinutes});
+
+  final _PostureTrendBin bin;
+  final double maxMinutes;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalHeight = 18 + 110 * (bin.totalMinutes / maxMinutes);
+    final segments = [
+      (value: bin.sittingMinutes, color: _ReportColors.primary),
+      (value: bin.standingMinutes, color: _ReportColors.walking),
+      (value: bin.walkingMinutes, color: _ReportColors.highlight),
+      (value: bin.restingMinutes, color: _ReportColors.resting),
+    ].where((segment) => segment.value > 0).toList();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        width: 18,
+        height: totalHeight,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            for (final segment in segments)
+              Expanded(
+                flex: (segment.value * 100).round().clamp(1, 100000),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(color: segment.color),
+                  child: const SizedBox(width: 18),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TrendSummaryCard extends StatelessWidget {
   const _TrendSummaryCard({required this.report});
 
@@ -682,6 +885,38 @@ class _TrendBin {
   final double walkingMinutes;
 }
 
+class _PostureTrendBin {
+  const _PostureTrendBin({
+    required this.day,
+    required this.label,
+    required this.sittingMinutes,
+    required this.standingMinutes,
+    required this.walkingMinutes,
+    required this.restingMinutes,
+  });
+
+  final DateTime day;
+  final String label;
+  final double sittingMinutes;
+  final double standingMinutes;
+  final double walkingMinutes;
+  final double restingMinutes;
+
+  double get totalMinutes {
+    return sittingMinutes + standingMinutes + walkingMinutes + restingMinutes;
+  }
+}
+
+class _RecentPostureStats {
+  const _RecentPostureStats({
+    required this.averageLongestSitting,
+    required this.averageLongestStanding,
+  });
+
+  final Duration averageLongestSitting;
+  final Duration averageLongestStanding;
+}
+
 class _SymptomTrendCard extends StatelessWidget {
   const _SymptomTrendCard({required this.report});
 
@@ -715,6 +950,102 @@ abstract final class _ReportColors {
   static const walking = Color(0xFFE09F3E);
   static const highlight = Color(0xFF5B7CFA);
   static const warning = Color(0xFFD96C4A);
+  static const resting = Color(0xFF7A6FF0);
+}
+
+_RecentPostureStats _recentPostureStats(DailyReport report) {
+  final now = report.recentPostureSummary.now;
+  final today = DateTime(now.year, now.month, now.day);
+  final start = today.subtract(const Duration(days: 6));
+  final longestSitting = <Duration>[];
+  final longestStanding = <Duration>[];
+
+  for (var index = 0; index < 7; index++) {
+    final day = start.add(Duration(days: index));
+    final summary = _postureSummaryForDay(report.recentPostureSummary, day);
+    if (summary.sessions.isNotEmpty) {
+      longestSitting.add(summary.longestSitting);
+      longestStanding.add(summary.longestStanding);
+    }
+  }
+
+  return _RecentPostureStats(
+    averageLongestSitting: _averageDuration(longestSitting),
+    averageLongestStanding: _averageDuration(longestStanding),
+  );
+}
+
+List<_PostureTrendBin> _postureTrendBinsFor(
+  DailyReport report,
+  ReportPeriod period,
+) {
+  final now = report.postureSummary.now;
+  final today = DateTime(now.year, now.month, now.day);
+  final start = switch (period) {
+    ReportPeriod.day => today,
+    ReportPeriod.week => today.subtract(const Duration(days: 6)),
+    ReportPeriod.month => DateTime(now.year, now.month),
+  };
+  final length = switch (period) {
+    ReportPeriod.day => 1,
+    ReportPeriod.week => 7,
+    ReportPeriod.month => DateTime(now.year, now.month + 1, 0).day,
+  };
+
+  final source = period == ReportPeriod.week
+      ? report.recentPostureSummary
+      : report.postureSummary;
+
+  return [
+    for (var index = 0; index < length; index++)
+      _postureTrendBinFor(
+        source: source,
+        day: start.add(Duration(days: index)),
+        period: period,
+      ),
+  ];
+}
+
+_PostureTrendBin _postureTrendBinFor({
+  required PostureSummary source,
+  required DateTime day,
+  required ReportPeriod period,
+}) {
+  final summary = _postureSummaryForDay(source, day);
+  return _PostureTrendBin(
+    day: day,
+    label: _trendLabel(day, period),
+    sittingMinutes: summary.sittingTotal.inMinutes.toDouble(),
+    standingMinutes: summary.standingTotal.inMinutes.toDouble(),
+    walkingMinutes: summary.walkingTotal.inMinutes.toDouble(),
+    restingMinutes: summary.restingTotal.inMinutes.toDouble(),
+  );
+}
+
+PostureSummary _postureSummaryForDay(PostureSummary source, DateTime day) {
+  final nextDay = day.add(const Duration(days: 1));
+  final sessions = source.sessions.where((session) {
+    return !session.startedAt.isBefore(day) &&
+        session.startedAt.isBefore(nextDay);
+  }).toList();
+
+  return PostureSummary(
+    sessions: sessions,
+    now: nextDay,
+    sittingThreshold: source.sittingThreshold,
+    standingThreshold: source.standingThreshold,
+  );
+}
+
+Duration _averageDuration(List<Duration> values) {
+  if (values.isEmpty) {
+    return Duration.zero;
+  }
+  final seconds = values
+          .map((value) => value.inSeconds)
+          .fold<int>(0, (sum, value) => sum + value) /
+      values.length;
+  return Duration(seconds: seconds.round());
 }
 
 List<_TrendBin> _trendBinsFor(DailyReport report, ReportPeriod period) {
@@ -722,7 +1053,7 @@ List<_TrendBin> _trendBinsFor(DailyReport report, ReportPeriod period) {
   final today = DateTime(now.year, now.month, now.day);
   final start = switch (period) {
     ReportPeriod.day => today,
-    ReportPeriod.week => today.subtract(Duration(days: today.weekday - 1)),
+    ReportPeriod.week => today.subtract(const Duration(days: 6)),
     ReportPeriod.month => DateTime(now.year, now.month),
   };
   final length = switch (period) {

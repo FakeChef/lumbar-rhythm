@@ -7,6 +7,7 @@ import '../../posture/application/posture_session_controller.dart';
 import '../../posture/data/posture_session_repository.dart';
 import '../../posture/domain/posture_session.dart';
 import '../../posture/domain/posture_summary.dart';
+import '../../posture/domain/sitting_standing_timer_state.dart';
 import '../../recovery/data/recovery_repository.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
 import '../../recovery/domain/recovery_profile.dart';
@@ -17,6 +18,8 @@ import '../../settings/domain/reminder_settings.dart';
 final _homeRecoveryProfileProvider = FutureProvider((ref) {
   return ref.watch(recoveryRepositoryProvider).loadProfile();
 });
+
+const _dailyNoteTags = ['腰酸', '腰痛', '臀腿痛', '腿麻', '脚背刺痛', '疲劳'];
 
 final _homeTodayOverviewProvider = FutureProvider<_HomeTodayOverview>(
   (ref) async {
@@ -94,21 +97,21 @@ class _HomePageState extends ConsumerState<HomePage> {
                 session: session,
                 now: postureNow,
                 settings: settings,
+                hasMarkedDiscomfort:
+                    overviewState.valueOrNull?.hasMarkedDiscomfort ?? false,
                 selectedPosture: _selectedPosture,
-                onSelectedPostureChanged: (type) {
-                  if (type != null) {
-                    setState(() => _selectedPosture = type);
-                  }
-                },
-                onStartOrSwitch: () async {
+                onSwitchPosture: (type) async {
+                  setState(() => _selectedPosture = type);
                   await ref
                       .read(postureSessionControllerProvider.notifier)
-                      .switchTo(_selectedPosture);
+                      .switchTo(type);
+                  ref.invalidate(_homeTodayOverviewProvider);
                 },
                 onEndCurrent: () async {
                   await ref
                       .read(postureSessionControllerProvider.notifier)
                       .endCurrent();
+                  ref.invalidate(_homeTodayOverviewProvider);
                 },
               ),
             ),
@@ -135,9 +138,10 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
           const SizedBox(height: 12),
           _QuickEntryCard(
-            onOpenCalendar: () => widget.onOpenTab?.call(1),
             onOpenRehab: () => widget.onOpenTab?.call(2),
+            onOpenDailyNote: () => _showDailyRecoveryNoteDialog(context),
             onOpenReport: () => widget.onOpenTab?.call(3),
+            onOpenSettings: () => widget.onOpenTab?.call(4),
           ),
         ],
       ),
@@ -161,6 +165,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     var backPain = existing?.backPainScore ?? 0;
     var legSymptom = existing?.legSymptomScore ?? 0;
     var fatigue = existing?.fatigueScore ?? 0;
+    var tags = existing?.tags.toSet() ?? <String>{};
     var note = existing?.note ?? '';
 
     final saved = await showDialog<bool>(
@@ -209,6 +214,29 @@ class _HomePageState extends ConsumerState<HomePage> {
                       onChanged: (value) =>
                           setDialogState(() => fatigue = value),
                     ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '标签（可选）',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final tag in _dailyNoteTags)
+                          FilterChip(
+                            label: Text(tag),
+                            selected: tags.contains(tag),
+                            onSelected: (selected) {
+                              setDialogState(() {
+                                tags = {...tags};
+                                selected ? tags.add(tag) : tags.remove(tag);
+                              });
+                            },
+                          ),
+                      ],
+                    ),
                     TextFormField(
                       initialValue: note,
                       decoration: const InputDecoration(labelText: '备注（可选）'),
@@ -244,6 +272,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       backPainScore: backPain,
       legSymptomScore: legSymptom,
       fatigueScore: fatigue,
+      tags: tags.toList(),
       note: note,
     );
     ref.invalidate(dailyReportControllerProvider);
@@ -382,7 +411,15 @@ class _TodayPostureSummaryCard extends StatelessWidget {
             _SoftLine(
                 label: '最长连续站着',
                 value: _formatShortDuration(summary.longestStanding)),
-            _SoftLine(label: '姿势切换', value: '${summary.switchCount} 次'),
+            _SoftLine(
+              label: '姿势打断次数',
+              value: '${summary.switchCount} 次',
+            ),
+            _SoftLine(
+              label: '久坐 / 久站超阈值',
+              value:
+                  '${summary.sittingOverThresholdCount} / ${summary.standingOverThresholdCount} 次',
+            ),
           ],
         ),
       ),
@@ -459,14 +496,16 @@ class _TodayRecoveryOverviewCard extends StatelessWidget {
 
 class _QuickEntryCard extends StatelessWidget {
   const _QuickEntryCard({
-    required this.onOpenCalendar,
     required this.onOpenRehab,
+    required this.onOpenDailyNote,
     required this.onOpenReport,
+    required this.onOpenSettings,
   });
 
-  final VoidCallback onOpenCalendar;
   final VoidCallback onOpenRehab;
+  final VoidCallback onOpenDailyNote;
   final VoidCallback onOpenReport;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -492,16 +531,22 @@ class _QuickEntryCard extends StatelessWidget {
               onTap: onOpenRehab,
             ),
             _QuickEntryButton(
-              icon: Icons.calendar_month_outlined,
-              title: '查看康复日历',
-              subtitle: '按日期回看每日状态',
-              onTap: onOpenCalendar,
+              icon: Icons.edit_note_outlined,
+              title: '记录今日状态',
+              subtitle: '快速记录整体感觉和评分',
+              onTap: onOpenDailyNote,
             ),
             _QuickEntryButton(
               icon: Icons.bar_chart_outlined,
               title: '查看康复报告',
               subtitle: '汇总坐站节奏和康复记录',
               onTap: onOpenReport,
+            ),
+            _QuickEntryButton(
+              icon: Icons.notifications_active_outlined,
+              title: '设置提醒',
+              subtitle: '调整久坐久站提醒时间',
+              onTap: onOpenSettings,
             ),
           ],
         ),
@@ -643,6 +688,14 @@ class _HomeTodayOverview {
   final PostureSummary postureSummary;
   final RehabSummary rehabSummary;
   final DailyRecoveryNote? dailyNote;
+
+  bool get hasMarkedDiscomfort {
+    return rehabSummary.reactionCount(RehabReaction.muchWorse) > 0 ||
+        (dailyNote?.overallFeeling == OverallFeeling.slightlyWorse) ||
+        (dailyNote?.backPainScore ?? 0) >= 7 ||
+        (dailyNote?.legSymptomScore ?? 0) >= 7 ||
+        (dailyNote?.fatigueScore ?? 0) >= 7;
+  }
 }
 
 class _PostureStatusCard extends StatelessWidget {
@@ -650,18 +703,18 @@ class _PostureStatusCard extends StatelessWidget {
     required this.session,
     required this.now,
     required this.settings,
+    required this.hasMarkedDiscomfort,
     required this.selectedPosture,
-    required this.onSelectedPostureChanged,
-    required this.onStartOrSwitch,
+    required this.onSwitchPosture,
     required this.onEndCurrent,
   });
 
   final PostureSession? session;
   final DateTime now;
   final ReminderSettings settings;
+  final bool hasMarkedDiscomfort;
   final PostureType selectedPosture;
-  final ValueChanged<PostureType?> onSelectedPostureChanged;
-  final VoidCallback onStartOrSwitch;
+  final ValueChanged<PostureType> onSwitchPosture;
   final VoidCallback onEndCurrent;
 
   @override
@@ -669,16 +722,22 @@ class _PostureStatusCard extends StatelessWidget {
     final current = session;
     final activeType = current?.type;
     final displayType = activeType ?? selectedPosture;
-    final durationText =
-        current == null ? '00:00' : _formatDuration(current.durationAt(now));
-    final statusText =
-        current == null ? '尚未开始' : '正在${_postureMenuLabel(current.type)}';
-    final statusColor = _postureColor(context, displayType);
+    final duration = current?.durationAt(now) ?? Duration.zero;
+    final durationText = current == null ? '00:00' : _formatDuration(duration);
+    final timerState = current == null
+        ? null
+        : SittingStandingTimerState.calculate(
+            posture: displayType,
+            elapsed: duration,
+            settings: settings,
+            hasMarkedDiscomfort: hasMarkedDiscomfort,
+          );
+    final statusColor = timerState == null
+        ? _timerToneColor(SittingStandingTimerTone.blue)
+        : _timerToneColor(timerState.tone);
 
     return Card(
-      color: Theme.of(context).colorScheme.primaryContainer.withValues(
-            alpha: 0.56,
-          ),
+      color: statusColor.withValues(alpha: 0.12),
       child: Padding(
         padding: const EdgeInsets.all(22),
         child: Column(
@@ -736,7 +795,7 @@ class _PostureStatusCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              statusText,
+              current == null ? '尚未开始' : '当前姿势：${current.type.label}',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: statusColor,
@@ -744,33 +803,40 @@ class _PostureStatusCard extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 6),
-            Text(
-              '当前提醒阈值：${_thresholdText(displayType)}',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final type in PostureType.values)
-                  ChoiceChip(
-                    avatar: Icon(_postureIcon(type), size: 18),
-                    label: Text(_postureMenuLabel(type)),
-                    selected: selectedPosture == type,
-                    onSelected: (_) => onSelectedPostureChanged(type),
+            Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  child: Text(
+                    timerState?.statusLabel ?? '正常',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: statusColor,
+                          fontWeight: FontWeight.w800,
+                        ),
                   ),
-              ],
+                ),
+              ),
             ),
             const SizedBox(height: 14),
-            FilledButton.icon(
-              onPressed: onStartOrSwitch,
-              icon: const Icon(Icons.play_arrow_outlined),
-              label: const Text('开始/切换'),
+            _TimerInfoPanel(
+              sittingThreshold: settings.sittingIntervalMinutes,
+              standingThreshold: settings.standingIntervalMinutes,
+              message: timerState?.message ?? '开始后会显示距离提醒的时间',
+              suggestion: timerState?.suggestion ?? '选择一个姿势，按自己的节奏开始记录。',
+            ),
+            const SizedBox(height: 18),
+            _PostureActionGrid(
+              activeType: activeType,
+              selectedType: selectedPosture,
+              onSwitchPosture: onSwitchPosture,
             ),
             if (current != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: onEndCurrent,
                 icon: const Icon(Icons.stop_circle_outlined),
@@ -783,23 +849,6 @@ class _PostureStatusCard extends StatelessWidget {
     );
   }
 
-  String _thresholdText(PostureType type) {
-    return switch (type) {
-      PostureType.sitting => '久坐 ${settings.sittingIntervalMinutes} 分钟',
-      PostureType.standing => '久站 ${settings.standingIntervalMinutes} 分钟',
-      PostureType.walking || PostureType.resting => '不安排坐站提醒',
-    };
-  }
-
-  String _postureMenuLabel(PostureType type) {
-    return switch (type) {
-      PostureType.sitting => '坐着',
-      PostureType.standing => '站着',
-      PostureType.walking => '走动',
-      PostureType.resting => '休息',
-    };
-  }
-
   IconData _postureIcon(PostureType type) {
     return switch (type) {
       PostureType.sitting => Icons.event_seat_outlined,
@@ -809,12 +858,13 @@ class _PostureStatusCard extends StatelessWidget {
     };
   }
 
-  Color _postureColor(BuildContext context, PostureType type) {
-    return switch (type) {
-      PostureType.sitting => Theme.of(context).colorScheme.primary,
-      PostureType.standing => const Color(0xFF2F7D5C),
-      PostureType.walking => const Color(0xFFE09F3E),
-      PostureType.resting => const Color(0xFF5B7CFA),
+  Color _timerToneColor(SittingStandingTimerTone tone) {
+    return switch (tone) {
+      SittingStandingTimerTone.blue => const Color(0xFF4F7CF7),
+      SittingStandingTimerTone.yellow => const Color(0xFFE4B53D),
+      SittingStandingTimerTone.orange => const Color(0xFFE78A3C),
+      SittingStandingTimerTone.redOrange => const Color(0xFFD96C4A),
+      SittingStandingTimerTone.green => const Color(0xFF2F7D5C),
     };
   }
 
@@ -826,6 +876,193 @@ class _PostureStatusCard extends StatelessWidget {
       return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+}
+
+class _TimerInfoPanel extends StatelessWidget {
+  const _TimerInfoPanel({
+    required this.sittingThreshold,
+    required this.standingThreshold,
+    required this.message,
+    required this.suggestion,
+  });
+
+  final int sittingThreshold;
+  final int standingThreshold;
+  final String message;
+  final String suggestion;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _ThresholdPill(
+                    label: '久坐阈值',
+                    value: '$sittingThreshold 分钟',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ThresholdPill(
+                    label: '久站阈值',
+                    value: '$standingThreshold 分钟',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SoftLine(label: '提醒时间', value: message),
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.lightbulb_outline, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(suggestion)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThresholdPill extends StatelessWidget {
+  const _ThresholdPill({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PostureActionGrid extends StatelessWidget {
+  const _PostureActionGrid({
+    required this.activeType,
+    required this.selectedType,
+    required this.onSwitchPosture,
+  });
+
+  final PostureType? activeType;
+  final PostureType selectedType;
+  final ValueChanged<PostureType> onSwitchPosture;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: PostureType.values.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 2.2,
+      ),
+      itemBuilder: (context, index) {
+        final type = PostureType.values[index];
+        return _PostureActionButton(
+          type: type,
+          isActive: activeType == type,
+          isSelected: selectedType == type,
+          onPressed: () => onSwitchPosture(type),
+        );
+      },
+    );
+  }
+}
+
+class _PostureActionButton extends StatelessWidget {
+  const _PostureActionButton({
+    required this.type,
+    required this.isActive,
+    required this.isSelected,
+    required this.onPressed,
+  });
+
+  final PostureType type;
+  final bool isActive;
+  final bool isSelected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = _buttonColor(context, type);
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(_postureIcon(type), size: 22),
+      label: Text(type.label),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        backgroundColor: isActive
+            ? color.withValues(alpha: 0.16)
+            : scheme.surface.withValues(alpha: 0.74),
+        foregroundColor: isActive ? color : scheme.onSurface,
+        side: BorderSide(
+          color: isActive || isSelected ? color : scheme.outlineVariant,
+          width: isActive ? 2 : 1,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  IconData _postureIcon(PostureType type) {
+    return switch (type) {
+      PostureType.sitting => Icons.event_seat_outlined,
+      PostureType.standing => Icons.accessibility_new_outlined,
+      PostureType.walking => Icons.directions_walk_outlined,
+      PostureType.resting => Icons.bedtime_outlined,
+    };
+  }
+
+  Color _buttonColor(BuildContext context, PostureType type) {
+    return switch (type) {
+      PostureType.sitting => Theme.of(context).colorScheme.primary,
+      PostureType.standing => const Color(0xFF2F7D5C),
+      PostureType.walking => const Color(0xFFE09F3E),
+      PostureType.resting => const Color(0xFF5B7CFA),
+    };
   }
 }
 

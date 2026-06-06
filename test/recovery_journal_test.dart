@@ -35,11 +35,13 @@ void main() {
     await repository.saveProfile(
       surgeryDate: surgeryDate,
       surgeryType: '腰椎术后',
+      mainSegment: 'L4-L5',
       mainGoal: '稳定记录',
     );
     final profile = await repository.loadProfile();
 
     expect(profile?.surgeryDate, surgeryDate);
+    expect(profile?.mainSegment, 'L4-L5');
     expect(profile?.postSurgeryDay(DateTime(2026, 6, 6)), 6);
   });
 
@@ -53,6 +55,7 @@ void main() {
       backPainScore: 3,
       legSymptomScore: 2,
       fatigueScore: 4,
+      tags: ['散步后', '上午'],
       note: '上午散步',
     );
     await repository.saveNote(
@@ -61,6 +64,7 @@ void main() {
       backPainScore: 2,
       legSymptomScore: 1,
       fatigueScore: 3,
+      tags: ['晚上'],
       note: '晚上更轻松',
     );
     final notes = await repository.loadNotesBetween(
@@ -70,6 +74,7 @@ void main() {
 
     expect(notes.length, 1);
     expect(notes.single.overallFeeling, OverallFeeling.better);
+    expect(notes.single.tags, ['晚上']);
     expect(notes.single.note, '晚上更轻松');
   });
 
@@ -103,6 +108,8 @@ void main() {
       reaction: RehabReaction.noChange,
       symptomTags: ['腰酸', '疲劳'],
       source: 'manual',
+      preSymptomScore: 4,
+      postSymptomScore: 3,
       createdAt: DateTime(2026, 6, 6, 9),
     );
     final summary = RehabSummary(logs: [log], actions: actions);
@@ -110,6 +117,8 @@ void main() {
     expect(log.amountValue, 12.5);
     expect(log.source, 'manual');
     expect(log.symptomTags, ['腰酸', '疲劳']);
+    expect(log.preSymptomScore, 4);
+    expect(log.postSymptomScore, 3);
     expect(summary.totalAmountForActionNamed('步行'), 12.5);
   });
 }
