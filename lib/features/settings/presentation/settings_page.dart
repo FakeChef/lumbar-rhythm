@@ -8,6 +8,9 @@ import '../application/reminder_settings_controller.dart';
 import '../data/local_data_repository.dart';
 import '../domain/reminder_settings.dart';
 
+final _settingsTestReminderFeedbackProvider =
+    StateProvider.autoDispose<String?>((ref) => null);
+
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
@@ -16,6 +19,9 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsState = ref.watch(reminderSettingsControllerProvider);
+    final testReminderFeedback =
+        ref.watch(_settingsTestReminderFeedbackProvider);
+    final testReminderSending = testReminderFeedback == '正在发送测试提醒…';
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -35,6 +41,8 @@ class SettingsPage extends ConsumerWidget {
           data: (settings) => _ReminderSettingsSection(
             settings: settings,
             intervalOptions: _intervalOptions,
+            testReminderFeedback: testReminderFeedback,
+            testReminderSending: testReminderSending,
             onRemindersEnabledChanged: (value) {
               ref
                   .read(reminderSettingsControllerProvider.notifier)
@@ -53,17 +61,25 @@ class SettingsPage extends ConsumerWidget {
                   .setStandingIntervalMinutes(value);
             },
             onTestReminderPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              ref.read(_settingsTestReminderFeedbackProvider.notifier).state =
+                  '正在发送测试提醒…';
+              messenger.showSnackBar(
+                const SnackBar(content: Text('正在发送测试提醒…')),
+              );
               final sent = await ref
                   .read(notificationServiceProvider)
                   .showTestReminder();
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
+              messenger.showSnackBar(
                 SnackBar(
                   content: Text(
                     sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限',
                   ),
                 ),
               );
+              ref.read(_settingsTestReminderFeedbackProvider.notifier).state =
+                  sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限';
             },
           ),
         ),
@@ -224,6 +240,8 @@ class _ReminderSettingsSection extends StatelessWidget {
   const _ReminderSettingsSection({
     required this.settings,
     required this.intervalOptions,
+    required this.testReminderFeedback,
+    required this.testReminderSending,
     required this.onRemindersEnabledChanged,
     required this.onSittingIntervalChanged,
     required this.onStandingIntervalChanged,
@@ -232,6 +250,8 @@ class _ReminderSettingsSection extends StatelessWidget {
 
   final ReminderSettings settings;
   final List<int> intervalOptions;
+  final String? testReminderFeedback;
+  final bool testReminderSending;
   final ValueChanged<bool> onRemindersEnabledChanged;
   final ValueChanged<int?> onSittingIntervalChanged;
   final ValueChanged<int?> onStandingIntervalChanged;
@@ -277,9 +297,25 @@ class _ReminderSettingsSection extends StatelessWidget {
           trailing: IconButton(
             tooltip: '发送测试提醒',
             icon: const Icon(Icons.send_outlined),
-            onPressed: onTestReminderPressed,
+            onPressed: settings.remindersEnabled && !testReminderSending
+                ? onTestReminderPressed
+                : null,
           ),
         ),
+        if (testReminderFeedback != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(72, 0, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                testReminderFeedback!,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ),
       ],
     );
   }

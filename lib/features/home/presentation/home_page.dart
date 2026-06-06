@@ -9,6 +9,10 @@ import '../../reports/domain/daily_report.dart';
 import '../../settings/application/reminder_settings_controller.dart';
 import '../../settings/domain/reminder_settings.dart';
 
+final _testReminderFeedbackProvider = StateProvider.autoDispose<String?>(
+  (ref) => null,
+);
+
 class HomePage extends ConsumerWidget {
   const HomePage({
     required this.onNavigate,
@@ -21,6 +25,8 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final reportState = ref.watch(dailyReportControllerProvider);
     final settingsState = ref.watch(reminderSettingsControllerProvider);
+    final testReminderFeedback = ref.watch(_testReminderFeedbackProvider);
+    final testReminderSending = testReminderFeedback == '正在发送测试提醒…';
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -68,7 +74,15 @@ class HomePage extends ConsumerWidget {
             ),
             data: (settings) => _RhythmCard(
               settings: settings,
+              testReminderFeedback: testReminderFeedback,
+              testReminderSending: testReminderSending,
               onTestReminderPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                ref.read(_testReminderFeedbackProvider.notifier).state =
+                    '正在发送测试提醒…';
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('正在发送测试提醒…')),
+                );
                 final sent = await ref
                     .read(notificationServiceProvider)
                     .showTestReminder();
@@ -76,13 +90,15 @@ class HomePage extends ConsumerWidget {
                   return;
                 }
 
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text(
                       sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限',
                     ),
                   ),
                 );
+                ref.read(_testReminderFeedbackProvider.notifier).state =
+                    sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限';
               },
             ),
           ),
@@ -166,10 +182,14 @@ class _QuickActionsCard extends StatelessWidget {
 class _RhythmCard extends StatelessWidget {
   const _RhythmCard({
     required this.settings,
+    required this.testReminderFeedback,
+    required this.testReminderSending,
     required this.onTestReminderPressed,
   });
 
   final ReminderSettings settings;
+  final String? testReminderFeedback;
+  final bool testReminderSending;
   final VoidCallback onTestReminderPressed;
 
   @override
@@ -202,12 +222,24 @@ class _RhythmCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: FilledButton.icon(
-                onPressed:
-                    settings.remindersEnabled ? onTestReminderPressed : null,
+                onPressed: settings.remindersEnabled && !testReminderSending
+                    ? onTestReminderPressed
+                    : null,
                 icon: const Icon(Icons.send_outlined),
                 label: const Text('测试提醒'),
               ),
             ),
+            if (testReminderFeedback != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                testReminderFeedback!,
+                textAlign: TextAlign.right,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
           ],
         ),
       ),

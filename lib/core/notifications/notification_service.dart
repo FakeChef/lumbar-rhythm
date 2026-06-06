@@ -19,8 +19,13 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   bool _timeZonesInitialized = false;
+  bool _notificationsInitialized = false;
 
   Future<void> initialize() async {
+    if (_notificationsInitialized) {
+      return;
+    }
+
     _ensureTimeZonesInitialized();
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -32,6 +37,7 @@ class NotificationService {
     const settings = InitializationSettings(android: android, iOS: ios);
 
     await _plugin.initialize(settings);
+    _notificationsInitialized = true;
   }
 
   Future<bool> requestPermissions() async {
@@ -83,18 +89,24 @@ class NotificationService {
   }
 
   Future<bool> showTestReminder() async {
-    final permissionGranted = await requestPermissions();
-    if (!permissionGranted) {
+    try {
+      await initialize();
+
+      final permissionGranted = await requestPermissions();
+      if (!permissionGranted) {
+        return false;
+      }
+
+      await _plugin.show(
+        _testReminderId,
+        '腰椎节奏提醒测试',
+        '本地通知已可用。后续提醒会按你的设置安排。',
+        _notificationDetails(),
+      );
+      return true;
+    } catch (_) {
       return false;
     }
-
-    await _plugin.show(
-      _testReminderId,
-      '腰椎节奏提醒测试',
-      '本地通知已可用。后续提醒会按你的设置安排。',
-      _notificationDetails(),
-    );
-    return true;
   }
 
   Future<void> _scheduleReminder({
