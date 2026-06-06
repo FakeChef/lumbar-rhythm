@@ -5,6 +5,26 @@ import '../../posture/data/posture_session_repository.dart';
 import '../../posture/domain/posture_summary.dart';
 import '../domain/daily_report.dart';
 
+enum ReportPeriod {
+  day,
+  week,
+  month,
+}
+
+extension ReportPeriodLabel on ReportPeriod {
+  String get label {
+    return switch (this) {
+      ReportPeriod.day => '日',
+      ReportPeriod.week => '周',
+      ReportPeriod.month => '月',
+    };
+  }
+}
+
+final reportPeriodProvider = StateProvider<ReportPeriod>((ref) {
+  return ReportPeriod.day;
+});
+
 final dailyReportControllerProvider =
     AsyncNotifierProvider<DailyReportController, DailyReport>(
   DailyReportController.new,
@@ -15,25 +35,50 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
   Future<DailyReport> build() async {
     final rehabRepository = ref.watch(rehabRepositoryProvider);
     final postureRepository = ref.watch(postureSessionRepositoryProvider);
+    final period = ref.watch(reportPeriodProvider);
     final now = DateTime.now();
     final rehabActions = await rehabRepository.loadActions();
-    final rehabLogs = await rehabRepository.loadToday();
-    final recentRehabLogs = await rehabRepository.loadRecentDays(days: 7);
-    final postureSessions = await postureRepository.loadToday(now: now);
-    final recentPostureSessions = await postureRepository.loadRecentDays(
-      days: 7,
-      now: now,
-    );
+    final range = _rangeFor(period, now);
+    final rehabLogs = (await rehabRepository.loadAllLogs()).where((log) {
+      return _isWithin(log.createdAt, range);
+    }).toList();
+    final postureSessions =
+        (await postureRepository.loadAll()).where((session) {
+      return _isWithin(session.startedAt, range);
+    }).toList();
 
     return DailyReport(
       rehabLogs: rehabLogs,
-      recentRehabLogs: recentRehabLogs,
+      recentRehabLogs: rehabLogs,
       rehabActions: rehabActions,
       postureSummary: PostureSummary(sessions: postureSessions, now: now),
       recentPostureSummary: PostureSummary(
-        sessions: recentPostureSessions,
+        sessions: postureSessions,
         now: now,
       ),
     );
+  }
+
+  ({DateTime start, DateTime end}) _rangeFor(
+      ReportPeriod period, DateTime now) {
+    final today = DateTime(now.year, now.month, now.day);
+    return switch (period) {
+      ReportPeriod.day => (
+          start: today,
+          end: today.add(const Duration(days: 1))
+        ),
+      ReportPeriod.week => (
+          start: today.subtract(Duration(days: today.weekday - 1)),
+          end: today.add(const Duration(days: 1)),
+        ),
+      ReportPeriod.month => (
+          start: DateTime(now.year, now.month),
+          end: DateTime(now.year, now.month + 1),
+        ),
+    };
+  }
+
+  bool _isWithin(DateTime value, ({DateTime start, DateTime end}) range) {
+    return !value.isBefore(range.start) && value.isBefore(range.end);
   }
 }

@@ -19,8 +19,11 @@ final postureSessionControllerProvider =
 
 class PostureSessionController extends AsyncNotifier<PostureSession?> {
   @override
-  Future<PostureSession?> build() {
-    return ref.watch(postureSessionRepositoryProvider).loadOpenSession();
+  Future<PostureSession?> build() async {
+    final session =
+        await ref.watch(postureSessionRepositoryProvider).loadOpenSession();
+    await _scheduleFor(session?.type);
+    return session;
   }
 
   Future<void> switchTo(PostureType type) async {

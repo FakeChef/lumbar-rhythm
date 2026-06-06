@@ -11,6 +11,7 @@ import '../domain/reminder_settings.dart';
 
 final _settingsTestReminderFeedbackProvider =
     StateProvider.autoDispose<String?>((ref) => null);
+final _nightQuietProvider = StateProvider<bool>((ref) => true);
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -23,6 +24,7 @@ class SettingsPage extends ConsumerWidget {
     final testReminderFeedback =
         ref.watch(_settingsTestReminderFeedbackProvider);
     final testReminderSending = testReminderFeedback == '正在发送测试提醒…';
+    final nightQuietEnabled = ref.watch(_nightQuietProvider);
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -83,6 +85,15 @@ class SettingsPage extends ConsumerWidget {
                   sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限';
             },
           ),
+        ),
+        SwitchListTile(
+          value: nightQuietEnabled,
+          onChanged: (value) {
+            ref.read(_nightQuietProvider.notifier).state = value;
+          },
+          secondary: const Icon(Icons.nightlight_round_outlined),
+          title: const Text('夜间勿扰'),
+          subtitle: const Text('开启后用于提醒自己夜间减少打扰；当前版本不请求额外系统权限。'),
         ),
         const Divider(height: 32),
         const ListTile(

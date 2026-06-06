@@ -66,5 +66,6 @@ void main() {
     expect(report.rehabSummary.totalAmountForActionNamed('步行'), 10);
     expect(report.rehabSummary.reactionCount(RehabReaction.muchWorse), 1);
     expect(report.rehabSummary.mostCompletedAction()?.name, '步行');
+    expect(report.rehabSummary.observationActionNames(), '腹式呼吸');
   });
 }

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../actions/domain/action_item.dart';
 import '../../posture/domain/posture_summary.dart';
-import '../../posture/domain/posture_session.dart';
 import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
 
@@ -13,6 +12,7 @@ class ReportsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final reportState = ref.watch(dailyReportControllerProvider);
+    final period = ref.watch(reportPeriodProvider);
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -35,12 +35,23 @@ class ReportsPage extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 16),
+        SegmentedButton<ReportPeriod>(
+          segments: [
+            for (final value in ReportPeriod.values)
+              ButtonSegment(value: value, label: Text(value.label)),
+          ],
+          selected: {period},
+          onSelectionChanged: (values) {
+            ref.read(reportPeriodProvider.notifier).state = values.single;
+          },
+        ),
+        const SizedBox(height: 12),
         reportState.when(
           loading: () => const _ReportLoading(),
           error: (error, stackTrace) => _ReportError(
             onRetry: () => ref.invalidate(dailyReportControllerProvider),
           ),
-          data: (report) => _ReportContent(report: report),
+          data: (report) => _ReportContent(report: report, period: period),
         ),
         const SizedBox(height: 12),
         const Card(
@@ -56,36 +67,42 @@ class ReportsPage extends ConsumerWidget {
 }
 
 class _ReportContent extends StatelessWidget {
-  const _ReportContent({required this.report});
+  const _ReportContent({required this.report, required this.period});
 
   final DailyReport report;
+  final ReportPeriod period;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _TodayPostureCard(summary: report.postureSummary),
+        _PostureCard(summary: report.postureSummary, period: period),
         const SizedBox(height: 12),
-        _TodayRehabCard(summary: report.rehabSummary),
-        const SizedBox(height: 12),
-        _WeeklyPostureCard(summary: report.recentPostureSummary),
-        const SizedBox(height: 12),
-        _WeeklyRehabCard(summary: report.recentRehabSummary),
+        _RehabCard(summary: report.rehabSummary, period: period),
       ],
     );
   }
 }
 
-class _TodayPostureCard extends StatelessWidget {
-  const _TodayPostureCard({required this.summary});
+class _PostureCard extends StatelessWidget {
+  const _PostureCard({required this.summary, required this.period});
 
   final PostureSummary summary;
+  final ReportPeriod period;
 
   @override
   Widget build(BuildContext context) {
+    if (summary.sessions.isEmpty) {
+      return _EmptyCard(
+        icon: Icons.timer_outlined,
+        title: '${period.label}坐站节奏',
+        message: '当前时间范围内还没有姿势记录。开始一次坐、站、走或休息后，这里会显示汇总。',
+      );
+    }
+
     return _MetricCard(
       icon: Icons.timer_outlined,
-      title: '今日坐站节奏',
+      title: '${period.label}坐站节奏',
       rows: [
         ('累计坐姿时长', _formatDuration(summary.sittingTotal)),
         ('累计站立时长', _formatDuration(summary.standingTotal)),
@@ -100,13 +117,22 @@ class _TodayPostureCard extends StatelessWidget {
   }
 }
 
-class _TodayRehabCard extends StatelessWidget {
-  const _TodayRehabCard({required this.summary});
+class _RehabCard extends StatelessWidget {
+  const _RehabCard({required this.summary, required this.period});
 
   final RehabSummary summary;
+  final ReportPeriod period;
 
   @override
   Widget build(BuildContext context) {
+    if (summary.totalCount == 0) {
+      return _EmptyCard(
+        icon: Icons.accessibility_new_outlined,
+        title: '${period.label}康复记录',
+        message: '当前时间范围内还没有康复动作记录。保存一次记录后，这里会显示汇总。',
+      );
+    }
+
     final topAction = summary.mostCompletedAction();
     final walkingTotal = summary.totalAmountForActionNamed('步行');
     final walkingDisplay = walkingTotal % 1 == 0
@@ -115,92 +141,38 @@ class _TodayRehabCard extends StatelessWidget {
 
     return _MetricCard(
       icon: Icons.accessibility_new_outlined,
-      title: '今日康复记录',
+      title: '${period.label}康复记录',
       rows: [
-        ('今日康复记录次数', '${summary.totalCount} 次'),
-        ('今日步行总量', '$walkingDisplay 分钟'),
+        ('康复记录次数', '${summary.totalCount} 次'),
+        ('步行总量', '$walkingDisplay 分钟'),
         ('做后明显加重次数', '${summary.reactionCount(RehabReaction.muchWorse)} 次'),
         ('完成最多动作', topAction?.name ?? '暂无'),
+        ('需观察动作', summary.observationActionNames()),
       ],
       footer: '康复记录只用于回顾完成量和做后反应。',
     );
   }
 }
 
-class _WeeklyPostureCard extends StatelessWidget {
-  const _WeeklyPostureCard({required this.summary});
+class _EmptyCard extends StatelessWidget {
+  const _EmptyCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
 
-  final PostureSummary summary;
+  final IconData icon;
+  final String title;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    final days = summary.recentDaySummaries(days: 7);
-
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const _CardTitle(
-              icon: Icons.stacked_bar_chart_outlined,
-              title: '本周坐站趋势',
-            ),
-            const SizedBox(height: 12),
-            for (final day in days) ...[
-              Text('${day.day.month}/${day.day.day}'),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _PostureChip(
-                      type: PostureType.sitting, duration: day.sitting),
-                  _PostureChip(
-                    type: PostureType.standing,
-                    duration: day.standing,
-                  ),
-                  _PostureChip(
-                      type: PostureType.walking, duration: day.walking),
-                  _PostureChip(
-                      type: PostureType.resting, duration: day.resting),
-                ],
-              ),
-              const SizedBox(height: 10),
-            ],
-            const Text(
-              '周报只汇总本地姿势记录。',
-              style: TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: Text(message),
       ),
-    );
-  }
-}
-
-class _WeeklyRehabCard extends StatelessWidget {
-  const _WeeklyRehabCard({required this.summary});
-
-  final RehabSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final topAction = summary.mostCompletedAction();
-
-    return _MetricCard(
-      icon: Icons.fact_check_outlined,
-      title: '本周康复摘要',
-      rows: [
-        ('康复记录次数', '${summary.totalCount} 次'),
-        (
-          '步行总量',
-          '${_formatNumber(summary.totalAmountForActionNamed('步行'))} 分钟'
-        ),
-        ('明显加重次数', '${summary.reactionCount(RehabReaction.muchWorse)} 次'),
-        ('完成最多动作', topAction?.name ?? '暂无'),
-      ],
-      footer: '周报只汇总康复记录，不评价康复效果。',
     );
   }
 }
@@ -300,21 +272,6 @@ class _MetricRow extends StatelessWidget {
   }
 }
 
-class _PostureChip extends StatelessWidget {
-  const _PostureChip({
-    required this.type,
-    required this.duration,
-  });
-
-  final PostureType type;
-  final Duration duration;
-
-  @override
-  Widget build(BuildContext context) {
-    return Chip(label: Text('${type.shortLabel} ${_formatDuration(duration)}'));
-  }
-}
-
 class _ReportLoading extends StatelessWidget {
   const _ReportLoading();
 
@@ -360,8 +317,4 @@ String _formatDuration(Duration duration) {
     return '$hours 小时 ${minutes.toString().padLeft(2, '0')} 分钟';
   }
   return '$minutes 分钟';
-}
-
-String _formatNumber(double value) {
-  return value % 1 == 0 ? value.toInt().toString() : '$value';
 }

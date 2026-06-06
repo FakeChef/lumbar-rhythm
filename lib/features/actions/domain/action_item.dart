@@ -163,4 +163,18 @@ class RehabSummary {
     }
     return null;
   }
+
+  String observationActionNames() {
+    final actionNamesById = {
+      for (final action in actions) action.id: action.name,
+    };
+    final names = logs
+        .where((log) => log.reaction == RehabReaction.muchWorse)
+        .map((log) => actionNamesById[log.actionId])
+        .whereType<String>()
+        .toSet()
+        .toList();
+
+    return names.isEmpty ? '暂无' : names.join('、');
+  }
 }

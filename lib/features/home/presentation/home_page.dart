@@ -1,27 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/notifications/notification_service.dart';
+import '../../actions/data/rehab_repository.dart';
+import '../../actions/domain/action_item.dart';
 import '../../posture/application/posture_session_controller.dart';
 import '../../posture/domain/posture_session.dart';
+import '../../reports/application/daily_report_controller.dart';
 import '../../settings/application/reminder_settings_controller.dart';
 import '../../settings/domain/reminder_settings.dart';
 
-final _testReminderFeedbackProvider = StateProvider.autoDispose<String?>(
-  (ref) => null,
-);
+final _homeRehabActionsProvider = FutureProvider<List<RehabAction>>((ref) {
+  return ref.watch(rehabRepositoryProvider).loadActions();
+});
 
-class HomePage extends ConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  PostureType _selectedPosture = PostureType.sitting;
+  RehabAction? _selectedAction;
+  String _rehabAmount = '1';
+  String _rehabUnit = '分钟';
+  RehabReaction _rehabReaction = RehabReaction.noChange;
+  String? _rehabSymptomTag;
+  String? _rehabNote;
+
+  @override
+  Widget build(BuildContext context) {
     final settingsState = ref.watch(reminderSettingsControllerProvider);
     final postureState = ref.watch(postureSessionControllerProvider);
+    final rehabActionsState = ref.watch(_homeRehabActionsProvider);
     final postureNow =
         ref.watch(postureClockProvider).valueOrNull ?? DateTime.now();
-    final testReminderFeedback = ref.watch(_testReminderFeedbackProvider);
-    final testReminderSending = testReminderFeedback == '正在发送测试提醒…';
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -59,63 +73,82 @@ class HomePage extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 20),
-          postureState.when(
-            loading: () => const _HomeLoadingCard(title: '正在读取当前姿势'),
-            error: (error, stackTrace) => _HomeErrorCard(
-              title: '当前姿势读取失败',
-              onRetry: () => ref.invalidate(postureSessionControllerProvider),
-            ),
-            data: (session) => _PostureStatusCard(
-              session: session,
-              now: postureNow,
-              onSelect: (type) async {
-                await ref
-                    .read(postureSessionControllerProvider.notifier)
-                    .switchTo(type);
-              },
-              onEndCurrent: () async {
-                await ref
-                    .read(postureSessionControllerProvider.notifier)
-                    .endCurrent();
-              },
-            ),
-          ),
-          const SizedBox(height: 12),
           settingsState.when(
             loading: () => const _HomeLoadingCard(title: '正在读取提醒设置'),
             error: (error, stackTrace) => _HomeErrorCard(
               title: '提醒设置读取失败',
               onRetry: () => ref.invalidate(reminderSettingsControllerProvider),
             ),
-            data: (settings) => _RhythmCard(
-              settings: settings,
-              testReminderFeedback: testReminderFeedback,
-              testReminderSending: testReminderSending,
-              onTestReminderPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                ref.read(_testReminderFeedbackProvider.notifier).state =
-                    '正在发送测试提醒…';
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('正在发送测试提醒…')),
-                );
-                final sent = await ref
-                    .read(notificationServiceProvider)
-                    .showTestReminder();
-                if (!context.mounted) {
-                  return;
-                }
-
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限',
-                    ),
-                  ),
-                );
-                ref.read(_testReminderFeedbackProvider.notifier).state =
-                    sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限';
-              },
+            data: (settings) => postureState.when(
+              loading: () => const _HomeLoadingCard(title: '正在读取当前姿势'),
+              error: (error, stackTrace) => _HomeErrorCard(
+                title: '当前姿势读取失败',
+                onRetry: () => ref.invalidate(postureSessionControllerProvider),
+              ),
+              data: (session) => _PostureStatusCard(
+                session: session,
+                now: postureNow,
+                settings: settings,
+                selectedPosture: _selectedPosture,
+                onSelectedPostureChanged: (type) {
+                  if (type != null) {
+                    setState(() => _selectedPosture = type);
+                  }
+                },
+                onStartOrSwitch: () async {
+                  await ref
+                      .read(postureSessionControllerProvider.notifier)
+                      .switchTo(_selectedPosture);
+                },
+                onEndCurrent: () async {
+                  await ref
+                      .read(postureSessionControllerProvider.notifier)
+                      .endCurrent();
+                },
+              ),
             ),
+          ),
+          const SizedBox(height: 12),
+          rehabActionsState.when(
+            loading: () => const _HomeLoadingCard(title: '正在读取康复动作'),
+            error: (error, stackTrace) => _HomeErrorCard(
+              title: '康复动作读取失败',
+              onRetry: () => ref.invalidate(_homeRehabActionsProvider),
+            ),
+            data: (actions) {
+              final selectedAction = _selectedAction != null &&
+                      actions.any((action) => action.id == _selectedAction!.id)
+                  ? _selectedAction
+                  : (actions.isEmpty ? null : actions.first);
+              return _RehabEntryCard(
+                actions: actions,
+                selectedAction: selectedAction,
+                amount: _rehabAmount,
+                unit: _rehabUnit,
+                reaction: _rehabReaction,
+                symptomTag: _rehabSymptomTag,
+                note: _rehabNote,
+                onActionChanged: (action) {
+                  if (action == null) return;
+                  setState(() {
+                    _selectedAction = action;
+                    _rehabUnit = action.defaultUnit;
+                  });
+                },
+                onAmountChanged: (value) => _rehabAmount = value,
+                onUnitChanged: (value) {
+                  if (value != null) setState(() => _rehabUnit = value);
+                },
+                onReactionChanged: (value) {
+                  if (value != null) setState(() => _rehabReaction = value);
+                },
+                onSymptomTagChanged: (value) {
+                  setState(() => _rehabSymptomTag = value);
+                },
+                onNoteChanged: (value) => _rehabNote = value,
+                onSave: () => _saveRehabLog(actions),
+              );
+            },
           ),
         ],
       ),
@@ -125,6 +158,34 @@ class HomePage extends ConsumerWidget {
   void _refresh(WidgetRef ref) {
     ref.invalidate(postureSessionControllerProvider);
     ref.invalidate(reminderSettingsControllerProvider);
+    ref.invalidate(_homeRehabActionsProvider);
+  }
+
+  Future<void> _saveRehabLog(List<RehabAction> actions) async {
+    final action = _selectedAction ?? (actions.isEmpty ? null : actions.first);
+    if (action == null) {
+      return;
+    }
+
+    await ref.read(rehabRepositoryProvider).addLog(
+          action: action,
+          amount: _rehabAmount,
+          unit: _rehabUnit,
+          reaction: _rehabReaction,
+          symptomTag: _rehabSymptomTag,
+          note: _rehabNote,
+        );
+    ref.invalidate(dailyReportControllerProvider);
+
+    if (!mounted) {
+      return;
+    }
+
+    final message = _rehabReaction == RehabReaction.muchWorse
+        ? '建议减少量或暂停观察，必要时咨询医生或康复师。'
+        : '已保存康复记录';
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -132,13 +193,19 @@ class _PostureStatusCard extends StatelessWidget {
   const _PostureStatusCard({
     required this.session,
     required this.now,
-    required this.onSelect,
+    required this.settings,
+    required this.selectedPosture,
+    required this.onSelectedPostureChanged,
+    required this.onStartOrSwitch,
     required this.onEndCurrent,
   });
 
   final PostureSession? session;
   final DateTime now;
-  final ValueChanged<PostureType> onSelect;
+  final ReminderSettings settings;
+  final PostureType selectedPosture;
+  final ValueChanged<PostureType?> onSelectedPostureChanged;
+  final VoidCallback onStartOrSwitch;
   final VoidCallback onEndCurrent;
 
   @override
@@ -151,63 +218,69 @@ class _PostureStatusCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.timer_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    current == null
-                        ? '当前姿势：未开始'
-                        : '当前姿势：${current.type.shortLabel}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-                Text(
-                  current == null
-                      ? '00:00'
-                      : _formatDuration(current.durationAt(now)),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
+            _CardHeader(
+              icon: Icons.timer_outlined,
+              title: '当前姿势',
+              trailing: current == null
+                  ? '00:00'
+                  : _formatDuration(current.durationAt(now)),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
+            DropdownButtonFormField<PostureType>(
+              initialValue: selectedPosture,
+              decoration: const InputDecoration(labelText: '选择当前姿势'),
+              items: [
                 for (final type in PostureType.values)
-                  ChoiceChip(
-                    selected: current?.type == type,
-                    label: Text(type.label),
-                    onSelected: (_) => onSelect(type),
+                  DropdownMenuItem(
+                    value: type,
+                    child: Text(_postureMenuLabel(type)),
                   ),
               ],
+              onChanged: onSelectedPostureChanged,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            Text(
+              current == null
+                  ? '当前状态：未开始'
+                  : '当前状态：${_postureMenuLabel(current.type)}',
+            ),
+            const SizedBox(height: 4),
+            Text('当前提醒阈值：${_thresholdText(current?.type ?? selectedPosture)}'),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: onStartOrSwitch,
+              icon: const Icon(Icons.play_arrow_outlined),
+              label: const Text('开始/切换'),
+            ),
             if (current != null) ...[
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: onEndCurrent,
-                  icon: const Icon(Icons.stop_circle_outlined),
-                  label: const Text('结束当前状态'),
-                ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: onEndCurrent,
+                icon: const Icon(Icons.stop_circle_outlined),
+                label: const Text('结束当前状态'),
               ),
-              const SizedBox(height: 4),
             ],
-            const Text(
-              '切换状态时会自动保存上一段持续时间，并按当前状态安排提醒。',
-              style: TextStyle(fontSize: 12),
-            ),
           ],
         ),
       ),
     );
+  }
+
+  String _thresholdText(PostureType type) {
+    return switch (type) {
+      PostureType.sitting => '久坐 ${settings.sittingIntervalMinutes} 分钟',
+      PostureType.standing => '久站 ${settings.standingIntervalMinutes} 分钟',
+      PostureType.walking || PostureType.resting => '不安排坐站提醒',
+    };
+  }
+
+  String _postureMenuLabel(PostureType type) {
+    return switch (type) {
+      PostureType.sitting => '坐着',
+      PostureType.standing => '站着',
+      PostureType.walking => '走动',
+      PostureType.resting => '休息',
+    };
   }
 
   String _formatDuration(Duration duration) {
@@ -221,18 +294,41 @@ class _PostureStatusCard extends StatelessWidget {
   }
 }
 
-class _RhythmCard extends StatelessWidget {
-  const _RhythmCard({
-    required this.settings,
-    required this.testReminderFeedback,
-    required this.testReminderSending,
-    required this.onTestReminderPressed,
+class _RehabEntryCard extends StatelessWidget {
+  const _RehabEntryCard({
+    required this.actions,
+    required this.selectedAction,
+    required this.amount,
+    required this.unit,
+    required this.reaction,
+    required this.symptomTag,
+    required this.note,
+    required this.onActionChanged,
+    required this.onAmountChanged,
+    required this.onUnitChanged,
+    required this.onReactionChanged,
+    required this.onSymptomTagChanged,
+    required this.onNoteChanged,
+    required this.onSave,
   });
 
-  final ReminderSettings settings;
-  final String? testReminderFeedback;
-  final bool testReminderSending;
-  final VoidCallback onTestReminderPressed;
+  static const _units = ['分钟', '次', '组', '秒'];
+  static const _symptomTags = ['腰酸', '腰痛', '臀腿痛', '腿麻', '脚背刺痛', '疲劳'];
+
+  final List<RehabAction> actions;
+  final RehabAction? selectedAction;
+  final String amount;
+  final String unit;
+  final RehabReaction reaction;
+  final String? symptomTag;
+  final String? note;
+  final ValueChanged<RehabAction?> onActionChanged;
+  final ValueChanged<String> onAmountChanged;
+  final ValueChanged<String?> onUnitChanged;
+  final ValueChanged<RehabReaction?> onReactionChanged;
+  final ValueChanged<String?> onSymptomTagChanged;
+  final ValueChanged<String> onNoteChanged;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -242,49 +338,119 @@ class _RhythmCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const _CardHeader(
+              icon: Icons.accessibility_new_outlined,
+              title: '今日康复动作',
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<RehabAction>(
+              initialValue: selectedAction,
+              decoration: const InputDecoration(labelText: '选择康复动作'),
+              items: [
+                for (final action in actions)
+                  DropdownMenuItem(value: action, child: Text(action.name)),
+              ],
+              onChanged: onActionChanged,
+            ),
+            const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.notifications_active_outlined),
+                Expanded(
+                  child: TextFormField(
+                    initialValue: amount,
+                    decoration: const InputDecoration(labelText: '完成量'),
+                    keyboardType: TextInputType.number,
+                    onChanged: onAmountChanged,
+                  ),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    settings.remindersEnabled ? '当前提醒已开启' : '当前提醒已关闭',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                  child: DropdownButtonFormField<String>(
+                    initialValue: unit,
+                    decoration: const InputDecoration(labelText: '单位'),
+                    items: [
+                      for (final value in _units)
+                        DropdownMenuItem(value: value, child: Text(value)),
+                    ],
+                    onChanged: onUnitChanged,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Text('久坐提醒：${settings.sittingIntervalMinutes} 分钟'),
-            const SizedBox(height: 4),
-            Text('久站提醒：${settings.standingIntervalMinutes} 分钟'),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: settings.remindersEnabled && !testReminderSending
-                    ? onTestReminderPressed
-                    : null,
-                icon: const Icon(Icons.send_outlined),
-                label: const Text('测试提醒'),
-              ),
+            DropdownButtonFormField<RehabReaction>(
+              initialValue: reaction,
+              decoration: const InputDecoration(labelText: '做后感觉'),
+              items: [
+                for (final value in RehabReaction.values)
+                  DropdownMenuItem(value: value, child: Text(value.label)),
+              ],
+              onChanged: onReactionChanged,
             ),
-            if (testReminderFeedback != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                testReminderFeedback!,
-                textAlign: TextAlign.right,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ],
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: symptomTag,
+              decoration: const InputDecoration(labelText: '症状标签（可选）'),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('不选择')),
+                for (final value in _symptomTags)
+                  DropdownMenuItem(value: value, child: Text(value)),
+              ],
+              onChanged: onSymptomTagChanged,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: note,
+              decoration: const InputDecoration(labelText: '备注（可选）'),
+              maxLines: 2,
+              onChanged: onNoteChanged,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: selectedAction == null ? null : onSave,
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('保存记录'),
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CardHeader extends StatelessWidget {
+  const _CardHeader({
+    required this.icon,
+    required this.title,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+        if (trailing != null)
+          Text(
+            trailing!,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+      ],
     );
   }
 }
