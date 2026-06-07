@@ -28,11 +28,11 @@ You can send this text to testers:
 请帮忙测试：
 1. 能否正常安装和打开。
 2. 底部导航“今日 / 日历 / 康复 / 报告 / 设置”是否都能打开。
-3. 今日页坐站节奏、测试提醒、康复动作记录和今日康复小结是否可用。
-4. 日历页是否可以按日期回看个人记录。
-5. 康复页是否可以从内置动作模板新增康复记录。
-6. 报告页日、周、月汇总是否清楚，是否没有医疗结论或疗效承诺。
-7. 设置页导出 JSON 和删除全部本地数据是否可用。
+3. 今日页坐站节奏大计时器、坐/站/走/休息切换和今日摘要是否清楚。
+4. 日历页状态点和当天详情是否清楚。
+5. 康复页动作记录、做后反应和明显加重提示是否可用。
+6. 报告页坐站节奏报告、康复记录报告和免责声明是否清楚。
+7. 设置页提醒间隔、隐私说明、数据导出和删除本地数据是否可用。
 8. 有没有卡顿、闪退、看不懂、容易误解或让人焦虑的地方。
 
 注意：这个 App 不是医疗器械，不提供诊断、治疗建议或复发判断。出现明显异常或严重症状时，请及时就医。
@@ -51,15 +51,12 @@ You can send this text to testers:
 Ask each tester to complete these tasks:
 
 1. Open the app and confirm the bottom navigation shows Today, Calendar, Rehab, Reports, and Settings.
-2. On the Today tab, switch between sitting, standing, walking, and resting.
-3. On the Today tab, tap "测试提醒" and confirm whether a local notification appears.
-4. On the Today tab, add one rehabilitation action record and one daily recovery note.
-5. On the Calendar tab, choose a date and confirm the day's records are shown.
-6. On the Rehab tab, add one rehabilitation log from a built-in action template.
-7. On the Reports tab, check the day, week, and month summaries.
-8. Confirm report text is for personal review only and does not read like diagnosis, treatment advice, or recovery judgment.
-9. On the Settings tab, export local JSON data if the tester understands it is an advanced backup feature.
-10. On the Settings tab, delete all local data and confirm records and reports become empty.
+2. On the Today tab, check the sitting/standing rhythm timer, switch between sitting, standing, walking, and resting, and review today's summary.
+3. On the Calendar tab, check date status dots and open one day to review the day's details.
+4. On the Rehab tab, add one action record, choose a post-action reaction, and confirm the gentle prompt appears when "明显加重" is selected.
+5. On the Reports tab, check the sitting/standing rhythm report, rehabilitation record report, and disclaimer text.
+6. On the Settings tab, adjust reminder intervals, open the privacy text, export local JSON data, and delete all local data.
+7. Confirm report and reminder text is for personal review only and does not read like diagnosis, treatment advice, or recovery judgment.
 
 ## Feedback template
 
@@ -72,8 +69,10 @@ Android 版本：
 记录是否成功：
 报告是否清楚：
 五个底部页面是否都能正常打开：
+今日页坐站节奏和今日摘要是否清楚：
 日历回看是否清楚：
 康复记录是否清楚：
+设置页提醒/隐私/导出/删除是否清楚：
 备份 JSON/删除是否成功：
 是否有闪退或卡顿：
 哪里看不懂：
