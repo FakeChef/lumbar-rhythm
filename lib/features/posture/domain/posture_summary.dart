@@ -75,7 +75,12 @@ class PostureSummary {
       final startedAt = session.startedAt;
       return !startedAt.isBefore(day) && startedAt.isBefore(nextDay);
     }).toList();
-    final summary = PostureSummary(sessions: daySessions, now: now);
+    final summary = PostureSummary(
+      sessions: daySessions,
+      now: now,
+      sittingThreshold: sittingThreshold,
+      standingThreshold: standingThreshold,
+    );
     return PostureDaySummary(
       day: day,
       sitting: summary.sittingTotal,

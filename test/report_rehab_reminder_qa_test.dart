@@ -73,6 +73,77 @@ void main() {
     expect(weekly.postureSummary.sessions.length, 2);
   });
 
+  test('dailyReportController counts sitting sessions over user threshold',
+      () async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final container = _reportContainer(
+      postureSessions: [
+        PostureSession(
+          id: 1,
+          type: PostureType.sitting,
+          startedAt: today.add(const Duration(hours: 8)),
+          endedAt: today.add(const Duration(hours: 8, minutes: 21)),
+        ),
+      ],
+      settings: const ReminderSettings(
+        remindersEnabled: true,
+        sittingIntervalMinutes: 20,
+        standingIntervalMinutes: 40,
+      ),
+    );
+    addTearDown(container.dispose);
+
+    final report = await container.read(dailyReportControllerProvider.future);
+
+    expect(report.postureSummary.sittingThreshold, const Duration(minutes: 20));
+    expect(report.postureSummary.sittingOverThresholdCount, 1);
+    expect(
+      report.recentPostureSummary.sittingThreshold,
+      const Duration(minutes: 20),
+    );
+    expect(report.recentPostureSummary.sittingOverThresholdCount, 1);
+  });
+
+  test('dailyReportController counts standing sessions over user threshold',
+      () async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final container = _reportContainer(
+      postureSessions: [
+        PostureSession(
+          id: 1,
+          type: PostureType.standing,
+          startedAt: today.add(const Duration(hours: 9)),
+          endedAt: today.add(const Duration(hours: 9, minutes: 21)),
+        ),
+      ],
+      settings: const ReminderSettings(
+        remindersEnabled: true,
+        sittingIntervalMinutes: 40,
+        standingIntervalMinutes: 20,
+      ),
+    );
+    addTearDown(container.dispose);
+
+    final report = await container.read(dailyReportControllerProvider.future);
+
+    expect(
+      report.postureSummary.standingThreshold,
+      const Duration(minutes: 20),
+    );
+    expect(report.postureSummary.standingOverThresholdCount, 1);
+
+    container.read(reportPeriodProvider.notifier).state = ReportPeriod.month;
+    container.invalidate(dailyReportControllerProvider);
+    final monthly = await container.read(dailyReportControllerProvider.future);
+    expect(
+      monthly.postureSummary.standingThreshold,
+      const Duration(minutes: 20),
+    );
+    expect(monthly.postureSummary.standingOverThresholdCount, 1);
+  });
+
   test('PostureSummary uses custom reminder thresholds', () {
     final summary = PostureSummary(
       now: DateTime(2026, 6, 7, 12),

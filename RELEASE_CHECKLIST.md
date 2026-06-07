@@ -10,6 +10,7 @@ This checklist is for preparing Lumbar Rhythm for Android review.
 - The app has no subscription.
 - The app has no cloud upload or sync.
 - The app has no third-party tracking SDK.
+- The app is a lumbar disc post-surgery recovery journal app with sitting and standing rhythm as one of its core tools.
 - The app is a reminder and self-recording tool, not a medical device.
 
 ## Privacy
@@ -27,9 +28,10 @@ This checklist is for preparing Lumbar Rhythm for Android review.
 - The app does not provide diagnosis.
 - The app does not provide treatment advice.
 - The app does not judge recurrence.
+- The app does not produce medical conclusions.
 - The app does not replace doctors, therapists, or other licensed professionals.
 - The disclaimer text in the app matches `DISCLAIMER.md`.
-- Store description should describe the app as a reminder and self-recording tool.
+- Store description should describe the app as a lumbar disc post-surgery recovery journal app with sitting and standing rhythm as one of its core tools.
 
 ## Android
 
@@ -47,20 +49,19 @@ This checklist is for preparing Lumbar Rhythm for Android review.
 
 ## Functional QA
 
-- Home page opens without errors.
+- The five tabs are present: 今日, 日历, 康复, 报告, 设置.
+- Today page opens without errors.
 - Current posture can switch between sitting, standing, walking, and resting.
 - Posture sessions are saved when the user changes state.
 - Sitting reminders are scheduled only when the current posture is sitting.
 - Standing reminders are scheduled only when the current posture is standing.
 - Walking and resting cancel sitting and standing reminders.
-- Records can be created, searched, filtered, and deleted.
+- Calendar day detail can review rehabilitation records, walking totals, posture sessions, and daily notes.
 - Rehabilitation logs can be created from built-in templates.
-- Reports show today's summary.
-- Reports show today's rehabilitation summary.
-- Reports show the recent seven-day summary.
-- Reports show recent seven-day rehabilitation summary.
-- Reports show the recent seven-day trend chart.
-- Weekly report image can be saved to the Android gallery as a PNG file.
+- Reports show daily summary.
+- Reports show seven-day summary.
+- Reports show monthly summary.
+- Reports use user-configured sitting and standing reminder intervals for over-threshold counts.
 - Settings can save reminder intervals.
 - Test notification can be triggered.
 - Local JSON export contains app metadata, settings, records, posture sessions, rehabilitation actions, and rehabilitation logs.

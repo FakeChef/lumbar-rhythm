@@ -92,19 +92,18 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
         now: now,
         settings: reminderSettings,
       ),
-      recentPostureSummary: PostureSummary(
+      recentPostureSummary: _postureSummary(
         sessions: recentPostureSessions,
         now: now,
-        sittingThreshold:
-            Duration(minutes: reminderSettings.sittingIntervalMinutes),
-        standingThreshold:
-            Duration(minutes: reminderSettings.standingIntervalMinutes),
+        settings: reminderSettings,
       ),
     );
   }
 
   ({DateTime start, DateTime end}) _rangeFor(
-      ReportPeriod period, DateTime now) {
+    ReportPeriod period,
+    DateTime now,
+  ) {
     final today = DateTime(now.year, now.month, now.day);
     return switch (period) {
       ReportPeriod.day => (

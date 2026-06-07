@@ -8,17 +8,17 @@ Lumbar Rhythm
 
 ## Subtitle
 
-Post-surgery recovery journal and local reminder app
+Lumbar disc recovery journal with sitting-standing rhythm
 
 ## Short Description
 
-Lumbar Rhythm is a free, local-first post-surgery recovery journal and local reminder app.
+Lumbar Rhythm is a free, local-first lumbar disc post-surgery recovery journal app. Sitting and standing rhythm is one of its core tools.
 
 ## Full Description
 
-Lumbar Rhythm helps you keep a local journal of post-surgery recovery activities, sitting and standing rhythm, symptom changes, recovery milestones, and simple reports.
+Lumbar Rhythm helps you keep a local journal of lumbar disc post-surgery recovery activities, sitting and standing rhythm, symptom changes, recovery milestones, and simple reports.
 
-The app is designed for people who want a private local journal during lumbar disc post-surgery recovery. Sitting and standing reminders remain a basic tool, while the main focus is daily recovery logging and local review without creating an account or uploading health data.
+The app is designed for people who want a private local journal during lumbar disc post-surgery recovery. Sitting and standing rhythm is one of the core tools, while the app remains focused on daily recovery logging and local review without creating an account or uploading health data.
 
 Core features:
 
@@ -26,9 +26,9 @@ Core features:
 - Daily recovery notes for overall feeling and symptom scores
 - Current posture timer for sitting, standing, walking, and resting
 - Sitting and standing local reminders based on current posture
-- Rehabilitation activity record templates
+- Rehabilitation record templates
 - Recovery milestones for personal notes and review points
-- Daily, seven-day, and stage-style local recovery reports
+- Daily, seven-day, and monthly local recovery reports
 - Local JSON export
 - Delete all local data
 
@@ -43,7 +43,7 @@ Privacy principles:
 
 Medical boundary:
 
-Lumbar Rhythm is a health reminder and self-recording tool. It does not provide diagnosis, treatment advice, recurrence judgment, medication advice, or surgical advice. It does not replace doctors, therapists, or other qualified medical professionals.
+Lumbar Rhythm is a health reminder and self-recording tool. It does not provide diagnosis, treatment advice, recurrence judgment, medication advice, surgical advice, or medical conclusions. It does not replace doctors, therapists, or other qualified medical professionals.
 
 Seek medical attention promptly if you experience bowel or bladder changes, saddle-area numbness, progressive leg weakness, post-surgery wound redness, swelling, fever or discharge, or sudden significant worsening of pain.
 
@@ -62,4 +62,4 @@ sitting reminder, standing reminder, posture record, local health record, lumbar
 
 ## Review Notes
 
-This app is not a medical device. It is a local reminder and self-recording app. It does not diagnose, treat, or evaluate medical conditions. It does not upload health data to a server and does not include advertising or third-party tracking SDKs.
+This app is not a medical device. It is a local lumbar disc post-surgery recovery journal app with sitting and standing rhythm as one of its core tools. It does not diagnose, treat, evaluate medical conditions, or produce medical conclusions. It does not upload health data to a server and does not include advertising or third-party tracking SDKs.
