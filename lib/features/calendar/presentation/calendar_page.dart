@@ -90,11 +90,6 @@ class CalendarPage extends ConsumerWidget {
                 ],
               ),
             ),
-            IconButton(
-              tooltip: '刷新日历',
-              icon: const Icon(Icons.refresh_outlined),
-              onPressed: () => ref.invalidate(_calendarDataProvider),
-            ),
           ],
         ),
         const SizedBox(height: 16),

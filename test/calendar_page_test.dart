@@ -46,6 +46,7 @@ void main() {
 
     expect(find.text('康复日历'), findsOneWidget);
     expect(find.text('看看这个月的恢复轨迹'), findsOneWidget);
+    expect(find.byTooltip('刷新日历'), findsNothing);
     expect(find.text('2026 年 6 月'), findsOneWidget);
     expect(find.text('有康复记录'), findsOneWidget);
     expect(find.text('坐站节奏稳定'), findsOneWidget);
@@ -266,6 +267,7 @@ class _FakeRecoveryRepository implements RecoveryRepository {
   @override
   Future<void> saveProfile({
     DateTime? surgeryDate,
+    String? nickname,
     String? surgeryType,
     String? mainSegment,
     String? mainGoal,

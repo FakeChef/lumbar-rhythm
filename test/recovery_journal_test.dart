@@ -34,6 +34,7 @@ void main() {
 
     await repository.saveProfile(
       surgeryDate: surgeryDate,
+      nickname: '小林',
       surgeryType: '腰椎术后',
       mainSegment: 'L4-L5',
       mainGoal: '稳定记录',
@@ -41,6 +42,7 @@ void main() {
     final profile = await repository.loadProfile();
 
     expect(profile?.surgeryDate, surgeryDate);
+    expect(profile?.nickname, '小林');
     expect(profile?.mainSegment, 'L4-L5');
     expect(profile?.postSurgeryDay(DateTime(2026, 6, 6)), 6);
   });

@@ -4,6 +4,7 @@ class RecoveryProfile {
     required this.createdAt,
     required this.updatedAt,
     this.surgeryDate,
+    this.nickname,
     this.surgeryType,
     this.mainSegment,
     this.mainGoal,
@@ -11,6 +12,7 @@ class RecoveryProfile {
 
   final int id;
   final DateTime? surgeryDate;
+  final String? nickname;
   final String? surgeryType;
   final String? mainSegment;
   final String? mainGoal;

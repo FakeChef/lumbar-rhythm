@@ -98,6 +98,9 @@ void main() {
     expect(postureRows.single.containsKey('threshold_seconds'), isTrue);
     expect(postureRows.single.containsKey('end_reason'), isTrue);
     expect(postureRows.single['source'], 'manual');
+    final profileColumns =
+        await (await database.instance).rawQuery('PRAGMA table_info(recovery_profile)');
+    expect(profileColumns.any((row) => row['name'] == 'nickname'), isTrue);
 
     await database.close();
     await databaseFactory.deleteDatabase(dbPath);

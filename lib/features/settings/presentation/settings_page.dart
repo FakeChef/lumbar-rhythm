@@ -272,6 +272,7 @@ class SettingsPage extends ConsumerWidget {
     if (!context.mounted) return;
 
     DateTime? surgeryDate = profile?.surgeryDate;
+    var nickname = profile?.nickname ?? '';
     var surgeryType = profile?.surgeryType ?? '';
     var mainGoal = profile?.mainGoal ?? '';
 
@@ -318,6 +319,14 @@ class SettingsPage extends ConsumerWidget {
                       child: const Text('跳过手术日期'),
                     ),
                     TextFormField(
+                      initialValue: nickname,
+                      decoration: const InputDecoration(
+                        labelText: '患者昵称（可选）',
+                        helperText: '昵称只保存在本地，用于今日页称呼；不要求真实姓名。',
+                      ),
+                      onChanged: (value) => nickname = value,
+                    ),
+                    TextFormField(
                       initialValue: surgeryType,
                       decoration: const InputDecoration(labelText: '手术类型（可选）'),
                       onChanged: (value) => surgeryType = value,
@@ -350,6 +359,7 @@ class SettingsPage extends ConsumerWidget {
 
     await repository.saveProfile(
       surgeryDate: surgeryDate,
+      nickname: nickname,
       surgeryType: surgeryType,
       mainGoal: mainGoal,
     );

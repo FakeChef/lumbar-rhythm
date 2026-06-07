@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('local export payload keeps app metadata and user data sections', () {
     final payload = {
-      'schema_version': 3,
+      'schema_version': 4,
       'app': 'Lumbar Rhythm',
       'app_version': '0.1.0+1',
       'exported_at': DateTime(2026, 6, 5, 12).toIso8601String(),
@@ -62,6 +62,7 @@ void main() {
       'recovery_profile': {
         'id': 1,
         'surgery_date': '2026-06-01',
+        'nickname': '小林',
       },
       'daily_recovery_notes': [
         {
@@ -84,7 +85,7 @@ void main() {
     final encoded = const JsonEncoder.withIndent('  ').convert(payload);
     final decoded = jsonDecode(encoded) as Map<String, Object?>;
 
-    expect(decoded['schema_version'], 3);
+    expect(decoded['schema_version'], 4);
     expect(decoded['app'], 'Lumbar Rhythm');
     expect(decoded['app_version'], '0.1.0+1');
     expect(decoded['record_count'], 1);
