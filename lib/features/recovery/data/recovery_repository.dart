@@ -15,6 +15,7 @@ abstract class RecoveryRepository {
 
   Future<void> saveProfile({
     DateTime? surgeryDate,
+    String? nickname,
     String? surgeryType,
     String? mainSegment,
     String? mainGoal,
@@ -52,12 +53,14 @@ class SqfliteRecoveryRepository implements RecoveryRepository {
   @override
   Future<void> saveProfile({
     DateTime? surgeryDate,
+    String? nickname,
     String? surgeryType,
     String? mainSegment,
     String? mainGoal,
   }) {
     return _database.upsertRecoveryProfile(
       surgeryDate: surgeryDate,
+      nickname: _cleanOptional(nickname),
       surgeryType: _cleanOptional(surgeryType),
       mainSegment: _cleanOptional(mainSegment),
       mainGoal: _cleanOptional(mainGoal),
@@ -111,6 +114,7 @@ class SqfliteRecoveryRepository implements RecoveryRepository {
     return RecoveryProfile(
       id: row['id'] as int,
       surgeryDate: _parseOptionalDate(row['surgery_date'] as String?),
+      nickname: row['nickname'] as String?,
       surgeryType: row['surgery_type'] as String?,
       mainSegment: row['main_segment'] as String?,
       mainGoal: row['main_goal'] as String?,

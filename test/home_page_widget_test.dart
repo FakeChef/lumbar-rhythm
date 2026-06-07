@@ -48,6 +48,44 @@ void main() {
     expect(find.textContaining('距离久坐提醒还有'), findsOneWidget);
   });
 
+  testWidgets('shows surgery day and nickname greeting', (tester) async {
+    await _pumpHome(
+      tester,
+      recoveryRepository: _FakeRecoveryRepository(
+        profile: RecoveryProfile(
+          id: 1,
+          nickname: '小林',
+          surgeryDate: DateTime(2026, 6, 1),
+          createdAt: DateTime(2026, 6, 1),
+          updatedAt: DateTime(2026, 6, 1),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('小林，今天是术后第'), findsOneWidget);
+    expect(find.textContaining('天。'), findsWidgets);
+  });
+
+  test('today encouragements avoid medical boundary words', () {
+    const forbidden = [
+      '治疗',
+      '治愈',
+      '预防复发',
+      '诊断',
+      '复发判断',
+      '复发风险',
+      '病情判断',
+      '医疗建议',
+    ];
+
+    expect(todayEncouragements.length, 20);
+    for (final text in todayEncouragements) {
+      for (final word in forbidden) {
+        expect(text, isNot(contains(word)));
+      }
+    }
+  });
+
   testWidgets('shows near reminder and overdue states', (tester) async {
     await _pumpHome(
       tester,
@@ -315,10 +353,13 @@ class _FakeRehabRepository implements RehabRepository {
 }
 
 class _FakeRecoveryRepository implements RecoveryRepository {
+  _FakeRecoveryRepository({this.profile});
+
+  final RecoveryProfile? profile;
   int savedNoteCount = 0;
 
   @override
-  Future<RecoveryProfile?> loadProfile() async => null;
+  Future<RecoveryProfile?> loadProfile() async => profile;
 
   @override
   Future<DailyRecoveryNote?> loadNote(DateTime date) async => null;
@@ -346,6 +387,7 @@ class _FakeRecoveryRepository implements RecoveryRepository {
   @override
   Future<void> saveProfile({
     DateTime? surgeryDate,
+    String? nickname,
     String? surgeryType,
     String? mainSegment,
     String? mainGoal,

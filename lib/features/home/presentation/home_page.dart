@@ -11,8 +11,43 @@ import '../../posture/domain/posture_summary.dart';
 import '../../posture/domain/sitting_standing_timer_state.dart';
 import '../../recovery/data/recovery_repository.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
+import '../../recovery/domain/recovery_profile.dart';
 import '../../settings/application/reminder_settings_controller.dart';
 import '../../settings/domain/reminder_settings.dart';
+
+final _homeRecoveryProfileProvider = FutureProvider((ref) {
+  ref.watch(appDataRefreshProvider);
+  return ref.watch(recoveryRepositoryProvider).loadProfile();
+});
+
+final todayEncouragementProvider = Provider<String>((ref) {
+  final now = DateTime.now();
+  final index = now.microsecondsSinceEpoch % todayEncouragements.length;
+  return todayEncouragements[index];
+});
+
+const todayEncouragements = [
+  '今天不用完美，记录一点也有价值。',
+  '稳定比激进更重要。',
+  '慢一点，也是在往前走。',
+  '换个姿势，是给身体一个缓冲。',
+  '恢复不是比赛，按自己的节奏来。',
+  '小小的坚持，也值得被看见。',
+  '今天照顾好自己，就已经很好。',
+  '每一次记录，都是更了解自己的方式。',
+  '温和一点，身体也会更安心。',
+  '按下开始，就算完成了一个小行动。',
+  '给自己一点耐心，节奏会慢慢稳定。',
+  '先做好当下这一小步。',
+  '身体的反馈，值得被认真听见。',
+  '不急着比较，专注自己的节奏。',
+  '短暂起身，也是在照顾今天的状态。',
+  '能记录下来，就是很好的开始。',
+  '今天的目标可以很小，也可以很踏实。',
+  '给腰背一点缓冲，也给自己一点余地。',
+  '平稳的一天，同样值得记录。',
+  '照顾自己，是一件可以慢慢做的事。',
+];
 
 final _homeTodayOverviewProvider = FutureProvider<_HomeTodayOverview>(
   (ref) async {
@@ -48,7 +83,9 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget build(BuildContext context) {
     final settingsState = ref.watch(reminderSettingsControllerProvider);
     final postureState = ref.watch(postureSessionControllerProvider);
+    final recoveryProfileState = ref.watch(_homeRecoveryProfileProvider);
     final overviewState = ref.watch(_homeTodayOverviewProvider);
+    final encouragement = ref.watch(todayEncouragementProvider);
     final postureNow =
         ref.watch(postureClockProvider).valueOrNull ?? DateTime.now();
 
@@ -74,6 +111,8 @@ class _HomePageState extends ConsumerState<HomePage> {
               data: (session) => Column(
                 children: [
                   _PostureStatusCard(
+                    profile: recoveryProfileState.valueOrNull,
+                    encouragement: encouragement,
                     session: session,
                     now: postureNow,
                     settings: settings,
@@ -298,6 +337,8 @@ class _HomeTodayOverview {
 
 class _PostureStatusCard extends StatelessWidget {
   const _PostureStatusCard({
+    required this.profile,
+    required this.encouragement,
     required this.session,
     required this.now,
     required this.settings,
@@ -306,6 +347,8 @@ class _PostureStatusCard extends StatelessWidget {
     required this.onEndCurrent,
   });
 
+  final RecoveryProfile? profile;
+  final String encouragement;
   final PostureSession? session;
   final DateTime now;
   final ReminderSettings settings;
@@ -378,6 +421,20 @@ class _PostureStatusCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 18),
+            Text(
+              _recoveryGreeting(profile, now),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              encouragement,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF4B5563),
+                  ),
             ),
             const SizedBox(height: 22),
             Center(
@@ -469,6 +526,18 @@ class _PostureStatusCard extends StatelessWidget {
       return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  String _recoveryGreeting(RecoveryProfile? profile, DateTime now) {
+    final day = profile?.postSurgeryDay(now);
+    if (day == null) {
+      return '可在设置中添加手术日期。';
+    }
+    final nickname = profile?.nickname?.trim();
+    if (nickname != null && nickname.isNotEmpty) {
+      return '$nickname，今天是术后第 $day 天。';
+    }
+    return '今天是术后第 $day 天。';
   }
 }
 

@@ -209,12 +209,14 @@ void main() {
 
   testWidgets('settings page shows four groups and privacy copy',
       (tester) async {
+    final recoveryRepository = _FakeRecoveryRepository();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           reminderSettingsRepositoryProvider.overrideWithValue(
             const _FakeReminderSettingsRepository(ReminderSettings.defaults),
           ),
+          recoveryRepositoryProvider.overrideWithValue(recoveryRepository),
         ],
         child: const MaterialApp(home: Scaffold(body: SettingsPage())),
       ),
@@ -224,6 +226,15 @@ void main() {
     expect(find.text('我的康复资料'), findsOneWidget);
     expect(find.text('坐站提醒'), findsOneWidget);
     expect(find.text('该记录一下今天的状态了'), findsOneWidget);
+
+    await tester.tap(find.text('手术日期、手术类型、当前目标'));
+    await tester.pumpAndSettle();
+    expect(find.text('患者昵称（可选）'), findsOneWidget);
+    expect(find.text('昵称只保存在本地，用于今日页称呼；不要求真实姓名。'), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField).first, '小林');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(recoveryRepository.savedNickname, '小林');
 
     await tester.scrollUntilVisible(find.text('数据管理'), 300.0);
     expect(find.text('数据管理'), findsOneWidget);
@@ -523,6 +534,8 @@ class _FakePostureRepository implements PostureSessionRepository {
 }
 
 class _FakeRecoveryRepository implements RecoveryRepository {
+  String? savedNickname;
+
   @override
   Future<RecoveryProfile?> loadProfile() async => null;
 
@@ -550,10 +563,13 @@ class _FakeRecoveryRepository implements RecoveryRepository {
   @override
   Future<void> saveProfile({
     DateTime? surgeryDate,
+    String? nickname,
     String? surgeryType,
     String? mainSegment,
     String? mainGoal,
-  }) async {}
+  }) async {
+    savedNickname = nickname;
+  }
 }
 
 class _FakeMilestoneRepository implements RecoveryMilestoneRepository {

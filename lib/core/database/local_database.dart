@@ -13,7 +13,7 @@ final localDatabaseProvider = Provider<LocalDatabase>((ref) {
 class LocalDatabase {
   LocalDatabase({String? databasePath}) : _databasePath = databasePath;
 
-  static const schemaVersion = 3;
+  static const schemaVersion = 4;
 
   final String? _databasePath;
   Database? _database;
@@ -45,6 +45,9 @@ class LocalDatabase {
           await _createV3Tables(db);
           await _migrateRehabLogsToV3(db);
           await _seedRecoveryMilestones(db);
+        }
+        if (oldVersion < 4) {
+          await _createV4Tables(db);
         }
       },
     );
@@ -321,6 +324,7 @@ class LocalDatabase {
 
   Future<void> upsertRecoveryProfile({
     required DateTime? surgeryDate,
+    required String? nickname,
     required String? surgeryType,
     required String? mainSegment,
     required String? mainGoal,
@@ -333,6 +337,7 @@ class LocalDatabase {
       {
         'id': 1,
         'surgery_date': surgeryDate?.toIso8601String(),
+        'nickname': nickname,
         'surgery_type': surgeryType,
         'main_segment': mainSegment,
         'main_goal': mainGoal,
@@ -523,6 +528,7 @@ class LocalDatabase {
       CREATE TABLE IF NOT EXISTS recovery_profile (
         id INTEGER PRIMARY KEY,
         surgery_date TEXT,
+        nickname TEXT,
         surgery_type TEXT,
         main_segment TEXT,
         main_goal TEXT,
@@ -574,6 +580,10 @@ class LocalDatabase {
     await _addColumnIfMissing(db, 'posture_sessions', 'note', 'TEXT');
     await _addColumnIfMissing(db, 'recovery_profile', 'main_segment', 'TEXT');
     await _addColumnIfMissing(db, 'daily_recovery_notes', 'tags', 'TEXT');
+  }
+
+  Future<void> _createV4Tables(DatabaseExecutor db) async {
+    await _addColumnIfMissing(db, 'recovery_profile', 'nickname', 'TEXT');
   }
 
   Future<void> _addColumnIfMissing(
