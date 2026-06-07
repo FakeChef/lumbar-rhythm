@@ -299,6 +299,7 @@ class SettingsPage extends ConsumerWidget {
     );
 
     if (confirmed != true || backupPath.trim().isEmpty) return;
+    if (!context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     try {
