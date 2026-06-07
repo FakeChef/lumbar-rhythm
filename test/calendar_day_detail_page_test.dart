@@ -78,7 +78,7 @@ void main() {
     expect(find.text('坐姿累计'), findsOneWidget);
     expect(find.text('1 小时 0 分钟'), findsWidgets);
     expect(find.text('超阈值次数'), findsOneWidget);
-    expect(find.text('步行'), findsOneWidget);
+    expect(find.text('平地步行'), findsOneWidget);
     expect(find.text('12 分钟 · 明显加重'), findsOneWidget);
     expect(find.text('症状标签：腰酸'), findsOneWidget);
     expect(
