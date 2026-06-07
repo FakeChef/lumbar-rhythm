@@ -20,6 +20,7 @@ void main() {
     expect(settings.remindersEnabled, isTrue);
     expect(settings.sittingIntervalMinutes, 45);
     expect(settings.standingIntervalMinutes, 30);
+    expect(settings.reminderMode, ReminderMode.soft);
   });
 
   test('normalizes interval values to supported bounds and steps', () {
@@ -45,17 +46,24 @@ void main() {
     await container
         .read(reminderSettingsControllerProvider.notifier)
         .setRemindersEnabled(false);
+    await container
+        .read(reminderSettingsControllerProvider.notifier)
+        .setReminderMode(ReminderMode.vibration);
 
     final settings = container.read(reminderSettingsControllerProvider).value;
 
     expect(settings?.sittingIntervalMinutes, 60);
     expect(settings?.remindersEnabled, isFalse);
+    expect(settings?.reminderMode, ReminderMode.vibration);
     expect(repository.savedSettings.last.sittingIntervalMinutes, 60);
     expect(repository.savedSettings.last.remindersEnabled, isFalse);
+    expect(repository.savedSettings.last.reminderMode, ReminderMode.vibration);
     expect(notificationService.scheduledSettings.last.enabled, isFalse);
     expect(
         notificationService.scheduledSettings.last.sittingIntervalMinutes, 60);
-    expect(container.read(appDataRefreshProvider), 2);
+    expect(notificationService.scheduledSettings.last.reminderMode,
+        ReminderMode.vibration);
+    expect(container.read(appDataRefreshProvider), 3);
   });
 }
 
@@ -155,6 +163,7 @@ class _FakeNotificationService extends NotificationService {
     required bool enabled,
     required int sittingIntervalMinutes,
     required int standingIntervalMinutes,
+    ReminderMode reminderMode = ReminderMode.soft,
     PostureType? currentPosture,
   }) async {
     scheduledSettings.add(
@@ -162,6 +171,7 @@ class _FakeNotificationService extends NotificationService {
         enabled: enabled,
         sittingIntervalMinutes: sittingIntervalMinutes,
         standingIntervalMinutes: standingIntervalMinutes,
+        reminderMode: reminderMode,
       ),
     );
   }
@@ -172,9 +182,11 @@ class _ScheduledSettings {
     required this.enabled,
     required this.sittingIntervalMinutes,
     required this.standingIntervalMinutes,
+    required this.reminderMode,
   });
 
   final bool enabled;
   final int sittingIntervalMinutes;
   final int standingIntervalMinutes;
+  final ReminderMode reminderMode;
 }

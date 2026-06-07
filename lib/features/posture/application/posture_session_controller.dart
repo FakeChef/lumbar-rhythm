@@ -63,6 +63,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
             enabled: settings.remindersEnabled,
             sittingIntervalMinutes: settings.sittingIntervalMinutes,
             standingIntervalMinutes: settings.standingIntervalMinutes,
+            reminderMode: settings.reminderMode,
             currentPosture: posture,
           );
     } catch (_) {

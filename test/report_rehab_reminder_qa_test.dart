@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumbar_rhythm/core/data/app_data_refresh.dart';
+import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
 import 'package:lumbar_rhythm/features/actions/application/posture_reminder_rehab_link.dart';
 import 'package:lumbar_rhythm/features/actions/data/rehab_repository.dart';
 import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
@@ -247,6 +248,42 @@ void main() {
     expect(find.textContaining('无账号'), findsOneWidget);
     expect(find.textContaining('无广告'), findsOneWidget);
     expect(find.textContaining('无云端上传'), findsOneWidget);
+  });
+
+  testWidgets('settings page test reminder uses selected mode',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final notificationService = _FakeNotificationService();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          reminderSettingsRepositoryProvider.overrideWithValue(
+            const _FakeReminderSettingsRepository(
+              ReminderSettings(
+                remindersEnabled: true,
+                sittingIntervalMinutes: 45,
+                standingIntervalMinutes: 30,
+                reminderMode: ReminderMode.alarm,
+              ),
+            ),
+          ),
+          recoveryRepositoryProvider.overrideWithValue(_FakeRecoveryRepository()),
+          notificationServiceProvider.overrideWithValue(notificationService),
+        ],
+        child: const MaterialApp(home: Scaffold(body: SettingsPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('提醒方式'), findsOneWidget);
+    expect(find.text('响铃提醒'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('发送测试提醒'));
+    await tester.pumpAndSettle();
+
+    expect(notificationService.testReminderModes, [ReminderMode.alarm]);
   });
 
   test('RehabSummary uses amountValue for walking totals', () {
@@ -601,6 +638,18 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 
   @override
   Future<void> save(ReminderSettings settings) async {}
+}
+
+class _FakeNotificationService extends NotificationService {
+  final testReminderModes = <ReminderMode>[];
+
+  @override
+  Future<bool> showTestReminder({
+    ReminderMode reminderMode = ReminderMode.soft,
+  }) async {
+    testReminderModes.add(reminderMode);
+    return true;
+  }
 }
 
 class _MutableReminderSettingsRepository implements ReminderSettingsRepository {

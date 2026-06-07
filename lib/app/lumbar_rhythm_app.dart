@@ -34,6 +34,7 @@ class _LumbarRhythmAppState extends ConsumerState<LumbarRhythmApp> {
         enabled: settings.remindersEnabled,
         sittingIntervalMinutes: settings.sittingIntervalMinutes,
         standingIntervalMinutes: settings.standingIntervalMinutes,
+        reminderMode: settings.reminderMode,
         currentPosture: openSession?.type,
       );
     } catch (_) {

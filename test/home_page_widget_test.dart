@@ -313,6 +313,7 @@ class _FakeNotification extends NotificationService {
     required bool enabled,
     required int sittingIntervalMinutes,
     required int standingIntervalMinutes,
+    ReminderMode reminderMode = ReminderMode.soft,
     PostureType? currentPosture,
   }) async {}
 }

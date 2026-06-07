@@ -20,6 +20,7 @@ class SqfliteReminderSettingsRepository implements ReminderSettingsRepository {
   static const _remindersEnabledKey = 'reminders_enabled';
   static const _sittingIntervalKey = 'sitting_interval_minutes';
   static const _standingIntervalKey = 'standing_interval_minutes';
+  static const _reminderModeKey = 'reminder_mode';
 
   final LocalDatabase _database;
 
@@ -28,12 +29,14 @@ class SqfliteReminderSettingsRepository implements ReminderSettingsRepository {
     final remindersEnabled = await _database.readSetting(_remindersEnabledKey);
     final sittingInterval = await _database.readSetting(_sittingIntervalKey);
     final standingInterval = await _database.readSetting(_standingIntervalKey);
+    final reminderMode = await _database.readSetting(_reminderModeKey);
 
     return ReminderSettings.defaults.copyWith(
       remindersEnabled:
           remindersEnabled == null ? null : remindersEnabled == 'true',
       sittingIntervalMinutes: int.tryParse(sittingInterval ?? ''),
       standingIntervalMinutes: int.tryParse(standingInterval ?? ''),
+      reminderMode: ReminderSettings.parseMode(reminderMode),
     );
   }
 
@@ -50,6 +53,10 @@ class SqfliteReminderSettingsRepository implements ReminderSettingsRepository {
     await _database.writeSetting(
       _standingIntervalKey,
       settings.standingIntervalMinutes.toString(),
+    );
+    await _database.writeSetting(
+      _reminderModeKey,
+      settings.reminderMode.storageValue,
     );
   }
 }
