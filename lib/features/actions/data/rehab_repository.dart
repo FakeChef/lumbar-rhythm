@@ -140,10 +140,21 @@ class SqfliteRehabRepository implements RehabRepository {
   }
 
   RehabAction _actionFromRow(Map<String, Object?> row) {
+    final id = row['id'] as int;
+    RehabAction? builtIn;
+    for (final action in actionLibrary) {
+      if (action.id == id) {
+        builtIn = action;
+        break;
+      }
+    }
     return RehabAction(
-      id: row['id'] as int,
+      id: id,
+      activityId: builtIn?.activityId,
       name: row['name'] as String,
+      category: builtIn?.category,
       defaultUnit: row['default_unit'] as String,
+      optionalUnits: builtIn?.optionalUnits ?? const [],
       guidance: row['guidance'] as String,
     );
   }

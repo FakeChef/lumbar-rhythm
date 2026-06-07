@@ -117,8 +117,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     now: postureNow,
                     settings: settings,
                     hasMarkedDiscomfort:
-                        overviewState.valueOrNull?.hasMarkedDiscomfort ??
-                            false,
+                        overviewState.valueOrNull?.hasMarkedDiscomfort ?? false,
                     selectedPosture: _selectedPosture,
                   ),
                   const SizedBox(height: 8),
@@ -168,6 +167,7 @@ class _TodayPostureSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      key: const ValueKey('today-posture-summary'),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -226,7 +226,10 @@ class _MiniMetricGrid extends StatelessWidget {
         mainAxisSpacing: 8,
         childAspectRatio: 2.7,
       ),
-      itemBuilder: (context, index) => _MiniMetricTile(item: items[index]),
+      itemBuilder: (context, index) => _MiniMetricTile(
+        key: const ValueKey('today-posture-summary-metric'),
+        item: items[index],
+      ),
     );
   }
 }
@@ -244,7 +247,7 @@ class _MiniMetricItem {
 }
 
 class _MiniMetricTile extends StatelessWidget {
-  const _MiniMetricTile({required this.item});
+  const _MiniMetricTile({required this.item, super.key});
 
   final _MiniMetricItem item;
 
@@ -348,77 +351,79 @@ class _PostureStatusCard extends StatelessWidget {
         key: const ValueKey('today-rhythm-card'),
         color: statusColor.withValues(alpha: 0.12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            Text(
-              _recoveryGreeting(profile, now),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+              Text(
+                _recoveryGreeting(profile, now),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                encouragement,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF4B5563),
+                    ),
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    durationText,
+                    key: const ValueKey('today-rhythm-duration'),
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                          fontSize: 92,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0,
+                        ),
                   ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              encouragement,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF4B5563),
-                  ),
-            ),
-            const SizedBox(height: 10),
-            Center(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  durationText,
-                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                        fontSize: 64,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0,
-                      ),
                 ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(_postureIcon(displayType), color: statusColor, size: 20),
-                const SizedBox(width: 6),
-                Text(
-                  current == null ? '尚未开始' : '当前姿势：${current.type.label}',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-                const SizedBox(width: 10),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(999),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(_postureIcon(displayType), color: statusColor, size: 20),
+                  const SizedBox(width: 6),
+                  Text(
+                    current == null ? '尚未开始' : '当前姿势：${current.type.label}',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: statusColor,
+                          fontWeight: FontWeight.w800,
+                        ),
                   ),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    child: Text(
-                      timerState?.statusLabel ?? '节奏正常',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: statusColor,
-                            fontWeight: FontWeight.w800,
-                          ),
+                  const SizedBox(width: 10),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      child: Text(
+                        timerState?.statusLabel ?? '节奏正常',
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _TimerInfoPanel(
-              message: timerState?.message ?? '开始后会显示距离提醒的时间',
-              suggestion: timerState?.suggestion ?? '选择一个姿势，按自己的节奏开始记录。',
-            ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _TimerInfoPanel(
+                message: timerState?.message ?? '开始后会显示距离提醒的时间',
+                suggestion: timerState?.suggestion ?? '选择一个姿势，按自己的节奏开始记录。',
+              ),
             ],
           ),
         ),

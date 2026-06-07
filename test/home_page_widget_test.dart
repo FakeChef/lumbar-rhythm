@@ -15,7 +15,8 @@ import 'package:lumbar_rhythm/features/settings/data/reminder_settings_repositor
 import 'package:lumbar_rhythm/features/settings/domain/reminder_settings.dart';
 
 void main() {
-  testWidgets('bottom navigation order is today rehab calendar reports settings',
+  testWidgets(
+      'bottom navigation order is today rehab calendar reports settings',
       (tester) async {
     await _pumpApp(tester, child: const MainShell());
 
@@ -38,6 +39,10 @@ void main() {
     );
 
     expect(find.byKey(const ValueKey('today-rhythm-timer')), findsOneWidget);
+    final durationText = tester.widget<Text>(
+      find.byKey(const ValueKey('today-rhythm-duration')),
+    );
+    expect(durationText.style?.fontSize, greaterThanOrEqualTo(88));
     expect(find.text('当前姿势：我在坐'), findsOneWidget);
     expect(find.text('节奏正常'), findsWidgets);
     final rhythmCard = tester.widget<Card>(
@@ -126,7 +131,8 @@ void main() {
     expect(find.text('已超过建议时间'), findsNothing);
   });
 
-  testWidgets('shows only sitting and standing posture buttons', (tester) async {
+  testWidgets('shows only sitting and standing posture buttons',
+      (tester) async {
     await _pumpHome(tester);
 
     expect(find.text('我在坐'), findsWidgets);
@@ -176,6 +182,13 @@ void main() {
     expect(find.text('今日最长站立'), findsOneWidget);
     expect(find.text('今日打断次数'), findsOneWidget);
     expect(find.text('今日超时次数'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('today-posture-summary')),
+        matching: find.byKey(const ValueKey('today-posture-summary-metric')),
+      ),
+      findsNWidgets(4),
+    );
     expect(find.text('今日坐姿累计'), findsNothing);
     expect(find.text('今日站立累计'), findsNothing);
     expect(find.text('今日走动累计'), findsNothing);
