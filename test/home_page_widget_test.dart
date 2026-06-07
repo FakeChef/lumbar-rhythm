@@ -24,7 +24,12 @@ void main() {
 
     expect(find.text('坐站节奏'), findsOneWidget);
     expect(find.text('当前姿势：我在坐'), findsOneWidget);
-    expect(find.text('正常'), findsWidgets);
+    expect(find.text('节奏正常'), findsWidgets);
+    final rhythmCard = tester.widget<Card>(
+      find.byKey(const ValueKey('today-rhythm-card')),
+    );
+    expect(rhythmCard.color, const Color(0xFF2E86C1).withValues(alpha: 0.12));
+    expect(find.textContaining('距离久坐提醒还有'), findsOneWidget);
   });
 
   testWidgets('shows near reminder and overdue states', (tester) async {
@@ -42,7 +47,8 @@ void main() {
         openSession: _session(PostureType.standing, minutesAgo: 40),
       ),
     );
-    expect(find.text('已超时'), findsOneWidget);
+    expect(find.text('已超过建议时间'), findsOneWidget);
+    expect(find.textContaining('已超过建议时间'), findsWidgets);
   });
 
   testWidgets('shows walking and resting states', (tester) async {
@@ -52,7 +58,9 @@ void main() {
         openSession: _session(PostureType.walking, minutesAgo: 60),
       ),
     );
-    expect(find.text('走动中'), findsWidgets);
+    expect(find.text('正在走动 / 休息中'), findsOneWidget);
+    expect(find.text('正在走动'), findsOneWidget);
+    expect(find.text('已超过建议时间'), findsNothing);
 
     await _pumpHome(
       tester,
@@ -60,7 +68,19 @@ void main() {
         openSession: _session(PostureType.resting, minutesAgo: 60),
       ),
     );
-    expect(find.text('休息中'), findsWidgets);
+    expect(find.text('正在走动 / 休息中'), findsOneWidget);
+    expect(find.text('正在休息'), findsOneWidget);
+    expect(find.text('已超过建议时间'), findsNothing);
+  });
+
+  testWidgets('shows four posture switch buttons', (tester) async {
+    await _pumpHome(tester);
+
+    expect(find.text('切换当前姿势'), findsOneWidget);
+    expect(find.text('我在坐'), findsWidgets);
+    expect(find.text('我在站'), findsWidgets);
+    expect(find.text('我在走'), findsWidgets);
+    expect(find.text('我在休息'), findsWidgets);
   });
 
   testWidgets('today posture summary uses posture sessions', (tester) async {
@@ -90,9 +110,17 @@ void main() {
 
     await _scrollDown(tester);
     expect(find.text('今日坐站摘要'), findsOneWidget);
+    expect(find.text('今日坐姿累计'), findsOneWidget);
+    expect(find.text('今日站立累计'), findsOneWidget);
+    expect(find.text('今日走动累计'), findsOneWidget);
+    expect(find.text('今日休息累计'), findsOneWidget);
+    expect(find.text('最长连续坐姿'), findsOneWidget);
+    expect(find.text('最长连续站立'), findsOneWidget);
+    expect(find.text('姿势打断次数'), findsOneWidget);
+    expect(find.text('久坐/久站超时'), findsOneWidget);
     expect(find.text('50 分'), findsWidgets);
     expect(find.text('35 分'), findsWidgets);
-    expect(find.text('1 / 1 次'), findsOneWidget);
+    expect(find.text('2 次'), findsWidgets);
   });
 
   testWidgets('daily note dialog saves quickly', (tester) async {
@@ -113,7 +141,7 @@ void main() {
 
     await tester.tap(find.text('记录康复动作').last);
     await tester.pump();
-    await tester.tap(find.text('查看康复报告').last);
+    await tester.tap(find.text('查看报告').last);
     await tester.pump();
     await tester.tap(find.text('设置提醒').last);
     await tester.pump();
