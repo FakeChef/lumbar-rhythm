@@ -174,9 +174,9 @@ class _GentleNoticeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFFFFF1F0),
-      child: const Padding(
+    return const Card(
+      color: Color(0xFFFFF1F0),
+      child: Padding(
         padding: EdgeInsets.all(16),
         child: Text('这一天有明显加重记录，可作为后续观察参考。必要时请咨询医生或康复师。'),
       ),

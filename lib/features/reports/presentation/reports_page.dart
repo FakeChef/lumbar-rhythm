@@ -7,6 +7,8 @@ import '../../recovery/domain/daily_recovery_note.dart';
 import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
 
+const reportDisclaimerText = '本报告仅用于个人康复记录回顾，不作为医疗诊断或治疗依据。';
+
 class ReportsPage extends ConsumerWidget {
   const ReportsPage({super.key});
 
@@ -21,11 +23,21 @@ class ReportsPage extends ConsumerWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                '康复报告',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '康复报告',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '回顾你的坐站节奏和康复记录',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
               ),
             ),
             IconButton(
@@ -54,11 +66,6 @@ class ReportsPage extends ConsumerWidget {
           ),
           data: (report) => _ReportContent(report: report, period: period),
         ),
-        const SizedBox(height: 12),
-        const Text(
-          '本报告仅用于个人康复记录回顾，不作为医疗诊断或治疗依据。',
-          style: TextStyle(fontSize: 12),
-        ),
       ],
     );
   }
@@ -72,196 +79,156 @@ class _ReportContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final summary = report.rehabSummary;
-    final hasAnyRecord = summary.totalCount > 0 ||
-        report.postureSummary.sessions.isNotEmpty ||
-        report.dailyNotes.isNotEmpty ||
-        report.milestones.any((milestone) => milestone.isCompleted);
-
-    if (!hasAnyRecord) {
-      return _EmptyCard(
-        title: '${_periodTitle(period)}康复报告',
-        message: '当前时间范围内还没有康复日志。你可以在首页记录康复动作、坐站节奏或今日康复小结。',
-      );
-    }
-
-    if (period == ReportPeriod.day) {
-      return _DailyRehabOverview(report: report);
-    }
-
-    return _RehabTrendOverview(report: report, period: period);
+    return Column(
+      children: [
+        _TodayReportSection(report: report),
+        const SizedBox(height: 12),
+        _SittingStandingReportSection(report: report),
+        const SizedBox(height: 12),
+        _RecentTrendSection(report: report),
+        const SizedBox(height: 12),
+        _RehabActionReportSection(report: report, period: period),
+        const SizedBox(height: 12),
+        const _ShareReportSection(),
+        const SizedBox(height: 12),
+        const _DisclaimerSection(),
+      ],
+    );
   }
 }
 
-class _DailyRehabOverview extends StatelessWidget {
-  const _DailyRehabOverview({required this.report});
+class _TodayReportSection extends StatelessWidget {
+  const _TodayReportSection({required this.report});
 
   final DailyReport report;
 
   @override
   Widget build(BuildContext context) {
-    final summary = report.rehabSummary;
-    final posture = report.postureSummary;
-    final walkingTotal = summary.totalAmountForActionNamed('步行');
-    final muchWorseCount = summary.reactionCount(RehabReaction.muchWorse);
     final postSurgeryDay = report.postSurgeryDay(DateTime.now());
-
-    return Column(
-      children: [
-        _SectionCard(
-          title: '今日康复报告',
-          subtitle:
-              postSurgeryDay == null ? '可在设置中添加手术日期' : '术后第 $postSurgeryDay 天',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _SoftMetricRow(
-                  label: '有记录天数', value: '${report.recordedDayCount} 天'),
-              _SoftMetricRow(
-                label: '已完成康复节点',
-                value: '${report.completedMilestoneCount} 个',
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        _SittingStandingReportCard(report: report),
-        const SizedBox(height: 12),
-        _OverviewGrid(
-          cards: [
-            _OverviewCardData(
-              icon: Icons.event_seat_outlined,
-              color: _ReportColors.primary,
-              title: '坐姿累计',
-              value: _formatDuration(posture.sittingTotal),
-              subtitle: '最长 ${_formatDuration(posture.longestSitting)}',
-            ),
-            _OverviewCardData(
-              icon: Icons.accessibility_new_outlined,
-              color: _ReportColors.walking,
-              title: '站立累计',
-              value: _formatDuration(posture.standingTotal),
-              subtitle: '最长 ${_formatDuration(posture.longestStanding)}',
-            ),
-            _OverviewCardData(
-              icon: Icons.directions_walk_outlined,
-              color: _ReportColors.highlight,
-              title: '步行总量',
-              value: '${_formatNumber(walkingTotal)} 分钟',
-              subtitle: '来自康复动作记录',
-            ),
-            _OverviewCardData(
-              icon: Icons.visibility_outlined,
-              color: muchWorseCount > 0
-                  ? _ReportColors.warning
-                  : _ReportColors.primary,
-              title: '需观察',
-              value: '$muchWorseCount 次',
-              subtitle: '明显加重的记录次数',
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _SectionCard(
-          title: '今日康复小结',
-          subtitle: '腰部、腿部和疲劳评分',
-          child: _DailyNotePanel(report: report),
-        ),
-      ],
-    );
-  }
-}
-
-class _RehabTrendOverview extends StatelessWidget {
-  const _RehabTrendOverview({required this.report, required this.period});
-
-  final DailyReport report;
-  final ReportPeriod period;
-
-  @override
-  Widget build(BuildContext context) {
-    final bins = _trendBinsFor(report, period);
-
-    return Column(
-      children: [
-        _PostureRhythmTrendCard(report: report, period: period),
-        const SizedBox(height: 12),
-        _TrendCard(
-          title: '${_periodTitle(period)}康复动作趋势',
-          subtitle: '按天统计康复记录次数',
-          bins: bins,
-          valueFor: (bin) => bin.rehabCount.toDouble(),
-          labelFor: (bin) => '${bin.rehabCount} 次',
-          color: _ReportColors.primary,
-          emptyMessage: '当前时间范围内还没有康复动作记录。',
-        ),
-        const SizedBox(height: 12),
-        _TrendCard(
-          title: '${_periodTitle(period)}步行趋势',
-          subtitle: '按天统计步行总量',
-          bins: bins,
-          valueFor: (bin) => bin.walkingMinutes,
-          labelFor: (bin) => '${_formatNumber(bin.walkingMinutes)} 分',
-          color: _ReportColors.walking,
-          emptyMessage: '当前时间范围内还没有步行记录。',
-        ),
-        const SizedBox(height: 12),
-        _SymptomTrendCard(report: report),
-        const SizedBox(height: 12),
-        _TrendSummaryCard(report: report),
-      ],
-    );
-  }
-}
-
-class _SittingStandingReportCard extends StatelessWidget {
-  const _SittingStandingReportCard({required this.report});
-
-  final DailyReport report;
-
-  @override
-  Widget build(BuildContext context) {
+    final summary = report.rehabSummary;
     final posture = report.postureSummary;
 
-    return _SectionCard(
-      title: '坐站节奏报告',
-      subtitle: '记录显示，仅作为个人观察参考',
+    return _ReportSection(
+      icon: Icons.today_outlined,
+      title: '今日康复报告',
+      subtitle: postSurgeryDay == null
+          ? '可在设置中补充手术日期，也可以继续跳过'
+          : '术后第 $postSurgeryDay 天',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SoftMetricRow(
-              label: '坐姿累计', value: _formatDuration(posture.sittingTotal)),
-          _SoftMetricRow(
-              label: '站立累计', value: _formatDuration(posture.standingTotal)),
-          _SoftMetricRow(
-              label: '走动累计', value: _formatDuration(posture.walkingTotal)),
-          _SoftMetricRow(
-              label: '休息累计', value: _formatDuration(posture.restingTotal)),
-          _SoftMetricRow(
-            label: '最长连续坐姿',
-            value: _formatDuration(posture.longestSitting),
+          _MetricRow(label: '今日康复记录', value: '${summary.totalCount} 次'),
+          _MetricRow(
+            label: '今日坐姿累计',
+            value: _formatDuration(posture.sittingTotal),
           ),
-          _SoftMetricRow(
-            label: '最长连续站立',
-            value: _formatDuration(posture.longestStanding),
+          _MetricRow(
+            label: '今日站立累计',
+            value: _formatDuration(posture.standingTotal),
           ),
-          _SoftMetricRow(
-            label: '久坐超阈值次数',
-            value: '${posture.sittingOverThresholdCount} 次',
+          _MetricRow(
+            label: '今日走动累计',
+            value: _formatDuration(posture.walkingTotal),
           ),
-          _SoftMetricRow(
-            label: '久站超阈值次数',
-            value: '${posture.standingOverThresholdCount} 次',
+          _MetricRow(
+            label: '已完成康复节点',
+            value: '${report.completedMilestoneCount} 个',
           ),
-          _SoftMetricRow(label: '姿势切换次数', value: '${posture.switchCount} 次'),
+          const SizedBox(height: 8),
+          _DailyNotePanel(report: report),
         ],
       ),
     );
   }
 }
 
-class _PostureRhythmTrendCard extends StatelessWidget {
-  const _PostureRhythmTrendCard({
+class _SittingStandingReportSection extends StatelessWidget {
+  const _SittingStandingReportSection({required this.report});
+
+  final DailyReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final posture = report.postureSummary;
+
+    return _ReportSection(
+      icon: Icons.swap_vert_circle_outlined,
+      title: '坐站节奏报告',
+      subtitle: '查看坐、站、走动和休息的本地记录',
+      child: Column(
+        children: [
+          _MetricRow(
+              label: '坐姿累计', value: _formatDuration(posture.sittingTotal)),
+          _MetricRow(
+            label: '站立累计',
+            value: _formatDuration(posture.standingTotal),
+          ),
+          _MetricRow(
+              label: '走动累计', value: _formatDuration(posture.walkingTotal)),
+          _MetricRow(
+              label: '休息累计', value: _formatDuration(posture.restingTotal)),
+          _MetricRow(
+            label: '最长连续坐姿',
+            value: _formatDuration(posture.longestSitting),
+          ),
+          _MetricRow(
+            label: '最长连续站立',
+            value: _formatDuration(posture.longestStanding),
+          ),
+          _MetricRow(
+            label: '久坐超过提醒间隔',
+            value: '${posture.sittingOverThresholdCount} 次',
+          ),
+          _MetricRow(
+            label: '久站超过提醒间隔',
+            value: '${posture.standingOverThresholdCount} 次',
+          ),
+          _MetricRow(label: '姿势切换次数', value: '${posture.switchCount} 次'),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentTrendSection extends StatelessWidget {
+  const _RecentTrendSection({required this.report});
+
+  final DailyReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final postureBins = _postureTrendBinsFor(report);
+    final rehabBins = _rehabTrendBinsFor(report);
+    final postureHasData = postureBins.any((bin) => bin.totalMinutes > 0);
+    final rehabHasData = rehabBins.any((bin) => bin.rehabCount > 0);
+
+    return _ReportSection(
+      icon: Icons.trending_up_outlined,
+      title: '最近 7 天趋势',
+      subtitle: '按天回顾坐站节奏、走动和康复动作记录',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (postureHasData) _StackedPostureBars(bins: postureBins),
+          if (!postureHasData) const _EmptyHint(text: '最近 7 天还没有坐站节奏记录。'),
+          const SizedBox(height: 16),
+          if (rehabHasData)
+            _TrendBars(
+              bins: rehabBins,
+              valueFor: (bin) => bin.rehabCount.toDouble(),
+              labelFor: (bin) => '${bin.rehabCount} 次',
+              color: _ReportColors.primary,
+            ),
+          if (!rehabHasData) const _EmptyHint(text: '最近 7 天还没有康复动作记录。'),
+          const SizedBox(height: 12),
+          _RecentNotesPanel(report: report),
+        ],
+      ),
+    );
+  }
+}
+
+class _RehabActionReportSection extends StatelessWidget {
+  const _RehabActionReportSection({
     required this.report,
     required this.period,
   });
@@ -271,146 +238,60 @@ class _PostureRhythmTrendCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stats = _recentPostureStats(report);
-    final bins = _postureTrendBinsFor(report, period);
-    final sittingExceeded =
-        report.recentPostureSummary.sittingOverThresholdCount;
-    final standingExceeded =
-        report.recentPostureSummary.standingOverThresholdCount;
-    final discomfortAfterTimeout = report.recentRehabLogs.where((log) {
-      return log.source == 'posture_reminder' &&
-          log.reaction == RehabReaction.muchWorse;
-    }).length;
+    final summary = report.rehabSummary;
+    final topAction = summary.mostCompletedAction()?.name ?? '暂无';
+    final walkingTotal = summary.totalAmountForActionNamed('步行');
+    final muchWorseCount = summary.reactionCount(RehabReaction.muchWorse);
 
-    return _SectionCard(
-      title: period == ReportPeriod.week ? '最近 7 天坐站节奏报告' : '本月坐站节奏报告',
-      subtitle: '坐站趋势来自姿势记录',
+    return _ReportSection(
+      icon: Icons.self_improvement_outlined,
+      title: '康复动作报告',
+      subtitle: '${_periodTitle(period)}范围内的动作记录汇总',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SoftMetricRow(
-            label: '平均最长坐姿',
-            value: _formatDuration(stats.averageLongestSitting),
-          ),
-          _SoftMetricRow(
-            label: '平均最长站立',
-            value: _formatDuration(stats.averageLongestStanding),
-          ),
-          _SoftMetricRow(
-            label: '久坐 / 久站超阈值总次数',
-            value: '$sittingExceeded / $standingExceeded 次',
-          ),
-          _SoftMetricRow(
-            label: '超时后明显不适次数',
-            value: '$discomfortAfterTimeout 次',
-          ),
-          const SizedBox(height: 8),
-          Text(
-            period == ReportPeriod.week
-                ? '本周记录显示，你有 $sittingExceeded 次坐姿超过设定提醒时间，可作为下周观察参考。'
-                : '本月记录显示，你有 $sittingExceeded 次坐姿超过设定提醒时间，可作为观察参考。',
-          ),
-          const SizedBox(height: 16),
-          _StackedPostureBars(bins: bins),
+          _MetricRow(label: '动作记录总数', value: '${summary.totalCount} 次'),
+          _MetricRow(label: '步行总量', value: '${_formatNumber(walkingTotal)} 分钟'),
+          _MetricRow(label: '记录最多的动作', value: topAction),
+          _MetricRow(label: '明显加重记录', value: '$muchWorseCount 次'),
+          _MetricRow(
+              label: '需要继续观察的动作', value: summary.observationActionNames()),
         ],
       ),
     );
   }
 }
 
-class _OverviewGrid extends StatelessWidget {
-  const _OverviewGrid({required this.cards});
-
-  final List<_OverviewCardData> cards;
+class _ShareReportSection extends StatelessWidget {
+  const _ShareReportSection();
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: cards.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.82,
+    return _ReportSection(
+      icon: Icons.ios_share_outlined,
+      title: '分享报告入口',
+      subtitle: '分享前请确认内容适合给对方查看',
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          onPressed: null,
+          icon: const Icon(Icons.share_outlined),
+          label: const Text('分享报告'),
+        ),
       ),
-      itemBuilder: (context, index) {
-        return _OverviewCard(data: cards[index]);
-      },
     );
   }
 }
 
-class _OverviewCardData {
-  const _OverviewCardData({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.value,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String value;
-  final String subtitle;
-}
-
-class _OverviewCard extends StatelessWidget {
-  const _OverviewCard({required this.data});
-
-  final _OverviewCardData data;
+class _DisclaimerSection extends StatelessWidget {
+  const _DisclaimerSection();
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: data.color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Icon(data.icon, color: data.color, size: 30),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              data.title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                data.value,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: data.color,
-                      fontWeight: FontWeight.w900,
-                    ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              data.subtitle,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
+    return const _ReportSection(
+      icon: Icons.info_outline,
+      title: '免责声明',
+      subtitle: '使用边界',
+      child: Text(reportDisclaimerText),
     );
   }
 }
@@ -424,49 +305,166 @@ class _DailyNotePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final note = report.dailyNotes.isEmpty ? null : report.dailyNotes.last;
     if (note == null) {
-      return const Text('今天还没有康复小结。');
+      return const _EmptyHint(text: '今天还没有康复小结。');
     }
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _SoftMetricRow(label: '总体感觉', value: note.overallFeeling.label),
-        _ScoreBars(
-          backPain: note.backPainScore,
-          legSymptom: note.legSymptomScore,
-          fatigue: note.fatigueScore,
-        ),
-        if (note.note != null && note.note!.isNotEmpty) Text(note.note!),
+        _MetricRow(label: '总体感觉', value: note.overallFeeling.label),
+        _ScoreRow(label: '腰部不适', value: note.backPainScore),
+        _ScoreRow(label: '腿部症状', value: note.legSymptomScore),
+        _ScoreRow(label: '疲劳感', value: note.fatigueScore),
+        if (note.note != null && note.note!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(note.note!),
+            ),
+          ),
       ],
     );
   }
 }
 
-class _ScoreBars extends StatelessWidget {
-  const _ScoreBars({
-    required this.backPain,
-    required this.legSymptom,
-    required this.fatigue,
-  });
+class _RecentNotesPanel extends StatelessWidget {
+  const _RecentNotesPanel({required this.report});
 
-  final int backPain;
-  final int legSymptom;
-  final int fatigue;
+  final DailyReport report;
 
   @override
   Widget build(BuildContext context) {
+    final notes = report.recentDailyNotes;
+    if (notes.isEmpty) {
+      return const _EmptyHint(text: '最近 7 天还没有康复小结。');
+    }
+
     return Column(
       children: [
-        _ScoreBar(label: '腰部不适', value: backPain),
-        _ScoreBar(label: '腿部症状', value: legSymptom),
-        _ScoreBar(label: '疲劳感', value: fatigue),
+        for (final note in notes)
+          _MetricRow(
+            label: '${note.date.month}/${note.date.day}',
+            value:
+                '腰 ${note.backPainScore} / 腿 ${note.legSymptomScore} / 疲劳 ${note.fatigueScore}',
+          ),
       ],
     );
   }
 }
 
-class _ScoreBar extends StatelessWidget {
-  const _ScoreBar({required this.label, required this.value});
+class _ReportSection extends StatelessWidget {
+  const _ReportSection({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _IconBadge(icon: icon),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(subtitle,
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IconBadge extends StatelessWidget {
+  const _IconBadge({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+      ),
+    );
+  }
+}
+
+class _MetricRow extends StatelessWidget {
+  const _MetricRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Expanded(child: Text(label)),
+              Flexible(
+                child: Text(
+                  value,
+                  textAlign: TextAlign.end,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScoreRow extends StatelessWidget {
+  const _ScoreRow({required this.label, required this.value});
 
   final String label;
   final int value;
@@ -477,7 +475,7 @@ class _ScoreBar extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          SizedBox(width: 72, child: Text(label)),
+          SizedBox(width: 76, child: Text(label)),
           Expanded(
             child: LinearProgressIndicator(
               value: value / 10,
@@ -493,73 +491,116 @@ class _ScoreBar extends StatelessWidget {
   }
 }
 
-class _TrendCard extends StatelessWidget {
-  const _TrendCard({
-    required this.title,
-    required this.subtitle,
+class _EmptyHint extends StatelessWidget {
+  const _EmptyHint({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.notes_outlined, size: 20),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text)),
+      ],
+    );
+  }
+}
+
+class _ReportLoading extends StatelessWidget {
+  const _ReportLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _ReportSection(
+      icon: Icons.hourglass_empty_outlined,
+      title: '正在读取报告',
+      subtitle: '本地数据',
+      child: LinearProgressIndicator(),
+    );
+  }
+}
+
+class _ReportError extends StatelessWidget {
+  const _ReportError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ReportSection(
+      icon: Icons.error_outline,
+      title: '报告读取失败',
+      subtitle: '请稍后重试',
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_outlined),
+          label: const Text('重试'),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrendBars extends StatelessWidget {
+  const _TrendBars({
     required this.bins,
     required this.valueFor,
     required this.labelFor,
     required this.color,
-    required this.emptyMessage,
   });
 
-  final String title;
-  final String subtitle;
   final List<_TrendBin> bins;
   final double Function(_TrendBin bin) valueFor;
   final String Function(_TrendBin bin) labelFor;
   final Color color;
-  final String emptyMessage;
 
   @override
   Widget build(BuildContext context) {
     final maxValue =
         bins.map(valueFor).fold(0.0, (max, value) => value > max ? value : max);
 
-    return _SectionCard(
-      title: title,
-      subtitle: subtitle,
-      child: maxValue <= 0
-          ? Text(emptyMessage)
-          : SizedBox(
-              height: 210,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final bin in bins)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text(
-                              labelFor(bin),
-                              maxLines: 1,
-                              overflow: TextOverflow.clip,
-                              style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                            const SizedBox(height: 6),
-                            _TrendBar(
-                              value: valueFor(bin),
-                              maxValue: maxValue,
-                              color: color,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              bin.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.clip,
-                              style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                          ],
-                        ),
-                      ),
+    return SizedBox(
+      height: 160,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (final bin in bins)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      labelFor(bin),
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      style: Theme.of(context).textTheme.labelSmall,
                     ),
-                ],
+                    const SizedBox(height: 6),
+                    _TrendBar(
+                      value: valueFor(bin),
+                      maxValue: maxValue,
+                      color: color,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      bin.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ),
               ),
             ),
+        ],
+      ),
     );
   }
 }
@@ -577,7 +618,7 @@ class _TrendBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final height = _barHeight(value, maxValue);
+    final height = _barHeight(value, maxValue, maxHeight: 92);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -603,12 +644,8 @@ class _StackedPostureBars extends StatelessWidget {
       return value > max ? value : max;
     });
 
-    if (maxMinutes <= 0) {
-      return const Text('当前时间范围内还没有坐站节奏记录。');
-    }
-
     return SizedBox(
-      height: 190,
+      height: 170,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -620,7 +657,7 @@ class _StackedPostureBars extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     SizedBox(
-                      height: 128,
+                      height: 120,
                       child: Align(
                         alignment: Alignment.bottomCenter,
                         child: _PostureStackBar(
@@ -654,7 +691,12 @@ class _PostureStackBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalHeight = 18 + 110 * (bin.totalMinutes / maxMinutes);
+    final totalHeight = _barHeight(
+      bin.totalMinutes,
+      maxMinutes,
+      minHeight: 18,
+      maxHeight: 112,
+    );
     final segments = [
       (value: bin.sittingMinutes, color: _ReportColors.primary),
       (value: bin.standingMinutes, color: _ReportColors.walking),
@@ -685,209 +727,18 @@ class _PostureStackBar extends StatelessWidget {
   }
 }
 
-class _TrendSummaryCard extends StatelessWidget {
-  const _TrendSummaryCard({required this.report});
-
-  final DailyReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final summary = report.rehabSummary;
-    final posture = report.postureSummary;
-    final topAction = summary.mostCompletedAction()?.name ?? '暂无';
-    final day = report.postSurgeryDay(DateTime.now());
-
-    return _SectionCard(
-      title: '术后阶段报告',
-      subtitle: '当前时间范围',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _SoftMetricRow(
-              label: '术后第几天', value: day == null ? '未设置' : '第 $day 天'),
-          _SoftMetricRow(label: '有记录天数', value: '${report.recordedDayCount} 天'),
-          _SoftMetricRow(
-              label: '坐姿累计', value: _formatDuration(posture.sittingTotal)),
-          _SoftMetricRow(
-            label: '最长连续坐姿',
-            value: _formatDuration(posture.longestSitting),
-          ),
-          _SoftMetricRow(
-              label: '站立累计', value: _formatDuration(posture.standingTotal)),
-          _SoftMetricRow(
-            label: '最长连续站立',
-            value: _formatDuration(posture.longestStanding),
-          ),
-          _SoftMetricRow(label: '康复记录', value: '${summary.totalCount} 次'),
-          _SoftMetricRow(
-            label: '步行总量',
-            value:
-                '${_formatNumber(summary.totalAmountForActionNamed('步行'))} 分钟',
-          ),
-          _SoftMetricRow(label: '完成最多', value: topAction),
-          _SoftMetricRow(
-            label: '明显加重',
-            value: '${summary.reactionCount(RehabReaction.muchWorse)} 次',
-          ),
-          _SoftMetricRow(
-            label: '已完成康复节点',
-            value: '${report.completedMilestoneCount} 个',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.subtitle,
-    required this.child,
-  });
-
-  final String title;
-  final String subtitle;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 16),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SoftMetricRow extends StatelessWidget {
-  const _SoftMetricRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Expanded(child: Text(label)),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyCard extends StatelessWidget {
-  const _EmptyCard({
-    required this.title,
-    required this.message,
-  });
-
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: title,
-      subtitle: '暂无数据',
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.self_improvement_outlined),
-          const SizedBox(width: 12),
-          Expanded(child: Text(message)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReportLoading extends StatelessWidget {
-  const _ReportLoading();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _SectionCard(
-      title: '正在读取报告',
-      subtitle: '本地数据',
-      child: LinearProgressIndicator(),
-    );
-  }
-}
-
-class _ReportError extends StatelessWidget {
-  const _ReportError({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: '报告读取失败',
-      subtitle: '请稍后重试',
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: onRetry,
-          icon: const Icon(Icons.refresh_outlined),
-          label: const Text('重试'),
-        ),
-      ),
-    );
-  }
-}
-
 class _TrendBin {
   const _TrendBin({
-    required this.day,
     required this.label,
     required this.rehabCount,
-    required this.walkingMinutes,
   });
 
-  final DateTime day;
   final String label;
   final int rehabCount;
-  final double walkingMinutes;
 }
 
 class _PostureTrendBin {
   const _PostureTrendBin({
-    required this.day,
     required this.label,
     required this.sittingMinutes,
     required this.standingMinutes,
@@ -895,7 +746,6 @@ class _PostureTrendBin {
     required this.restingMinutes,
   });
 
-  final DateTime day;
   final String label;
   final double sittingMinutes;
   final double standingMinutes;
@@ -907,101 +757,23 @@ class _PostureTrendBin {
   }
 }
 
-class _RecentPostureStats {
-  const _RecentPostureStats({
-    required this.averageLongestSitting,
-    required this.averageLongestStanding,
-  });
-
-  final Duration averageLongestSitting;
-  final Duration averageLongestStanding;
-}
-
-class _SymptomTrendCard extends StatelessWidget {
-  const _SymptomTrendCard({required this.report});
-
-  final DailyReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final notes = report.recentDailyNotes;
-    return _SectionCard(
-      title: '最近 7 天康复小结趋势',
-      subtitle: '分数越高代表当天主观感受越强',
-      child: notes.isEmpty
-          ? const Text('最近 7 天还没有康复小结。')
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final note in notes)
-                  _SoftMetricRow(
-                    label: '${note.date.month}/${note.date.day}',
-                    value:
-                        '腰 ${note.backPainScore} · 腿 ${note.legSymptomScore} · 疲劳 ${note.fatigueScore}',
-                  ),
-              ],
-            ),
-    );
-  }
-}
-
 abstract final class _ReportColors {
   static const primary = Color(0xFF2F6B5F);
   static const walking = Color(0xFFE09F3E);
   static const highlight = Color(0xFF5B7CFA);
-  static const warning = Color(0xFFD96C4A);
   static const resting = Color(0xFF7A6FF0);
 }
 
-_RecentPostureStats _recentPostureStats(DailyReport report) {
+List<_PostureTrendBin> _postureTrendBinsFor(DailyReport report) {
   final now = report.recentPostureSummary.now;
   final today = DateTime(now.year, now.month, now.day);
   final start = today.subtract(const Duration(days: 6));
-  final longestSitting = <Duration>[];
-  final longestStanding = <Duration>[];
-
-  for (var index = 0; index < 7; index++) {
-    final day = start.add(Duration(days: index));
-    final summary = _postureSummaryForDay(report.recentPostureSummary, day);
-    if (summary.sessions.isNotEmpty) {
-      longestSitting.add(summary.longestSitting);
-      longestStanding.add(summary.longestStanding);
-    }
-  }
-
-  return _RecentPostureStats(
-    averageLongestSitting: _averageDuration(longestSitting),
-    averageLongestStanding: _averageDuration(longestStanding),
-  );
-}
-
-List<_PostureTrendBin> _postureTrendBinsFor(
-  DailyReport report,
-  ReportPeriod period,
-) {
-  final now = report.postureSummary.now;
-  final today = DateTime(now.year, now.month, now.day);
-  final start = switch (period) {
-    ReportPeriod.day => today,
-    ReportPeriod.week => today.subtract(const Duration(days: 6)),
-    ReportPeriod.month => DateTime(now.year, now.month),
-  };
-  final length = switch (period) {
-    ReportPeriod.day => 1,
-    ReportPeriod.week => 7,
-    ReportPeriod.month => DateTime(now.year, now.month + 1, 0).day,
-  };
-
-  final source = period == ReportPeriod.week
-      ? report.recentPostureSummary
-      : report.postureSummary;
 
   return [
-    for (var index = 0; index < length; index++)
+    for (var index = 0; index < 7; index++)
       _postureTrendBinFor(
-        source: source,
+        source: report.recentPostureSummary,
         day: start.add(Duration(days: index)),
-        period: period,
       ),
   ];
 }
@@ -1009,12 +781,10 @@ List<_PostureTrendBin> _postureTrendBinsFor(
 _PostureTrendBin _postureTrendBinFor({
   required PostureSummary source,
   required DateTime day,
-  required ReportPeriod period,
 }) {
   final summary = _postureSummaryForDay(source, day);
   return _PostureTrendBin(
-    day: day,
-    label: _trendLabel(day, period),
+    label: _trendLabel(day),
     sittingMinutes: summary.sittingTotal.inMinutes.toDouble(),
     standingMinutes: summary.standingTotal.inMinutes.toDouble(),
     walkingMinutes: summary.walkingTotal.inMinutes.toDouble(),
@@ -1037,64 +807,36 @@ PostureSummary _postureSummaryForDay(PostureSummary source, DateTime day) {
   );
 }
 
-Duration _averageDuration(List<Duration> values) {
-  if (values.isEmpty) {
-    return Duration.zero;
-  }
-  final seconds = values
-          .map((value) => value.inSeconds)
-          .fold<int>(0, (sum, value) => sum + value) /
-      values.length;
-  return Duration(seconds: seconds.round());
-}
-
-List<_TrendBin> _trendBinsFor(DailyReport report, ReportPeriod period) {
-  final now = report.postureSummary.now;
+List<_TrendBin> _rehabTrendBinsFor(DailyReport report) {
+  final now = report.recentPostureSummary.now;
   final today = DateTime(now.year, now.month, now.day);
-  final start = switch (period) {
-    ReportPeriod.day => today,
-    ReportPeriod.week => today.subtract(const Duration(days: 6)),
-    ReportPeriod.month => DateTime(now.year, now.month),
-  };
-  final length = switch (period) {
-    ReportPeriod.day => 1,
-    ReportPeriod.week => 7,
-    ReportPeriod.month => DateTime(now.year, now.month + 1, 0).day,
-  };
+  final start = today.subtract(const Duration(days: 6));
 
   return [
-    for (var index = 0; index < length; index++)
-      _binFor(
+    for (var index = 0; index < 7; index++)
+      _rehabTrendBinFor(
         day: start.add(Duration(days: index)),
         report: report,
-        period: period,
       ),
   ];
 }
 
-_TrendBin _binFor({
+_TrendBin _rehabTrendBinFor({
   required DateTime day,
   required DailyReport report,
-  required ReportPeriod period,
 }) {
   final nextDay = day.add(const Duration(days: 1));
-  final logs = report.rehabSummary.logs.where((log) {
+  final logs = report.recentRehabLogs.where((log) {
     return !log.createdAt.isBefore(day) && log.createdAt.isBefore(nextDay);
   }).toList();
-  final summary = RehabSummary(logs: logs, actions: report.rehabActions);
 
   return _TrendBin(
-    day: day,
-    label: _trendLabel(day, period),
+    label: _trendLabel(day),
     rehabCount: logs.length,
-    walkingMinutes: summary.totalAmountForActionNamed('步行'),
   );
 }
 
-String _trendLabel(DateTime day, ReportPeriod period) {
-  if (period == ReportPeriod.month) {
-    return '${day.day}';
-  }
+String _trendLabel(DateTime day) {
   const labels = ['一', '二', '三', '四', '五', '六', '日'];
   return labels[day.weekday - 1];
 }
@@ -1107,11 +849,16 @@ String _periodTitle(ReportPeriod period) {
   };
 }
 
-double _barHeight(double value, double maxValue) {
+double _barHeight(
+  double value,
+  double maxValue, {
+  double minHeight = 2,
+  double maxHeight = 120,
+}) {
   if (value <= 0 || maxValue <= 0) {
     return 0;
   }
-  return 18 + 120 * (value / maxValue);
+  return minHeight + (maxHeight - minHeight) * (value / maxValue);
 }
 
 String _formatNumber(double value) {
