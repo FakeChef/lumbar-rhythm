@@ -14,6 +14,7 @@ class ActionsPage extends ConsumerStatefulWidget {
 }
 
 class _ActionsPageState extends ConsumerState<ActionsPage> {
+  String? _selectedCategory;
   int? _selectedActionId;
 
   @override
@@ -47,17 +48,54 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
             children: [
               _TodayRehabLogListCard(data: data),
               const SizedBox(height: 12),
-              _RehabActionPickerCard(
-                actions: data.actions,
-                selectedActionId: _selectedActionId ?? data.actions.firstOrNull?.id,
-                onChanged: (value) => setState(() => _selectedActionId = value),
-                onRecord: () {
-                  final selectedAction = data.actionById(
-                    _selectedActionId ?? data.actions.firstOrNull?.id,
+              Builder(
+                builder: (context) {
+                  final categories = _availableCategories(data.actions);
+                  final selectedCategory =
+                      categories.contains(_selectedCategory)
+                          ? _selectedCategory!
+                          : categories.firstOrNull;
+                  final categoryActions = data.actions
+                      .where(
+                        (action) =>
+                            _categoryForAction(action) == selectedCategory,
+                      )
+                      .toList();
+                  final selectedActionId = categoryActions.any(
+                    (action) => action.id == _selectedActionId,
+                  )
+                      ? _selectedActionId
+                      : categoryActions.firstOrNull?.id;
+
+                  return _RehabActionPickerCard(
+                    categories: categories,
+                    actions: categoryActions,
+                    selectedCategory: selectedCategory,
+                    selectedActionId: selectedActionId,
+                    onCategoryChanged: (value) {
+                      if (value == null) return;
+                      final firstAction = data.actions
+                          .where(
+                            (action) => _categoryForAction(action) == value,
+                          )
+                          .toList()
+                          .firstOrNull;
+                      setState(() {
+                        _selectedCategory = value;
+                        _selectedActionId = firstAction?.id;
+                      });
+                    },
+                    onActionChanged: (value) {
+                      setState(() => _selectedActionId = value);
+                    },
+                    onRecord: () {
+                      final selectedAction =
+                          data.actionById(selectedActionId);
+                      if (selectedAction != null) {
+                        _showLogDialog(context, ref, selectedAction);
+                      }
+                    },
                   );
-                  if (selectedAction != null) {
-                    _showLogDialog(context, ref, selectedAction);
-                  }
                 },
               ),
             ],
@@ -249,15 +287,21 @@ class _TodayRehabLogListCard extends StatelessWidget {
 
 class _RehabActionPickerCard extends StatelessWidget {
   const _RehabActionPickerCard({
+    required this.categories,
     required this.actions,
+    required this.selectedCategory,
     required this.selectedActionId,
-    required this.onChanged,
+    required this.onCategoryChanged,
+    required this.onActionChanged,
     required this.onRecord,
   });
 
+  final List<String> categories;
   final List<RehabAction> actions;
+  final String? selectedCategory;
   final int? selectedActionId;
-  final ValueChanged<int?> onChanged;
+  final ValueChanged<String?> onCategoryChanged;
+  final ValueChanged<int?> onActionChanged;
   final VoidCallback onRecord;
 
   @override
@@ -268,18 +312,35 @@ class _RehabActionPickerCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DropdownButtonFormField<int>(
-              key: const ValueKey('rehab-action-dropdown'),
-              initialValue: selectedActionId,
-              decoration: const InputDecoration(labelText: '选择康复动作'),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('rehab-category-dropdown'),
+              initialValue: selectedCategory,
+              decoration: const InputDecoration(labelText: '选择分类'),
               items: [
-                for (final action in actions)
+                for (final category in categories)
                   DropdownMenuItem(
-                    value: action.id,
-                    child: Text('${action.name} · ${action.category ?? '活动'}'),
+                    value: category,
+                    child: Text(_categoryLabel(category)),
                   ),
               ],
-              onChanged: onChanged,
+              onChanged: onCategoryChanged,
+            ),
+            const SizedBox(height: 12),
+            KeyedSubtree(
+              key: const ValueKey('rehab-action-dropdown'),
+              child: DropdownButtonFormField<int>(
+                key: ValueKey('rehab-action-dropdown-$selectedCategory'),
+                initialValue: selectedActionId,
+                decoration: const InputDecoration(labelText: '选择活动'),
+                items: [
+                  for (final action in actions)
+                    DropdownMenuItem(
+                      value: action.id,
+                      child: Text(action.name),
+                    ),
+                ],
+                onChanged: onActionChanged,
+              ),
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
@@ -292,6 +353,50 @@ class _RehabActionPickerCard extends StatelessWidget {
       ),
     );
   }
+}
+
+const _categoryOrder = [
+  'WALK',
+  'BREAK',
+  'BASIC',
+  'CORE',
+  'HIP_LEG',
+  'MOBILITY',
+  'AEROBIC',
+];
+
+List<String> _availableCategories(List<RehabAction> actions) {
+  final available = actions.map(_categoryForAction).toSet();
+  return [
+    ..._categoryOrder.where(available.contains),
+    ...available.where((category) => !_categoryOrder.contains(category)),
+  ];
+}
+
+String _categoryForAction(RehabAction action) {
+  final direct = action.category;
+  if (direct != null && direct.isNotEmpty) {
+    return direct;
+  }
+  for (final builtIn in actionLibrary) {
+    if (builtIn.id == action.id) {
+      return builtIn.category ?? 'BASIC';
+    }
+  }
+  return 'BASIC';
+}
+
+String _categoryLabel(String category) {
+  return switch (category) {
+    'WALK' => '步行与有氧',
+    'BREAK' => '坐站节奏',
+    'BASIC' => '早期基础',
+    'CORE' => '核心稳定',
+    'HIP_LEG' => '臀腿力量',
+    'MOBILITY' => '灵活性活动',
+    'AEROBIC' => '低冲击有氧',
+    _ => category,
+  };
 }
 
 extension _FirstOrNull<T> on List<T> {

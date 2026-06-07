@@ -94,7 +94,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         _refresh(ref);
       },
       child: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
         children: [
           settingsState.when(
             loading: () => const _HomeLoadingCard(title: '正在读取提醒设置'),
@@ -120,14 +120,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                         overviewState.valueOrNull?.hasMarkedDiscomfort ??
                             false,
                     selectedPosture: _selectedPosture,
-                    onEndCurrent: () async {
-                      await ref
-                          .read(postureSessionControllerProvider.notifier)
-                          .endCurrent();
-                      ref.invalidate(_homeTodayOverviewProvider);
-                    },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   _PostureSwitchSection(
                     activeType: session?.type,
                     selectedType: _selectedPosture,
@@ -143,7 +137,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           overviewState.when(
             loading: () => const _HomeLoadingCard(title: '正在读取今日摘要'),
             error: (error, stackTrace) => _HomeErrorCard(
@@ -175,7 +169,7 @@ class _TodayPostureSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -185,7 +179,7 @@ class _TodayPostureSummaryCard extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             _MiniMetricGrid(
               items: [
                 _MiniMetricItem(
@@ -230,7 +224,7 @@ class _MiniMetricGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
-        childAspectRatio: 2.3,
+        childAspectRatio: 2.7,
       ),
       itemBuilder: (context, index) => _MiniMetricTile(item: items[index]),
     );
@@ -262,7 +256,7 @@ class _MiniMetricTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,31 +279,6 @@ class _MiniMetricTile extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _SoftLine extends StatelessWidget {
-  const _SoftLine({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Expanded(child: Text(label)),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ],
       ),
     );
   }
@@ -344,7 +313,6 @@ class _PostureStatusCard extends StatelessWidget {
     required this.settings,
     required this.hasMarkedDiscomfort,
     required this.selectedPosture,
-    required this.onEndCurrent,
   });
 
   final RecoveryProfile? profile;
@@ -354,7 +322,6 @@ class _PostureStatusCard extends StatelessWidget {
   final ReminderSettings settings;
   final bool hasMarkedDiscomfort;
   final PostureType selectedPosture;
-  final VoidCallback onEndCurrent;
 
   @override
   Widget build(BuildContext context) {
@@ -381,117 +348,77 @@ class _PostureStatusCard extends StatelessWidget {
         key: const ValueKey('today-rhythm-card'),
         color: statusColor.withValues(alpha: 0.12),
         child: Padding(
-          padding: const EdgeInsets.all(28),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            Row(
-              children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Icon(
-                      _postureIcon(displayType),
-                      color: statusColor,
-                      size: 30,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '坐站节奏',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '久坐久站提醒器',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
             Text(
               _recoveryGreeting(profile, now),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 3),
             Text(
               encouragement,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: const Color(0xFF4B5563),
                   ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 10),
             Center(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
                   durationText,
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                        fontSize: 72,
+                        fontSize: 64,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0,
                       ),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              current == null ? '尚未开始' : '当前姿势：${current.type.label}',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
             const SizedBox(height: 6),
-            Center(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(999),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(_postureIcon(displayType), color: statusColor, size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  current == null ? '尚未开始' : '当前姿势：${current.type.label}',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w800,
+                      ),
                 ),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  child: Text(
-                    timerState?.statusLabel ?? '节奏正常',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: statusColor,
-                          fontWeight: FontWeight.w800,
-                        ),
+                const SizedBox(width: 10),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    child: Text(
+                      timerState?.statusLabel ?? '节奏正常',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             _TimerInfoPanel(
               message: timerState?.message ?? '开始后会显示距离提醒的时间',
               suggestion: timerState?.suggestion ?? '选择一个姿势，按自己的节奏开始记录。',
             ),
-            if (current != null) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: onEndCurrent,
-                icon: const Icon(Icons.stop_circle_outlined),
-                label: const Text('结束当前状态'),
-              ),
-            ],
             ],
           ),
         ),
@@ -558,19 +485,26 @@ class _TimerInfoPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _SoftLine(label: '提醒时间', value: message),
-            const SizedBox(height: 4),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.lightbulb_outline, size: 18),
-                const SizedBox(width: 8),
-                Expanded(child: Text(suggestion)),
-              ],
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              suggestion,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
@@ -594,23 +528,11 @@ class _PostureSwitchSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '切换当前姿势',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            _PostureActionGrid(
-              activeType: activeType,
-              selectedType: selectedType,
-              onSwitchPosture: onSwitchPosture,
-            ),
-          ],
+        padding: const EdgeInsets.all(10),
+        child: _PostureActionGrid(
+          activeType: activeType,
+          selectedType: selectedType,
+          onSwitchPosture: onSwitchPosture,
         ),
       ),
     );
@@ -639,7 +561,7 @@ class _PostureActionGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 2.2,
+        childAspectRatio: 3.1,
       ),
       itemBuilder: (context, index) {
         final type = primaryPostures[index];

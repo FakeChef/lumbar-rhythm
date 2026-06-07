@@ -320,16 +320,28 @@ void main() {
 
     expect(find.text('今日康复记录'), findsOneWidget);
     expect(find.text('记录今天做了什么、做了多少、做后感觉如何。'), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-category-dropdown')), findsOneWidget);
     expect(find.byKey(const ValueKey('rehab-action-dropdown')), findsOneWidget);
+    expect(find.text('步行与有氧'), findsOneWidget);
+    expect(find.text('平地步行'), findsOneWidget);
+    expect(find.text('平地步行活动'), findsNothing);
     expect(find.text('今天还没有康复记录，记录一点也有价值。'), findsOneWidget);
     expect(find.text('默认目标：20 分钟'), findsNothing);
     expect(find.text('室内慢走'), findsNothing);
 
+    await tester.tap(find.byKey(const ValueKey('rehab-category-dropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('早期基础').last);
+    await tester.pumpAndSettle();
+    expect(find.text('踝泵'), findsOneWidget);
+    expect(find.text('平地步行'), findsNothing);
+
     await tester.tap(find.byKey(const ValueKey('rehab-action-dropdown')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('腹式呼吸 · BASIC').last);
+    await tester.tap(find.text('腹式呼吸').last);
     await tester.pumpAndSettle();
-    expect(find.text('腹式呼吸 · BASIC'), findsOneWidget);
+    expect(find.text('腹式呼吸'), findsOneWidget);
+    expect(find.text('腹式呼吸活动'), findsNothing);
 
     await tester.tap(find.text('记录一次'));
     await tester.pumpAndSettle();

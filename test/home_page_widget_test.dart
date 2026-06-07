@@ -37,7 +37,6 @@ void main() {
       ),
     );
 
-    expect(find.text('坐站节奏'), findsOneWidget);
     expect(find.byKey(const ValueKey('today-rhythm-timer')), findsOneWidget);
     expect(find.text('当前姿势：我在坐'), findsOneWidget);
     expect(find.text('节奏正常'), findsWidgets);
@@ -130,7 +129,6 @@ void main() {
   testWidgets('shows only sitting and standing posture buttons', (tester) async {
     await _pumpHome(tester);
 
-    expect(find.text('切换当前姿势'), findsOneWidget);
     expect(find.text('我在坐'), findsWidgets);
     expect(find.text('我在站'), findsWidgets);
     expect(find.text('我在走'), findsNothing);
@@ -185,6 +183,37 @@ void main() {
     expect(find.text('50 分'), findsWidgets);
     expect(find.text('35 分'), findsWidgets);
     expect(find.text('2 次'), findsWidgets);
+  });
+
+  testWidgets('today core content fits a common Android viewport',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(420, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpApp(
+      tester,
+      child: const Scaffold(body: HomePage()),
+      recoveryRepository: _FakeRecoveryRepository(
+        profile: RecoveryProfile(
+          id: 1,
+          surgeryDate: DateTime.now().subtract(const Duration(days: 10)),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('今天是术后第'), findsOneWidget);
+    expect(find.byKey(const ValueKey('today-rhythm-timer')), findsOneWidget);
+    expect(find.text('我在坐'), findsWidgets);
+    expect(find.text('我在站'), findsWidgets);
+    expect(find.text('今日最长坐姿'), findsOneWidget);
+    expect(find.text('今日最长站立'), findsOneWidget);
+    expect(find.text('今日打断次数'), findsOneWidget);
+    expect(find.text('今日超时次数'), findsOneWidget);
+    expect(
+      tester.getBottomRight(find.text('今日超时次数')).dy,
+      lessThanOrEqualTo(800),
+    );
   });
 }
 
