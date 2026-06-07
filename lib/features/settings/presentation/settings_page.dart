@@ -90,6 +90,12 @@ class SettingsPage extends ConsumerWidget {
                       .read(reminderSettingsControllerProvider.notifier)
                       .setStandingIntervalMinutes(value);
                 },
+                onReminderModeChanged: (value) {
+                  if (value == null) return;
+                  ref
+                      .read(reminderSettingsControllerProvider.notifier)
+                      .setReminderMode(value);
+                },
                 onTestReminderPressed: () async {
                   final messenger = ScaffoldMessenger.of(context);
                   ref
@@ -100,7 +106,7 @@ class SettingsPage extends ConsumerWidget {
                   );
                   final sent = await ref
                       .read(notificationServiceProvider)
-                      .showTestReminder();
+                      .showTestReminder(reminderMode: settings.reminderMode);
                   if (!context.mounted) return;
                   final message = sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限';
                   messenger.showSnackBar(SnackBar(content: Text(message)));
@@ -509,6 +515,7 @@ class SettingsPage extends ConsumerWidget {
             '本 App 不使用精确闹钟权限，也不依赖云端推送。',
             '如果提醒没有弹出，可先用设置页的测试提醒确认权限状态。',
             '如果测试提醒没有声音，可能需要卸载重装 App，或进入系统通知频道设置打开声音和震动。',
+            'Android 通知声音由系统通知频道控制。如果升级后仍无声音，请在系统设置 → 应用 → 腰椎节奏 → 通知中检查声音和震动；必要时可卸载重装后重新允许通知。',
           ],
         );
       },
@@ -602,6 +609,7 @@ class _ReminderSettingsSection extends StatelessWidget {
     required this.onRemindersEnabledChanged,
     required this.onSittingIntervalChanged,
     required this.onStandingIntervalChanged,
+    required this.onReminderModeChanged,
     required this.onTestReminderPressed,
   });
 
@@ -612,6 +620,7 @@ class _ReminderSettingsSection extends StatelessWidget {
   final ValueChanged<bool> onRemindersEnabledChanged;
   final ValueChanged<int?> onSittingIntervalChanged;
   final ValueChanged<int?> onStandingIntervalChanged;
+  final ValueChanged<ReminderMode?> onReminderModeChanged;
   final VoidCallback onTestReminderPressed;
 
   @override
@@ -642,6 +651,24 @@ class _ReminderSettingsSection extends StatelessWidget {
           onChanged:
               settings.remindersEnabled ? onStandingIntervalChanged : null,
         ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.tune_outlined),
+          title: const Text('提醒方式'),
+          subtitle: const Text('默认轻柔通知；需要更明显时可改为震动或响铃。'),
+          trailing: DropdownButton<ReminderMode>(
+            value: settings.reminderMode,
+            onChanged:
+                settings.remindersEnabled ? onReminderModeChanged : null,
+            items: [
+              for (final mode in ReminderMode.values)
+                DropdownMenuItem(
+                  value: mode,
+                  child: Text(mode.label),
+                ),
+            ],
+          ),
+        ),
         const ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.check_circle_outline),
@@ -652,7 +679,7 @@ class _ReminderSettingsSection extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.notifications_outlined),
           title: const Text('发送测试提醒'),
-          subtitle: const Text('立即发送一条本地通知，用于确认提醒是否可用。'),
+          subtitle: Text('立即发送一条${settings.reminderMode.label}，用于确认提醒是否可用。'),
           trailing: IconButton(
             tooltip: '发送测试提醒',
             icon: const Icon(Icons.send_outlined),

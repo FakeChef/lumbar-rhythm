@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
 import 'package:lumbar_rhythm/features/posture/domain/posture_session.dart';
+import 'package:lumbar_rhythm/features/settings/domain/reminder_settings.dart';
 
 void main() {
   test('builds notification plan from current posture only', () {
@@ -28,13 +29,42 @@ void main() {
     );
   });
 
-  test('uses audible high priority Android notification details', () {
-    final details = buildReminderNotificationDetails();
+  test('uses separate Android notification channels for reminder modes', () {
+    final soft = buildReminderNotificationDetails(
+      reminderMode: ReminderMode.soft,
+    ).android;
+    final vibration = buildReminderNotificationDetails(
+      reminderMode: ReminderMode.vibration,
+    ).android;
+    final alarm = buildReminderNotificationDetails(
+      reminderMode: ReminderMode.alarm,
+    ).android;
+
+    expect(soft?.channelId, 'lumbar_rhythm_soft_reminders_v1');
+    expect(vibration?.channelId, 'lumbar_rhythm_vibration_reminders_v1');
+    expect(alarm?.channelId, 'lumbar_rhythm_alarm_reminders_v1');
+  });
+
+  test('vibration reminder does not play sound', () {
+    final details = buildReminderNotificationDetails(
+      reminderMode: ReminderMode.vibration,
+    );
     final android = details.android;
 
     expect(android, isNotNull);
-    expect(android!.channelId, 'lumbar_rhythm_reminders_v2');
-    expect(android.importance, Importance.high);
+    expect(android!.playSound, isFalse);
+    expect(android.enableVibration, isTrue);
+    expect(android.vibrationPattern, isNotNull);
+  });
+
+  test('alarm reminder uses sound and vibration with high priority', () {
+    final details = buildReminderNotificationDetails(
+      reminderMode: ReminderMode.alarm,
+    );
+    final android = details.android;
+
+    expect(android, isNotNull);
+    expect(android!.importance, Importance.high);
     expect(android.priority, Priority.high);
     expect(android.playSound, isTrue);
     expect(android.enableVibration, isTrue);

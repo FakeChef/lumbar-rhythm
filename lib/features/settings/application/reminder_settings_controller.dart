@@ -35,6 +35,12 @@ class ReminderSettingsController extends AsyncNotifier<ReminderSettings> {
     });
   }
 
+  Future<void> setReminderMode(ReminderMode value) {
+    return _saveCurrent((settings) {
+      return settings.copyWith(reminderMode: value);
+    });
+  }
+
   Future<void> _saveCurrent(
     ReminderSettings Function(ReminderSettings settings) update,
   ) async {
@@ -50,6 +56,7 @@ class ReminderSettingsController extends AsyncNotifier<ReminderSettings> {
             enabled: next.remindersEnabled,
             sittingIntervalMinutes: next.sittingIntervalMinutes,
             standingIntervalMinutes: next.standingIntervalMinutes,
+            reminderMode: next.reminderMode,
             currentPosture: openSession?.type,
           );
     } catch (_) {
