@@ -19,6 +19,7 @@ import 'package:lumbar_rhythm/features/reports/application/daily_report_controll
 import 'package:lumbar_rhythm/features/reports/presentation/reports_page.dart';
 import 'package:lumbar_rhythm/features/settings/data/reminder_settings_repository.dart';
 import 'package:lumbar_rhythm/features/settings/domain/reminder_settings.dart';
+import 'package:lumbar_rhythm/features/settings/presentation/settings_page.dart';
 
 void main() {
   test('dailyReportController reads real posture sessions and user thresholds',
@@ -98,8 +99,7 @@ void main() {
     expect(summary.standingOverThresholdCount, 0);
   });
 
-  testWidgets('report page shows sitting standing rhythm report',
-      (tester) async {
+  testWidgets('report page shows required report sections', (tester) async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     await tester.pumpWidget(
@@ -128,9 +128,48 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('康复报告'), findsOneWidget);
+    expect(find.text('回顾你的坐站节奏和康复记录'), findsOneWidget);
+    expect(find.text('今日康复报告'), findsOneWidget);
     expect(find.text('坐站节奏报告'), findsOneWidget);
-    expect(find.text('久坐超阈值次数'), findsOneWidget);
+    expect(find.text('最近 7 天趋势'), findsOneWidget);
+    expect(find.text('康复动作报告'), findsOneWidget);
+    expect(find.text('分享报告入口'), findsOneWidget);
+    expect(find.text('免责声明'), findsOneWidget);
+    expect(find.text('久坐超过提醒间隔'), findsOneWidget);
     expect(find.text('姿势切换次数'), findsOneWidget);
+    expect(find.text(reportDisclaimerText), findsOneWidget);
+  });
+
+  testWidgets('settings page shows four groups and privacy copy',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          reminderSettingsRepositoryProvider.overrideWithValue(
+            const _FakeReminderSettingsRepository(ReminderSettings.defaults),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: SettingsPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('我的康复资料'), findsOneWidget);
+    expect(find.text('坐站提醒'), findsOneWidget);
+    expect(find.text('该记录一下今天的状态了'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('数据管理'), 300.0);
+    expect(find.text('数据管理'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('隐私与免责声明'), 300.0);
+    expect(find.text('隐私与免责声明'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('无账号 / 无广告 / 无云端上传'), 300.0);
+    expect(find.text('无账号 / 无广告 / 无云端上传'), findsOneWidget);
+    expect(find.textContaining('无账号'), findsOneWidget);
+    expect(find.textContaining('无广告'), findsOneWidget);
+    expect(find.textContaining('无云端上传'), findsOneWidget);
   });
 
   test('RehabSummary uses amountValue for walking totals', () {
