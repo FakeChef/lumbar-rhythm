@@ -104,22 +104,15 @@ class _PostureCard extends StatelessWidget {
       title: '坐站节奏',
       children: [
         _MetricLine(
-            label: '坐姿累计', value: _formatDuration(summary.sittingTotal)),
-        _MetricLine(
-            label: '站立累计', value: _formatDuration(summary.standingTotal)),
-        _MetricLine(
-            label: '走动累计', value: _formatDuration(summary.walkingTotal)),
-        _MetricLine(
-            label: '休息累计', value: _formatDuration(summary.restingTotal)),
-        _MetricLine(
           label: '最长连续坐姿',
           value: _formatDuration(summary.longestSitting),
         ),
+        _MetricLine(label: '久坐中断次数', value: '${summary.sittingBreakCount} 次'),
+        _MetricLine(label: '久坐超时次数', value: '${summary.sittingOverThresholdCount} 次'),
         _MetricLine(
-          label: '最长连续站立',
-          value: _formatDuration(summary.longestStanding),
+          label: '坐姿累计',
+          value: _formatDuration(summary.sittingTotal),
         ),
-        _MetricLine(label: '超阈值次数', value: '${status.postureExceededCount} 次'),
       ],
     );
   }

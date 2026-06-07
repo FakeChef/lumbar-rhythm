@@ -194,18 +194,33 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('康复报告'), findsOneWidget);
-    expect(find.text('回顾你的坐站节奏和康复记录'), findsOneWidget);
+    expect(find.text('回顾你的坐姿节奏和康复记录'), findsOneWidget);
     expect(find.text('今日康复报告'), findsOneWidget);
-    expect(find.text('坐站节奏报告'), findsOneWidget);
-    expect(find.text('最近 7 天趋势'), findsOneWidget);
+    expect(find.text('今日坐姿状态'), findsOneWidget);
+    expect(find.text('最近 7 天趋势'), findsNothing);
     expect(find.text('康复动作报告'), findsOneWidget);
     expect(find.text('分享报告入口'), findsNothing);
     expect(find.text('分享报告'), findsNothing);
     expect(find.text('保存复诊报告到相册'), findsWidgets);
     expect(find.text('免责声明'), findsNothing);
     expect(find.text('久坐超过提醒间隔'), findsOneWidget);
-    expect(find.text('姿势切换次数'), findsOneWidget);
+    expect(find.text('久坐中断次数'), findsOneWidget);
     expect(find.text(reportDisclaimerText), findsOneWidget);
+
+    await tester.tap(find.text('周'));
+    await tester.pumpAndSettle();
+    expect(find.text('最近 7 天汇总'), findsOneWidget);
+    expect(find.text('今日康复报告'), findsNothing);
+    expect(find.text('康复动作报告'), findsNothing);
+    expect(find.text('记录天数'), findsOneWidget);
+    expect(find.text('久坐中断总次数'), findsOneWidget);
+
+    await tester.tap(find.text('月'));
+    await tester.pumpAndSettle();
+    expect(find.text('最近 30 天汇总'), findsOneWidget);
+    expect(find.text('今日康复报告'), findsNothing);
+    expect(find.text('康复动作报告'), findsNothing);
+    expect(find.text('康复记录总次数'), findsOneWidget);
   });
 
   testWidgets('saving follow-up report uses gallery image saver',
@@ -302,7 +317,14 @@ void main() {
 
   testWidgets('settings page shows four groups and privacy copy',
       (tester) async {
-    final recoveryRepository = _FakeRecoveryRepository();
+    final recoveryRepository = _FakeRecoveryRepository(
+      profile: RecoveryProfile(
+        id: 1,
+        surgeryDate: DateTime(2026, 6, 1),
+        createdAt: DateTime(2026, 6, 1),
+        updatedAt: DateTime(2026, 6, 1),
+      ),
+    );
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -322,8 +344,12 @@ void main() {
     expect(find.widgetWithText(SwitchListTile, '夜间勿扰'), findsNothing);
     expect(find.text('当前版本暂未启用，后续会用于减少夜间提醒打扰。'), findsOneWidget);
 
-    await tester.tap(find.text('手术日期、手术类型、当前目标'));
+    await tester.tap(find.text('昵称与手术日期'));
     await tester.pumpAndSettle();
+    expect(find.text('手术类型（可选）'), findsNothing);
+    expect(find.text('当前目标（可选）'), findsNothing);
+    expect(find.text('必填，用于今日页显示术后第几天。'), findsOneWidget);
+    expect(find.text('2026年6月1日'), findsOneWidget);
     expect(find.text('患者昵称（可选）'), findsOneWidget);
     expect(find.text('昵称只保存在本地，用于今日页称呼；不要求真实姓名。'), findsOneWidget);
     await tester.enterText(find.byType(TextFormField).first, '小林');
@@ -376,10 +402,35 @@ void main() {
     expect(find.text('提醒方式'), findsOneWidget);
     expect(find.text('响铃提醒'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('发送测试提醒'));
+    expect(find.text('立即发送测试提醒'), findsOneWidget);
+    expect(find.text('1 分钟测试久坐提醒'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('立即发送测试提醒'));
     await tester.pumpAndSettle();
 
     expect(notificationService.testReminderModes, [ReminderMode.alarm]);
+
+    await tester.tap(find.byTooltip('1 分钟测试久坐提醒'));
+    await tester.pumpAndSettle();
+
+    expect(notificationService.oneMinuteTestReminderModes, [ReminderMode.alarm]);
+  });
+
+  testWidgets('rehab log sheet accepts an initial past record date',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RehabLogSheet(
+            action: actionLibrary.first,
+            initialDate: DateTime(2026, 6, 1),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('记录日期'), findsOneWidget);
+    expect(find.text('2026年6月1日'), findsOneWidget);
   });
 
   testWidgets('settings import backup requires overwrite confirmation',
@@ -563,7 +614,7 @@ void main() {
   });
 
   test('app copy avoids unsupported medical promise wording', () {
-    const fixedDisclaimer = '本报告仅用于个人康复记录回顾，不作为医疗诊断或治疗依据。';
+    const fixedDisclaimer = '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
     const forbidden = [
       '治疗',
       '治愈',
@@ -789,13 +840,17 @@ class _FakePostureRepository implements PostureSessionRepository {
 }
 
 class _FakeRecoveryRepository implements RecoveryRepository {
-  _FakeRecoveryRepository({this.throwOnLoadNote = false});
+  _FakeRecoveryRepository({
+    this.throwOnLoadNote = false,
+    this.profile,
+  });
 
   final bool throwOnLoadNote;
+  final RecoveryProfile? profile;
   String? savedNickname;
 
   @override
-  Future<RecoveryProfile?> loadProfile() async => null;
+  Future<RecoveryProfile?> loadProfile() async => profile;
 
   @override
   Future<DailyRecoveryNote?> loadNote(DateTime date) async {
@@ -868,12 +923,21 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 
 class _FakeNotificationService extends NotificationService {
   final testReminderModes = <ReminderMode>[];
+  final oneMinuteTestReminderModes = <ReminderMode>[];
 
   @override
   Future<bool> showTestReminder({
     ReminderMode reminderMode = ReminderMode.soft,
   }) async {
     testReminderModes.add(reminderMode);
+    return true;
+  }
+
+  @override
+  Future<bool> scheduleOneMinuteSittingTestReminder({
+    ReminderMode reminderMode = ReminderMode.soft,
+  }) async {
+    oneMinuteTestReminderModes.add(reminderMode);
     return true;
   }
 }

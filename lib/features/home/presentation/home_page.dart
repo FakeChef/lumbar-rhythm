@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/data/app_data_refresh.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../actions/domain/action_item.dart';
+import '../../actions/presentation/actions_page.dart';
 import '../../posture/application/posture_session_controller.dart';
 import '../../posture/data/posture_session_repository.dart';
 import '../../posture/domain/posture_session.dart';
@@ -60,6 +61,7 @@ final _homeTodayOverviewProvider = FutureProvider<_HomeTodayOverview>(
         await ref.watch(postureSessionRepositoryProvider).loadToday(now: now);
     final note = await ref.watch(recoveryRepositoryProvider).loadNote(now);
     return _HomeTodayOverview(
+      actions: actions,
       postureSummary: PostureSummary(sessions: sessions, now: now),
       rehabSummary: RehabSummary(logs: logs, actions: actions),
       dailyNote: note,
@@ -119,6 +121,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                     hasMarkedDiscomfort:
                         overviewState.valueOrNull?.hasMarkedDiscomfort ?? false,
                     selectedPosture: _selectedPosture,
+                    onAddRehabLog: overviewState.valueOrNull == null
+                        ? null
+                        : () => _showHomeRehabLogFlow(
+                              context,
+                              ref,
+                              overviewState.valueOrNull!,
+                            ),
                   ),
                   const SizedBox(height: 8),
                   _PostureSwitchSection(
@@ -145,6 +154,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
             data: (overview) => _TodayPostureSummaryCard(
               summary: overview.postureSummary,
+              rehabCount: overview.rehabSummary.totalCount,
             ),
           ),
         ],
@@ -157,12 +167,57 @@ class _HomePageState extends ConsumerState<HomePage> {
     ref.invalidate(reminderSettingsControllerProvider);
     ref.invalidate(_homeTodayOverviewProvider);
   }
+
+  Future<void> _showHomeRehabLogFlow(
+    BuildContext context,
+    WidgetRef ref,
+    _HomeTodayOverview overview,
+  ) async {
+    if (overview.actions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('康复活动暂时无法读取，请稍后重试。')),
+      );
+      return;
+    }
+
+    final action = await showModalBottomSheet<RehabAction>(
+      context: context,
+      builder: (context) => _HomeRehabActionPicker(actions: overview.actions),
+    );
+    if (action == null || !context.mounted) {
+      return;
+    }
+
+    final draft = await showRehabLogSheet(
+      context: context,
+      action: action,
+      initialDate: DateTime.now(),
+    );
+    if (draft == null) {
+      return;
+    }
+
+    await saveRehabLogDraft(ref, action: action, draft: draft);
+    refreshRehabRecordProviders(ref);
+    ref.invalidate(_homeTodayOverviewProvider);
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已记录：${action.name}')),
+    );
+  }
 }
 
 class _TodayPostureSummaryCard extends StatelessWidget {
-  const _TodayPostureSummaryCard({required this.summary});
+  const _TodayPostureSummaryCard({
+    required this.summary,
+    required this.rehabCount,
+  });
 
   final PostureSummary summary;
+  final int rehabCount;
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +229,7 @@ class _TodayPostureSummaryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '今日坐站摘要',
+              '今日节奏',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -187,18 +242,17 @@ class _TodayPostureSummaryCard extends StatelessWidget {
                   value: _formatShortDuration(summary.longestSitting),
                 ),
                 _MiniMetricItem(
-                  label: '今日最长站立',
-                  value: _formatShortDuration(summary.longestStanding),
+                  label: '久坐中断',
+                  value: '${summary.sittingBreakCount} 次',
                 ),
                 _MiniMetricItem(
-                  label: '今日打断次数',
-                  value: '${summary.switchCount} 次',
+                  label: '超时次数',
+                  value: '${summary.sittingOverThresholdCount} 次',
+                  color: const Color(0xFFC39A61),
                 ),
                 _MiniMetricItem(
-                  label: '今日超时次数',
-                  value:
-                      '${summary.sittingOverThresholdCount + summary.standingOverThresholdCount} 次',
-                  color: const Color(0xFFF2994A),
+                  label: '今日康复记录数',
+                  value: '$rehabCount 次',
                 ),
               ],
             ),
@@ -289,11 +343,13 @@ class _MiniMetricTile extends StatelessWidget {
 
 class _HomeTodayOverview {
   const _HomeTodayOverview({
+    required this.actions,
     required this.postureSummary,
     required this.rehabSummary,
     required this.dailyNote,
   });
 
+  final List<RehabAction> actions;
   final PostureSummary postureSummary;
   final RehabSummary rehabSummary;
   final DailyRecoveryNote? dailyNote;
@@ -316,6 +372,7 @@ class _PostureStatusCard extends StatelessWidget {
     required this.settings,
     required this.hasMarkedDiscomfort,
     required this.selectedPosture,
+    required this.onAddRehabLog,
   });
 
   final RecoveryProfile? profile;
@@ -325,12 +382,16 @@ class _PostureStatusCard extends StatelessWidget {
   final ReminderSettings settings;
   final bool hasMarkedDiscomfort;
   final PostureType selectedPosture;
+  final VoidCallback? onAddRehabLog;
 
   @override
   Widget build(BuildContext context) {
     final current = session;
     final activeType = current?.type;
-    final displayType = activeType ?? selectedPosture;
+    final displayType =
+        activeType == PostureType.sitting || activeType == PostureType.walking
+            ? activeType!
+            : selectedPosture;
     final duration = current?.durationAt(now) ?? Duration.zero;
     final durationText = current == null ? '00:00' : _formatDuration(duration);
     final timerState = current == null
@@ -355,11 +416,23 @@ class _PostureStatusCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                _recoveryGreeting(profile, now),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _recoveryGreeting(profile, now),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
+                  ),
+                  IconButton(
+                    key: const ValueKey('today-add-rehab-log'),
+                    tooltip: '添加康复记录',
+                    onPressed: onAddRehabLog,
+                    icon: const Icon(Icons.add),
+                  ),
+                ],
               ),
               const SizedBox(height: 3),
               Text(
@@ -392,7 +465,9 @@ class _PostureStatusCard extends StatelessWidget {
                   Icon(_postureIcon(displayType), color: statusColor, size: 20),
                   const SizedBox(width: 6),
                   Text(
-                    current == null ? '尚未开始' : '当前姿势：${current.type.label}',
+                    current == null
+                        ? '尚未开始'
+                        : '当前状态：${_displayLabel(displayType)}',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: statusColor,
                           fontWeight: FontWeight.w800,
@@ -437,6 +512,14 @@ class _PostureStatusCard extends StatelessWidget {
       PostureType.standing => Icons.accessibility_new_outlined,
       PostureType.walking => Icons.directions_walk_outlined,
       PostureType.resting => Icons.self_improvement_outlined,
+    };
+  }
+
+  String _displayLabel(PostureType type) {
+    return switch (type) {
+      PostureType.sitting => '我在坐',
+      PostureType.walking => '我去走动了',
+      PostureType.standing || PostureType.resting => '暂未开始',
     };
   }
 
@@ -544,6 +627,52 @@ class _PostureSwitchSection extends StatelessWidget {
   }
 }
 
+class _HomeRehabActionPicker extends StatelessWidget {
+  const _HomeRehabActionPicker({required this.actions});
+
+  final List<RehabAction> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        children: [
+          Text(
+            '添加康复记录',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 12),
+          for (final action in actions)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(action.name),
+              subtitle: Text(_categoryLabel(action.category)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).pop(action),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _categoryLabel(String? category) {
+    return switch (category) {
+      'WALK' => '步行与有氧',
+      'BREAK' => '坐站节奏',
+      'BASIC' => '早期基础',
+      'CORE' => '核心稳定',
+      'HIP_LEG' => '臀腿力量',
+      'MOBILITY' => '灵活性活动',
+      'AEROBIC' => '低冲击有氧',
+      _ => '康复活动',
+    };
+  }
+}
+
 class _PostureActionGrid extends StatelessWidget {
   const _PostureActionGrid({
     required this.activeType,
@@ -557,7 +686,7 @@ class _PostureActionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primaryPostures = [PostureType.sitting, PostureType.standing];
+    const primaryPostures = [PostureType.sitting, PostureType.walking];
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -599,9 +728,10 @@ class _PostureActionButton extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final color = _buttonColor(context, type);
     return OutlinedButton.icon(
+      key: ValueKey('today-posture-${type.name}'),
       onPressed: onPressed,
       icon: Icon(_postureIcon(type), size: 22),
-      label: Text(type.label),
+      label: Text(_buttonLabel(type)),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         backgroundColor: isActive
@@ -623,6 +753,15 @@ class _PostureActionButton extends StatelessWidget {
       PostureType.standing => Icons.accessibility_new_outlined,
       PostureType.walking => Icons.directions_walk_outlined,
       PostureType.resting => Icons.self_improvement_outlined,
+    };
+  }
+
+  String _buttonLabel(PostureType type) {
+    return switch (type) {
+      PostureType.sitting => '我在坐',
+      PostureType.walking => '我去走动了',
+      PostureType.standing => '我在站',
+      PostureType.resting => '我在休息',
     };
   }
 

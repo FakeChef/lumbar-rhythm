@@ -148,44 +148,80 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
     WidgetRef ref,
     RehabAction action,
   ) async {
-    final result = await showModalBottomSheet<_RehabLogDraft>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => RehabLogSheet(action: action),
-    );
+    final result = await showRehabLogSheet(context: context, action: action);
     if (result == null) {
       return;
     }
 
-    await ref.read(rehabRepositoryProvider).addLog(
-          action: action,
-          amount: result.amount,
-          unit: result.unit,
-          reaction: result.reaction,
-          symptomTags: result.symptomTags,
-          note: result.note,
-        );
+    await saveRehabLogDraft(ref, action: action, draft: result);
     ref.invalidate(_rehabPageDataProvider);
-    ref.invalidate(dailyReportControllerProvider);
-    ref.read(appDataRefreshProvider.notifier).state++;
+    _refreshRehabData(ref);
 
     if (!context.mounted) {
       return;
     }
 
-    if (result.reaction == RehabReaction.muchWorse) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('建议减少量、暂停观察，必要时咨询医生或康复师。'),
-        ),
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已记录：${action.name}')),
-    );
+    _showRehabLogSavedFeedback(context, action, result);
   }
+}
+
+Future<RehabLogDraft?> showRehabLogSheet({
+  required BuildContext context,
+  required RehabAction action,
+  DateTime? initialDate,
+}) {
+  return showModalBottomSheet<RehabLogDraft>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => RehabLogSheet(
+      action: action,
+      initialDate: initialDate,
+    ),
+  );
+}
+
+Future<void> saveRehabLogDraft(
+  WidgetRef ref, {
+  required RehabAction action,
+  required RehabLogDraft draft,
+}) async {
+  await ref.read(rehabRepositoryProvider).addLog(
+    action: action,
+    amount: draft.amount,
+    unit: draft.unit,
+    reaction: draft.reaction,
+    symptomTags: draft.symptomTags,
+    note: draft.note,
+    createdAt: draft.createdAt,
+  );
+}
+
+void refreshRehabRecordProviders(WidgetRef ref) {
+  _refreshRehabData(ref);
+}
+
+void _refreshRehabData(WidgetRef ref) {
+  ref.invalidate(dailyReportControllerProvider);
+  ref.read(appDataRefreshProvider.notifier).state++;
+}
+
+void _showRehabLogSavedFeedback(
+  BuildContext context,
+  RehabAction action,
+  RehabLogDraft draft,
+) {
+  if (draft.reaction == RehabReaction.muchWorse) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('建议减少量、暂停观察，必要时咨询医生或康复师。'),
+      ),
+    );
+    return;
+  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('已记录：${action.name}')),
+  );
 }
 
 class _RehabHeaderCard extends StatelessWidget {
@@ -563,6 +599,10 @@ String _formatTime(DateTime time) {
   return '$hour:$minute';
 }
 
+String _formatDate(DateTime date) {
+  return '${date.year}年${date.month}月${date.day}日';
+}
+
 class _QuickAmount {
   const _QuickAmount(this.amount, this.unit);
 
@@ -613,9 +653,14 @@ List<_QuickAmount> _quickAmountsFor(RehabAction action) {
 }
 
 class RehabLogSheet extends StatefulWidget {
-  const RehabLogSheet({required this.action, super.key});
+  const RehabLogSheet({
+    required this.action,
+    this.initialDate,
+    super.key,
+  });
 
   final RehabAction action;
+  final DateTime? initialDate;
 
   @override
   State<RehabLogSheet> createState() => _RehabLogSheetState();
@@ -627,6 +672,7 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
   final _noteController = TextEditingController();
   late double _amount;
   late String _unit;
+  late DateTime _createdAt;
   RehabReaction _reaction = RehabReaction.noChange;
   Set<String> _symptomTags = {};
   bool _isNoteExpanded = false;
@@ -636,6 +682,15 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
     super.initState();
     _amount = 1;
     _unit = widget.action.defaultUnit;
+    final initial = widget.initialDate ?? DateTime.now();
+    final now = DateTime.now();
+    _createdAt = DateTime(
+      initial.year,
+      initial.month,
+      initial.day,
+      now.hour,
+      now.minute,
+    );
   }
 
   @override
@@ -669,6 +724,36 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_outlined),
+                title: const Text('记录日期'),
+                subtitle: Text(_formatDate(_createdAt)),
+                trailing: TextButton(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _createdAt,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
+                      locale: const Locale('zh', 'CN'),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _createdAt = DateTime(
+                          picked.year,
+                          picked.month,
+                          picked.day,
+                          _createdAt.hour,
+                          _createdAt.minute,
+                        );
+                      });
+                    }
+                  },
+                  child: const Text('选择'),
+                ),
               ),
               const SizedBox(height: 16),
               Text('完成了多少？', style: Theme.of(context).textTheme.labelLarge),
@@ -800,6 +885,7 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                           reaction: _reaction,
                           symptomTags: _symptomTags.toList(),
                           note: _noteController.text,
+                          createdAt: _createdAt,
                         ),
                       );
                     },
@@ -1136,13 +1222,16 @@ class _DailyRecoveryNoteDraft {
   final String note;
 }
 
-class _RehabLogDraft {
-  const _RehabLogDraft({
+typedef _RehabLogDraft = RehabLogDraft;
+
+class RehabLogDraft {
+  const RehabLogDraft({
     required this.amount,
     required this.unit,
     required this.reaction,
     required this.symptomTags,
     required this.note,
+    required this.createdAt,
   });
 
   final String amount;
@@ -1150,4 +1239,5 @@ class _RehabLogDraft {
   final RehabReaction reaction;
   final List<String> symptomTags;
   final String note;
+  final DateTime createdAt;
 }

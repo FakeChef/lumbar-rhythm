@@ -40,6 +40,18 @@ class PostureReminderRehabLink {
     );
   }
 
+  Future<RehabLog> recordSittingBreak({DateTime? createdAt}) async {
+    final action = await _findFirstActionByNames(['久坐中断']);
+    return _repository.addLog(
+      action: action,
+      amount: '1',
+      unit: action.defaultUnit,
+      reaction: RehabReaction.noChange,
+      source: 'posture_session',
+      createdAt: createdAt,
+    );
+  }
+
   Future<RehabLog> recordRelaxationRest({DateTime? createdAt}) async {
     final action = await _findFirstActionByNames([
       '站立姿势重置',

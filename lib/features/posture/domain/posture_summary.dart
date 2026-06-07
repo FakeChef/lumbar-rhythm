@@ -42,6 +42,19 @@ class PostureSummary {
 
   int get switchCount => sessions.isEmpty ? 0 : sessions.length - 1;
 
+  int get sittingBreakCount {
+    final ordered = [...sessions]
+      ..sort((left, right) => left.startedAt.compareTo(right.startedAt));
+    var count = 0;
+    for (var index = 1; index < ordered.length; index++) {
+      if (ordered[index - 1].type == PostureType.sitting &&
+          ordered[index].type == PostureType.walking) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   int get sittingOverThresholdCount {
     return sessions
         .where((session) => session.type == PostureType.sitting)

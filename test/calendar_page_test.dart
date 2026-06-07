@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumbar_rhythm/features/actions/data/rehab_repository.dart';
 import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
+import 'package:lumbar_rhythm/features/calendar/domain/calendar_day_status.dart';
 import 'package:lumbar_rhythm/features/calendar/presentation/calendar_page.dart';
 import 'package:lumbar_rhythm/features/milestones/data/recovery_milestone_repository.dart';
 import 'package:lumbar_rhythm/features/milestones/domain/recovery_milestone.dart';
@@ -57,17 +58,17 @@ void main() {
     _expectDayDotColor(
       tester,
       'rehabAction',
-      const Color(0xFF3498DB),
+      calendarStatusDotColor(CalendarStatusDot.rehabAction),
     );
     _expectDayDotColor(
       tester,
       'postureExceeded',
-      const Color(0xFFF2994A),
+      calendarStatusDotColor(CalendarStatusDot.postureExceeded),
     );
     _expectDayDotColor(
       tester,
       'muchWorse',
-      const Color(0xFFEB5757),
+      calendarStatusDotColor(CalendarStatusDot.muchWorse),
     );
   });
 

@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/media/gallery_image_saver.dart';
+import '../../actions/domain/action_item.dart';
 import '../../posture/domain/posture_summary.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
 import '../application/daily_report_controller.dart';
@@ -53,7 +54,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '回顾你的坐站节奏和康复记录',
+                    '回顾你的坐姿节奏和康复记录',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
@@ -182,14 +183,17 @@ class _ReportContent extends StatelessWidget {
           color: Theme.of(context).colorScheme.surface,
           child: Column(
             children: [
-              _TodayReportSection(report: report),
-              const SizedBox(height: 20),
-              _SittingStandingReportSection(report: report),
-              const SizedBox(height: 20),
-              _RecentTrendSection(report: report),
-              const SizedBox(height: 20),
-              _RehabActionReportSection(report: report, period: period),
-              const SizedBox(height: 20),
+              if (period == ReportPeriod.day) ...[
+                _TodayReportSection(report: report),
+                const SizedBox(height: 20),
+                _SittingReportSection(report: report),
+                const SizedBox(height: 20),
+                _RehabActionReportSection(report: report, period: period),
+                const SizedBox(height: 20),
+              ] else ...[
+                _RangeSummarySection(report: report, period: period),
+                const SizedBox(height: 20),
+              ],
               const _ShortDisclaimerText(),
             ],
           ),
@@ -226,8 +230,8 @@ class _TodayReportSection extends StatelessWidget {
             value: _formatDuration(posture.sittingTotal),
           ),
           _MetricRow(
-            label: '今日站立累计',
-            value: _formatDuration(posture.standingTotal),
+            label: '久坐超时次数',
+            value: '${posture.sittingOverThresholdCount} 次',
           ),
           const SizedBox(height: 8),
           _DailyNotePanel(report: report),
@@ -237,8 +241,70 @@ class _TodayReportSection extends StatelessWidget {
   }
 }
 
-class _SittingStandingReportSection extends StatelessWidget {
-  const _SittingStandingReportSection({required this.report});
+class _RangeSummarySection extends StatelessWidget {
+  const _RangeSummarySection({
+    required this.report,
+    required this.period,
+  });
+
+  final DailyReport report;
+  final ReportPeriod period;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = period == ReportPeriod.week ? 7 : 30;
+    final title = period == ReportPeriod.week ? '最近 7 天汇总' : '最近 30 天汇总';
+    final summary = report.rehabSummary;
+    final posture = report.postureSummary;
+    final hasData = report.rehabLogs.isNotEmpty ||
+        report.dailyNotes.isNotEmpty ||
+        posture.sessions.isNotEmpty;
+
+    if (!hasData) {
+      return _ReportSection(
+        icon: Icons.summarize_outlined,
+        title: title,
+        subtitle: '本地记录汇总',
+        child: _EmptyHint(text: '$title 还没有足够记录。'),
+      );
+    }
+
+    return _ReportSection(
+      icon: Icons.summarize_outlined,
+      title: title,
+      subtitle: '按最近 $days 天回顾坐姿节奏和康复记录',
+      child: Column(
+        children: [
+          _MetricRow(label: '记录天数', value: '${_recordedDayCount(report)} 天'),
+          if (period == ReportPeriod.week)
+            _MetricRow(
+              label: '平均最长坐姿',
+              value: _formatDuration(_averageLongestSitting(report, days)),
+            ),
+          _MetricRow(
+            label: '久坐超时总次数',
+            value: '${posture.sittingOverThresholdCount} 次',
+          ),
+          if (period == ReportPeriod.week)
+            _MetricRow(
+              label: '久坐中断总次数',
+              value: '${posture.sittingBreakCount} 次',
+            ),
+          _MetricRow(label: '康复记录总次数', value: '${summary.totalCount} 次'),
+          _MetricRow(
+            label: '明显加重次数',
+            value: '${summary.reactionCount(RehabReaction.muchWorse)} 次',
+          ),
+          _MetricRow(label: '常见症状标签', value: _commonSymptomTags(report)),
+          _MetricRow(label: '简短趋势说明', value: _trendText(report)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SittingReportSection extends StatelessWidget {
+  const _SittingReportSection({required this.report});
 
   final DailyReport report;
 
@@ -248,58 +314,19 @@ class _SittingStandingReportSection extends StatelessWidget {
 
     return _ReportSection(
       icon: Icons.swap_vert_circle_outlined,
-      title: '坐站节奏报告',
-      subtitle: '查看坐、站、走动和休息的本地记录',
+      title: '今日坐姿状态',
+      subtitle: '查看今天的坐姿时长和久坐中断',
       child: Column(
         children: [
           _MetricRow(
-            label: '坐姿 / 站立累计',
-            value:
-                '${_formatDuration(posture.sittingTotal)} / ${_formatDuration(posture.standingTotal)}',
+            label: '今日坐姿累计',
+            value: _formatDuration(posture.sittingTotal),
           ),
           _MetricRow(
             label: '久坐超过提醒间隔',
             value: '${posture.sittingOverThresholdCount} 次',
           ),
-          _MetricRow(label: '姿势切换次数', value: '${posture.switchCount} 次'),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentTrendSection extends StatelessWidget {
-  const _RecentTrendSection({required this.report});
-
-  final DailyReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final postureBins = _postureTrendBinsFor(report);
-    final rehabBins = _rehabTrendBinsFor(report);
-    final postureHasData = postureBins.any((bin) => bin.totalMinutes > 0);
-    final rehabHasData = rehabBins.any((bin) => bin.rehabCount > 0);
-
-    return _ReportSection(
-      icon: Icons.trending_up_outlined,
-      title: '最近 7 天趋势',
-      subtitle: '按天回顾坐站节奏、走动和康复动作记录',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (postureHasData) _StackedPostureBars(bins: postureBins),
-          if (!postureHasData) const _EmptyHint(text: '最近 7 天还没有坐站节奏记录。'),
-          const SizedBox(height: 16),
-          if (rehabHasData)
-            _TrendBars(
-              bins: rehabBins,
-              valueFor: (bin) => bin.rehabCount.toDouble(),
-              labelFor: (bin) => '${bin.rehabCount} 次',
-              color: _ReportColors.primary,
-            ),
-          if (!rehabHasData) const _EmptyHint(text: '最近 7 天还没有康复动作记录。'),
-          const SizedBox(height: 12),
-          _RecentNotesPanel(report: report),
+          _MetricRow(label: '久坐中断次数', value: '${posture.sittingBreakCount} 次'),
         ],
       ),
     );
@@ -402,31 +429,6 @@ class _DailyNotePanel extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(note.note!),
             ),
-          ),
-      ],
-    );
-  }
-}
-
-class _RecentNotesPanel extends StatelessWidget {
-  const _RecentNotesPanel({required this.report});
-
-  final DailyReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final notes = report.recentDailyNotes;
-    if (notes.isEmpty) {
-      return const _EmptyHint(text: '最近 7 天还没有康复小结。');
-    }
-
-    return Column(
-      children: [
-        for (final note in notes)
-          _MetricRow(
-            label: '${note.date.month}/${note.date.day}',
-            value:
-                '腰 ${note.backPainScore} / 腿 ${note.legSymptomScore} / 疲劳 ${note.fatigueScore}',
           ),
       ],
     );
@@ -626,252 +628,6 @@ class _ReportError extends StatelessWidget {
   }
 }
 
-class _TrendBars extends StatelessWidget {
-  const _TrendBars({
-    required this.bins,
-    required this.valueFor,
-    required this.labelFor,
-    required this.color,
-  });
-
-  final List<_TrendBin> bins;
-  final double Function(_TrendBin bin) valueFor;
-  final String Function(_TrendBin bin) labelFor;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final maxValue =
-        bins.map(valueFor).fold(0.0, (max, value) => value > max ? value : max);
-
-    return SizedBox(
-      height: 160,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (final bin in bins)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text(
-                      labelFor(bin),
-                      maxLines: 1,
-                      overflow: TextOverflow.clip,
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                    const SizedBox(height: 6),
-                    _TrendBar(
-                      value: valueFor(bin),
-                      maxValue: maxValue,
-                      color: color,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      bin.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.clip,
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TrendBar extends StatelessWidget {
-  const _TrendBar({
-    required this.value,
-    required this.maxValue,
-    required this.color,
-  });
-
-  final double value;
-  final double maxValue;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final height = _barHeight(value, maxValue, maxHeight: 92);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: value <= 0
-            ? Theme.of(context).colorScheme.surfaceContainerHighest
-            : color,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: SizedBox(width: 18, height: height <= 0 ? 2 : height),
-    );
-  }
-}
-
-class _StackedPostureBars extends StatelessWidget {
-  const _StackedPostureBars({required this.bins});
-
-  final List<_PostureTrendBin> bins;
-
-  @override
-  Widget build(BuildContext context) {
-    final maxMinutes = bins.fold<double>(0, (max, bin) {
-      final value = bin.totalMinutes;
-      return value > max ? value : max;
-    });
-
-    return SizedBox(
-      height: 170,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (final bin in bins)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    SizedBox(
-                      height: 120,
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: _PostureStackBar(
-                          bin: bin,
-                          maxMinutes: maxMinutes,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      bin.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.clip,
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PostureStackBar extends StatelessWidget {
-  const _PostureStackBar({required this.bin, required this.maxMinutes});
-
-  final _PostureTrendBin bin;
-  final double maxMinutes;
-
-  @override
-  Widget build(BuildContext context) {
-    final totalHeight = _barHeight(
-      bin.totalMinutes,
-      maxMinutes,
-      minHeight: 18,
-      maxHeight: 112,
-    );
-    final segments = [
-      (value: bin.sittingMinutes, color: _ReportColors.primary),
-      (value: bin.standingMinutes, color: _ReportColors.walking),
-      (value: bin.walkingMinutes, color: _ReportColors.highlight),
-      (value: bin.restingMinutes, color: _ReportColors.resting),
-    ].where((segment) => segment.value > 0).toList();
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: SizedBox(
-        width: 18,
-        height: totalHeight,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            for (final segment in segments)
-              Expanded(
-                flex: (segment.value * 100).round().clamp(1, 100000),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(color: segment.color),
-                  child: const SizedBox(width: 18),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TrendBin {
-  const _TrendBin({
-    required this.label,
-    required this.rehabCount,
-  });
-
-  final String label;
-  final int rehabCount;
-}
-
-class _PostureTrendBin {
-  const _PostureTrendBin({
-    required this.label,
-    required this.sittingMinutes,
-    required this.standingMinutes,
-    required this.walkingMinutes,
-    required this.restingMinutes,
-  });
-
-  final String label;
-  final double sittingMinutes;
-  final double standingMinutes;
-  final double walkingMinutes;
-  final double restingMinutes;
-
-  double get totalMinutes {
-    return sittingMinutes + standingMinutes + walkingMinutes + restingMinutes;
-  }
-}
-
-abstract final class _ReportColors {
-  static const primary = Color(0xFF6B9AC4);
-  static const walking = Color(0xFF6F9B82);
-  static const highlight = Color(0xFFC39A61);
-  static const resting = Color(0xFF8D82AD);
-}
-
-List<_PostureTrendBin> _postureTrendBinsFor(DailyReport report) {
-  final now = report.recentPostureSummary.now;
-  final today = DateTime(now.year, now.month, now.day);
-  final start = today.subtract(const Duration(days: 6));
-
-  return [
-    for (var index = 0; index < 7; index++)
-      _postureTrendBinFor(
-        source: report.recentPostureSummary,
-        day: start.add(Duration(days: index)),
-      ),
-  ];
-}
-
-_PostureTrendBin _postureTrendBinFor({
-  required PostureSummary source,
-  required DateTime day,
-}) {
-  final summary = _postureSummaryForDay(source, day);
-  return _PostureTrendBin(
-    label: _trendLabel(day),
-    sittingMinutes: summary.sittingTotal.inMinutes.toDouble(),
-    standingMinutes: summary.standingTotal.inMinutes.toDouble(),
-    walkingMinutes: summary.walkingTotal.inMinutes.toDouble(),
-    restingMinutes: summary.restingTotal.inMinutes.toDouble(),
-  );
-}
-
 PostureSummary _postureSummaryForDay(PostureSummary source, DateTime day) {
   final nextDay = day.add(const Duration(days: 1));
   final sessions = source.sessions.where((session) {
@@ -887,58 +643,80 @@ PostureSummary _postureSummaryForDay(PostureSummary source, DateTime day) {
   );
 }
 
-List<_TrendBin> _rehabTrendBinsFor(DailyReport report) {
-  final now = report.recentPostureSummary.now;
-  final today = DateTime(now.year, now.month, now.day);
-  final start = today.subtract(const Duration(days: 6));
-
-  return [
-    for (var index = 0; index < 7; index++)
-      _rehabTrendBinFor(
-        day: start.add(Duration(days: index)),
-        report: report,
-      ),
-  ];
-}
-
-_TrendBin _rehabTrendBinFor({
-  required DateTime day,
-  required DailyReport report,
-}) {
-  final nextDay = day.add(const Duration(days: 1));
-  final logs = report.recentRehabLogs.where((log) {
-    return !log.createdAt.isBefore(day) && log.createdAt.isBefore(nextDay);
-  }).toList();
-
-  return _TrendBin(
-    label: _trendLabel(day),
-    rehabCount: logs.length,
-  );
-}
-
-String _trendLabel(DateTime day) {
-  const labels = ['一', '二', '三', '四', '五', '六', '日'];
-  return labels[day.weekday - 1];
-}
-
 String _periodTitle(ReportPeriod period) {
   return switch (period) {
     ReportPeriod.day => '今日',
-    ReportPeriod.week => '本周',
-    ReportPeriod.month => '本月',
+    ReportPeriod.week => '最近 7 天',
+    ReportPeriod.month => '最近 30 天',
   };
 }
 
-double _barHeight(
-  double value,
-  double maxValue, {
-  double minHeight = 2,
-  double maxHeight = 120,
-}) {
-  if (value <= 0 || maxValue <= 0) {
-    return 0;
+int _recordedDayCount(DailyReport report) {
+  return {
+    for (final log in report.rehabLogs)
+      DateTime(log.createdAt.year, log.createdAt.month, log.createdAt.day),
+    for (final note in report.dailyNotes)
+      DateTime(note.date.year, note.date.month, note.date.day),
+    for (final session in report.postureSummary.sessions)
+      DateTime(
+        session.startedAt.year,
+        session.startedAt.month,
+        session.startedAt.day,
+      ),
+  }.length;
+}
+
+Duration _averageLongestSitting(DailyReport report, int days) {
+  final now = report.postureSummary.now;
+  final today = DateTime(now.year, now.month, now.day);
+  final start = today.subtract(Duration(days: days - 1));
+  var totalMinutes = 0;
+  var activeDays = 0;
+  for (var index = 0; index < days; index++) {
+    final summary = _postureSummaryForDay(
+      report.postureSummary,
+      start.add(Duration(days: index)),
+    );
+    if (summary.sessions.isNotEmpty) {
+      activeDays++;
+      totalMinutes += summary.longestSitting.inMinutes;
+    }
   }
-  return minHeight + (maxHeight - minHeight) * (value / maxValue);
+  if (activeDays == 0) {
+    return Duration.zero;
+  }
+  return Duration(minutes: (totalMinutes / activeDays).round());
+}
+
+String _commonSymptomTags(DailyReport report) {
+  final counts = <String, int>{};
+  for (final log in report.rehabLogs) {
+    for (final tag in log.symptomTags) {
+      counts[tag] = (counts[tag] ?? 0) + 1;
+    }
+  }
+  if (counts.isEmpty) {
+    return '暂无';
+  }
+  final entries = counts.entries.toList()
+    ..sort((left, right) => right.value.compareTo(left.value));
+  return entries.take(3).map((entry) => entry.key).join('、');
+}
+
+String _trendText(DailyReport report) {
+  if (report.rehabLogs.isEmpty && report.postureSummary.sessions.isEmpty) {
+    return '记录还不多，先保持稳定记录。';
+  }
+  final worseCount =
+      report.rehabSummary.reactionCount(RehabReaction.muchWorse);
+  if (worseCount > 0) {
+    return '有明显加重记录，后续可留意活动量和坐姿时长。';
+  }
+  if (report.rehabSummary.totalCount > 0 &&
+      report.postureSummary.sittingBreakCount > 0) {
+    return '近期有康复记录，也有久坐中断记录。';
+  }
+  return '近期已有本地记录，可继续按自己的节奏补充。';
 }
 
 String _formatNumber(double value) {

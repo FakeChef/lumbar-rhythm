@@ -50,9 +50,9 @@ class NotificationService {
   static const _sittingReminderId = 101;
   static const _standingReminderId = 102;
   static const _testReminderId = 199;
-  static const softChannelId = 'lumbar_rhythm_soft_reminders_v1';
-  static const vibrationChannelId = 'lumbar_rhythm_vibration_reminders_v1';
-  static const alarmChannelId = 'lumbar_rhythm_alarm_reminders_v1';
+  static const softChannelId = 'lumbar_rhythm_soft_reminders_v2';
+  static const vibrationChannelId = 'lumbar_rhythm_vibration_reminders_v2';
+  static const alarmChannelId = 'lumbar_rhythm_alarm_reminders_v2';
   static const _channelDescription = '久坐久站和休息节奏提醒';
 
   final FlutterLocalNotificationsPlugin _plugin =
@@ -91,6 +91,7 @@ class NotificationService {
     ReminderMode reminderMode = ReminderMode.soft,
     PostureType? currentPosture,
   }) async {
+    await initialize();
     await cancelScheduledReminders();
 
     final plan = buildReminderSchedulePlan(
@@ -157,6 +158,31 @@ class NotificationService {
     }
   }
 
+  Future<bool> scheduleOneMinuteSittingTestReminder({
+    ReminderMode reminderMode = ReminderMode.soft,
+  }) async {
+    try {
+      await initialize();
+
+      final permissionGranted = await requestPermissions();
+      if (!permissionGranted) {
+        return false;
+      }
+
+      await _plugin.cancel(_sittingReminderId);
+      await _scheduleReminder(
+        id: _sittingReminderId,
+        title: '该起身活动一下了',
+        body: '这是 1 分钟测试久坐提醒，用于确认定时调度是否可用。',
+        minutesFromNow: 1,
+        reminderMode: reminderMode,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _scheduleReminder({
     required int id,
     required String title,
@@ -170,6 +196,9 @@ class NotificationService {
       Duration(minutes: minutesFromNow),
     );
 
+    // Android may delay inexact reminders to save power, especially during
+    // short tests or when the device is idle. We avoid exact alarm permission
+    // here and keep the reminder local-only.
     await _plugin.zonedSchedule(
       id,
       title,
