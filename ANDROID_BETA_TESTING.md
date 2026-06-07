@@ -13,7 +13,7 @@ build/app/outputs/flutter-apk/app-release.apk
 Suggested shared file name:
 
 ```text
-lumbar-rhythm-0.1.0-android-release.apk
+lumbar-rhythm-v0.3.0-beta1.apk
 ```
 
 ## Tester message
@@ -23,16 +23,16 @@ You can send this text to testers:
 ```text
 这是“腰椎节奏”的 Android 测试版。
 
-它是一个永久免费、无广告、无账号、无云端上传的久坐久站提醒和本地自我记录 App。
+它是一个永久免费、无广告、无账号、无云端上传的腰突术后康复日志 App。坐站节奏是核心工具之一，所有记录默认保存在本地设备。
 
 请帮忙测试：
 1. 能否正常安装和打开。
-2. 首页文字和布局是否正常。
-3. 测试提醒是否能发出。
-4. 能否新增久坐、久站、症状记录、活动/拉伸记录。
-5. 报告页统计和最近 7 天趋势图是否看得懂。
-6. 周报图片是否能保存到手机相册。
-7. 备份 JSON 和删除全部本地数据是否可用。
+2. 底部导航“今日 / 日历 / 康复 / 报告 / 设置”是否都能打开。
+3. 今日页坐站节奏、测试提醒、康复动作记录和今日康复小结是否可用。
+4. 日历页是否可以按日期回看个人记录。
+5. 康复页是否可以从内置动作模板新增康复记录。
+6. 报告页日、周、月汇总是否清楚，是否没有医疗结论或疗效承诺。
+7. 设置页导出 JSON 和删除全部本地数据是否可用。
 8. 有没有卡顿、闪退、看不懂、容易误解或让人焦虑的地方。
 
 注意：这个 App 不是医疗器械，不提供诊断、治疗建议或复发判断。出现明显异常或严重症状时，请及时就医。
@@ -50,18 +50,16 @@ You can send this text to testers:
 
 Ask each tester to complete these tasks:
 
-1. Open the app and check the home page.
-2. Tap "测试提醒" and confirm whether a notification appears.
-3. Add one sitting record.
-4. Add one standing record.
-5. Add one symptom record with a short note.
-6. Add one movement/stretch record.
-7. Search or filter records on the records page.
-8. Open the reports page and check today's counts.
-9. Check the recent seven-day trend chart.
-10. Save the recent seven-day report image to the gallery.
-11. Export local JSON data if the tester understands it is an advanced backup feature.
-12. Delete all local data and confirm that reports become empty.
+1. Open the app and confirm the bottom navigation shows Today, Calendar, Rehab, Reports, and Settings.
+2. On the Today tab, switch between sitting, standing, walking, and resting.
+3. On the Today tab, tap "测试提醒" and confirm whether a local notification appears.
+4. On the Today tab, add one rehabilitation action record and one daily recovery note.
+5. On the Calendar tab, choose a date and confirm the day's records are shown.
+6. On the Rehab tab, add one rehabilitation log from a built-in action template.
+7. On the Reports tab, check the day, week, and month summaries.
+8. Confirm report text is for personal review only and does not read like diagnosis, treatment advice, or recovery judgment.
+9. On the Settings tab, export local JSON data if the tester understands it is an advanced backup feature.
+10. On the Settings tab, delete all local data and confirm records and reports become empty.
 
 ## Feedback template
 
@@ -73,8 +71,9 @@ Android 版本：
 通知是否成功：
 记录是否成功：
 报告是否清楚：
-最近 7 天趋势图是否清楚：
-周报图片是否成功保存到相册：
+五个底部页面是否都能正常打开：
+日历回看是否清楚：
+康复记录是否清楚：
 备份 JSON/删除是否成功：
 是否有闪退或卡顿：
 哪里看不懂：
