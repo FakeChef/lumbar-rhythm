@@ -10,7 +10,7 @@ This checklist is for preparing Lumbar Rhythm for Android review.
 - The app has no subscription.
 - The app has no cloud upload or sync.
 - The app has no third-party tracking SDK.
-- The app is a reminder and self-recording tool, not a medical device.
+- The app is a postoperative lumbar disc herniation recovery log app, not a medical device.
 
 ## Privacy
 
@@ -29,7 +29,7 @@ This checklist is for preparing Lumbar Rhythm for Android review.
 - The app does not judge recurrence.
 - The app does not replace doctors, therapists, or other licensed professionals.
 - The disclaimer text in the app matches `DISCLAIMER.md`.
-- Store description should describe the app as a reminder and self-recording tool.
+- Store description should describe the app as a postoperative recovery log app with local sitting and standing rhythm reminders.
 
 ## Android
 
@@ -47,24 +47,22 @@ This checklist is for preparing Lumbar Rhythm for Android review.
 
 ## Functional QA
 
-- Home page opens without errors.
+- Bottom navigation opens Today, Calendar, Rehab, Reports, and Settings without errors.
+- Today page opens without errors.
 - Current posture can switch between sitting, standing, walking, and resting.
 - Posture sessions are saved when the user changes state.
 - Sitting reminders are scheduled only when the current posture is sitting.
 - Standing reminders are scheduled only when the current posture is standing.
 - Walking and resting cancel sitting and standing reminders.
-- Records can be created, searched, filtered, and deleted.
+- Today page can save a rehabilitation action record and daily recovery note.
+- Calendar page can review records by date.
 - Rehabilitation logs can be created from built-in templates.
-- Reports show today's summary.
-- Reports show today's rehabilitation summary.
-- Reports show the recent seven-day summary.
-- Reports show recent seven-day rehabilitation summary.
-- Reports show the recent seven-day trend chart.
-- Weekly report image can be saved to the Android gallery as a PNG file.
+- Reports show day, week, and month summaries.
+- Reports remain framed as personal recovery review and do not provide medical conclusions.
 - Settings can save reminder intervals.
 - Test notification can be triggered.
-- Local JSON export contains app metadata, settings, records, posture sessions, rehabilitation actions, and rehabilitation logs.
-- Delete all local data clears records, settings, posture sessions, and rehabilitation logs while keeping built-in rehabilitation templates available.
+- Local JSON export contains app metadata, settings, records, posture sessions, rehabilitation actions, rehabilitation logs, recovery profile, daily recovery notes, and recovery milestones.
+- Delete all local data clears records, settings, posture sessions, rehabilitation logs, recovery profile, daily recovery notes, and recovery milestones while keeping built-in rehabilitation templates available.
 
 ## Build Verification
 
