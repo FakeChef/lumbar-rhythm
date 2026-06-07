@@ -69,12 +69,7 @@ class NotificationService {
     _ensureTimeZonesInitialized();
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const ios = DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
-    );
-    const settings = InitializationSettings(android: android, iOS: ios);
+    const settings = InitializationSettings(android: android);
 
     await _plugin.initialize(settings);
     _notificationsInitialized = true;
@@ -85,12 +80,8 @@ class NotificationService {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
-    final iosPermission = await _plugin
-        .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(alert: true, badge: true, sound: true);
 
-    return (androidPermission ?? true) && (iosPermission ?? true);
+    return androidPermission ?? true;
   }
 
   Future<void> scheduleNextReminders({
@@ -207,6 +198,12 @@ class NotificationService {
 NotificationDetails buildReminderNotificationDetails({
   ReminderMode reminderMode = ReminderMode.soft,
 }) {
+  // TODO: Wire these local-only actions to callbacks when a stable notification
+  // action handling path is added. They should affect only the current reminder.
+  const actions = [
+    AndroidNotificationAction('postpone_10m', '10 分钟后提醒'),
+    AndroidNotificationAction('dismiss_once', '忽略本次'),
+  ];
   final android = switch (reminderMode) {
     ReminderMode.soft => const AndroidNotificationDetails(
         NotificationService.softChannelId,
@@ -216,6 +213,7 @@ NotificationDetails buildReminderNotificationDetails({
         priority: Priority.defaultPriority,
         playSound: true,
         enableVibration: false,
+        actions: actions,
       ),
     ReminderMode.vibration => AndroidNotificationDetails(
         NotificationService.vibrationChannelId,
@@ -226,6 +224,7 @@ NotificationDetails buildReminderNotificationDetails({
         playSound: false,
         enableVibration: true,
         vibrationPattern: Int64List.fromList([0, 180, 120, 180]),
+        actions: actions,
       ),
     ReminderMode.alarm => AndroidNotificationDetails(
         NotificationService.alarmChannelId,
@@ -236,12 +235,10 @@ NotificationDetails buildReminderNotificationDetails({
         playSound: true,
         enableVibration: true,
         vibrationPattern: Int64List.fromList([0, 450, 180, 450]),
+        actions: actions,
         // TODO: Add a short bundled reminder sound if a gentle custom asset is introduced.
       ),
   };
-  final ios = DarwinNotificationDetails(
-    presentSound: reminderMode != ReminderMode.vibration,
-  );
 
-  return NotificationDetails(android: android, iOS: ios);
+  return NotificationDetails(android: android);
 }

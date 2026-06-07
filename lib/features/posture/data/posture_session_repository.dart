@@ -38,6 +38,11 @@ abstract class PostureSessionRepository {
     required int days,
     DateTime? now,
   });
+
+  Future<List<PostureSession>> loadSessionsBetween({
+    required DateTime start,
+    required DateTime end,
+  });
 }
 
 class SqflitePostureSessionRepository implements PostureSessionRepository {
@@ -145,6 +150,18 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
     final todayStart = DateTime(anchor.year, anchor.month, anchor.day);
     final start = todayStart.subtract(Duration(days: days - 1));
     final end = todayStart.add(const Duration(days: 1));
+    final rows = await _database.readPostureSessionsStartedBetween(
+      start: start,
+      end: end,
+    );
+    return rows.map(_fromRow).toList();
+  }
+
+  @override
+  Future<List<PostureSession>> loadSessionsBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async {
     final rows = await _database.readPostureSessionsStartedBetween(
       start: start,
       end: end,

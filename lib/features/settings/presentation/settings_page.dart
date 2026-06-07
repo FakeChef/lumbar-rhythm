@@ -15,7 +15,6 @@ const _settingsDisclaimerText = '本报告仅用于个人康复记录回顾，�
 
 final _settingsTestReminderFeedbackProvider =
     StateProvider.autoDispose<String?>((ref) => null);
-final _nightQuietProvider = StateProvider<bool>((ref) => true);
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -28,7 +27,6 @@ class SettingsPage extends ConsumerWidget {
     final testReminderFeedback =
         ref.watch(_settingsTestReminderFeedbackProvider);
     final testReminderSending = testReminderFeedback == '正在发送测试提醒';
-    final nightQuietEnabled = ref.watch(_nightQuietProvider);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
@@ -115,15 +113,11 @@ class SettingsPage extends ConsumerWidget {
                       .state = message;
                 },
               ),
-              SwitchListTile(
+              const ListTile(
                 contentPadding: EdgeInsets.zero,
-                value: nightQuietEnabled,
-                onChanged: (value) {
-                  ref.read(_nightQuietProvider.notifier).state = value;
-                },
-                secondary: const Icon(Icons.nightlight_round_outlined),
-                title: const Text('夜间勿扰'),
-                subtitle: const Text('开启后减少夜间提醒打扰；当前版本不请求额外系统权限。'),
+                leading: Icon(Icons.nightlight_round_outlined),
+                title: Text('夜间勿扰'),
+                subtitle: Text('当前版本暂未启用，后续会用于减少夜间提醒打扰。'),
               ),
               const ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -175,7 +169,7 @@ class SettingsPage extends ConsumerWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.file_upload_outlined),
-                    label: const Text('导入本地备份'),
+                    label: const Text('导入本地备份（高级）'),
                     onPressed: () => _confirmImportLocalBackup(context, ref),
                   ),
                 ),
@@ -184,6 +178,13 @@ class SettingsPage extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               '备份安全提示：备份文件包含你的本地康复记录，请妥善保存。App 不会自动上传备份文件。',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '当前需要粘贴本地 JSON 文件路径。',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -267,33 +268,53 @@ class SettingsPage extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('导入本地备份？'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('导入会覆盖当前本地数据，请先确认已备份。App 不会上传任何数据。'),
-              const SizedBox(height: 12),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: '本地 JSON 备份文件路径',
-                  hintText: '例如：/storage/emulated/0/Download/backup.json',
-                ),
-                onChanged: (value) => backupPath = value,
+        var confirmedOverwrite = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('导入本地备份？'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('导入会覆盖当前本地数据，请先确认已备份。App 不会上传任何数据。'),
+                  const SizedBox(height: 8),
+                  const Text('当前版本需要粘贴本地 JSON 文件路径，后续会支持文件选择。'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: '本地 JSON 备份文件路径',
+                      hintText: '例如：/storage/emulated/0/Download/backup.json',
+                    ),
+                    onChanged: (value) => backupPath = value,
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: confirmedOverwrite,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        confirmedOverwrite = value ?? false;
+                      });
+                    },
+                    title: const Text('我确认导入会覆盖当前本地数据'),
+                  ),
+                ],
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('确认导入'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: confirmedOverwrite
+                      ? () => Navigator.of(context).pop(true)
+                      : null,
+                  child: const Text('确认导入'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -309,6 +330,9 @@ class SettingsPage extends ConsumerWidget {
       _refreshLocalDataProviders(ref);
       if (!context.mounted) return;
       messenger.showSnackBar(const SnackBar(content: Text('已导入本地备份')));
+    } on BackupImportException catch (error) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
     } on Object {
       if (!context.mounted) return;
       messenger.showSnackBar(
@@ -661,8 +685,7 @@ class _ReminderSettingsSection extends StatelessWidget {
           subtitle: const Text('默认轻柔通知；需要更明显时可改为震动或响铃。'),
           trailing: DropdownButton<ReminderMode>(
             value: settings.reminderMode,
-            onChanged:
-                settings.remindersEnabled ? onReminderModeChanged : null,
+            onChanged: settings.remindersEnabled ? onReminderModeChanged : null,
             items: [
               for (final mode in ReminderMode.values)
                 DropdownMenuItem(

@@ -33,6 +33,11 @@ abstract class RehabRepository {
     DateTime? now,
   });
 
+  Future<List<RehabLog>> loadLogsBetween({
+    required DateTime start,
+    required DateTime end,
+  });
+
   Future<List<RehabLog>> loadAllLogs();
 }
 
@@ -126,6 +131,18 @@ class SqfliteRehabRepository implements RehabRepository {
     final todayStart = DateTime(anchor.year, anchor.month, anchor.day);
     final start = todayStart.subtract(Duration(days: days - 1));
     final end = todayStart.add(const Duration(days: 1));
+    final rows = await _database.readRehabLogsCreatedBetween(
+      start: start,
+      end: end,
+    );
+    return rows.map(_logFromRow).toList();
+  }
+
+  @override
+  Future<List<RehabLog>> loadLogsBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async {
     final rows = await _database.readRehabLogsCreatedBetween(
       start: start,
       end: end,

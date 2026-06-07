@@ -37,7 +37,8 @@ class LocalDataRepository {
     );
   }
 
-  Future<Map<String, Object?>> buildBackupPayload({DateTime? exportedAt}) async {
+  Future<Map<String, Object?>> buildBackupPayload(
+      {DateTime? exportedAt}) async {
     final records = await _database.readAllRecords();
     final settings = await _database.readAllSettings();
     final postureSessions = await _database.readAllPostureSessions();
@@ -80,17 +81,32 @@ class LocalDataRepository {
     final content = await File(path).readAsString();
     final decoded = jsonDecode(content);
     if (decoded is! Map<String, Object?>) {
-      throw const FormatException('Backup root must be a JSON object.');
+      throw const BackupImportException('备份文件格式不正确。');
     }
     await importBackupPayload(decoded);
   }
 
   Future<void> importBackupPayload(Map<String, Object?> payload) {
+    _validateBackupMetadata(payload);
     return _database.replaceWithBackupData(payload);
   }
 
   Future<void> deleteAllLocalData() {
     return _database.deleteAllLocalData();
+  }
+
+  void _validateBackupMetadata(Map<String, Object?> payload) {
+    final metadata = payload['metadata'];
+    if (metadata is! Map) {
+      throw const BackupImportException('备份文件格式不正确。');
+    }
+    final payloadBackupVersion = metadata['backupVersion'];
+    if (payloadBackupVersion is! int) {
+      throw const BackupImportException('备份文件格式不正确。');
+    }
+    if (payloadBackupVersion > backupVersion) {
+      throw const BackupImportException('备份版本较新，请升级 App 后再导入。');
+    }
   }
 
   String _dateStamp(DateTime value) {
@@ -122,4 +138,13 @@ class LocalDataRepository {
       'stopRule': activity.stopRule,
     };
   }
+}
+
+class BackupImportException implements Exception {
+  const BackupImportException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

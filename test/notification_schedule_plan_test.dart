@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
@@ -43,6 +45,30 @@ void main() {
     expect(soft?.channelId, 'lumbar_rhythm_soft_reminders_v1');
     expect(vibration?.channelId, 'lumbar_rhythm_vibration_reminders_v1');
     expect(alarm?.channelId, 'lumbar_rhythm_alarm_reminders_v1');
+  });
+
+  test('notification details are Android-only and include gentle actions', () {
+    final details = buildReminderNotificationDetails();
+    final android = details.android;
+
+    expect(details.iOS, isNull);
+    expect(android, isNotNull);
+    expect(
+      android!.actions?.map((action) => action.id),
+      containsAll(['postpone_10m', 'dismiss_once']),
+    );
+    expect(
+      android.actions?.map((action) => action.title),
+      containsAll(['10 分钟后提醒', '忽略本次']),
+    );
+  });
+
+  test('notification service source does not contain Darwin branches', () {
+    final source = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+
+    expect(source, isNot(contains('Darwin')));
+    expect(source, isNot(contains('IOSFlutterLocalNotificationsPlugin')));
   });
 
   test('vibration reminder does not play sound', () {

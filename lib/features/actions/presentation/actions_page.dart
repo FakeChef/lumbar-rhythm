@@ -49,11 +49,11 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _DailyRecoveryNoteCard(
-                note: data.dailyNote,
+                noteState: data.dailyNoteState,
                 onEdit: () => _showDailyRecoveryNoteDialog(
                   context,
                   ref,
-                  data.dailyNote,
+                  data.dailyNoteState.note,
                 ),
               ),
               const SizedBox(height: 20),
@@ -246,16 +246,18 @@ final _rehabPageDataProvider = FutureProvider<_RehabPageData>((ref) async {
   final recoveryRepository = ref.watch(recoveryRepositoryProvider);
   final actions = await repository.loadActions();
   final todayLogs = await repository.loadToday();
-  DailyRecoveryNote? dailyNote;
+  _DailyRecoveryNoteLoadState dailyNoteState;
   try {
-    dailyNote = await recoveryRepository.loadNote(DateTime.now());
+    dailyNoteState = _DailyRecoveryNoteLoadState.loaded(
+      await recoveryRepository.loadNote(DateTime.now()),
+    );
   } catch (_) {
-    dailyNote = null;
+    dailyNoteState = const _DailyRecoveryNoteLoadState.failed();
   }
   return _RehabPageData(
     actions: actions,
     todayLogs: todayLogs,
-    dailyNote: dailyNote,
+    dailyNoteState: dailyNoteState,
   );
 });
 
@@ -263,12 +265,12 @@ class _RehabPageData {
   const _RehabPageData({
     required this.actions,
     required this.todayLogs,
-    required this.dailyNote,
+    required this.dailyNoteState,
   });
 
   final List<RehabAction> actions;
   final List<RehabLog> todayLogs;
-  final DailyRecoveryNote? dailyNote;
+  final _DailyRecoveryNoteLoadState dailyNoteState;
 
   RehabAction? actionById(int? actionId) {
     if (actionId == null) {
@@ -292,18 +294,33 @@ class _RehabPageData {
   }
 }
 
+class _DailyRecoveryNoteLoadState {
+  const _DailyRecoveryNoteLoadState._({
+    required this.isFailed,
+    this.note,
+  });
+
+  const _DailyRecoveryNoteLoadState.loaded(DailyRecoveryNote? note)
+      : this._(isFailed: false, note: note);
+
+  const _DailyRecoveryNoteLoadState.failed() : this._(isFailed: true);
+
+  final bool isFailed;
+  final DailyRecoveryNote? note;
+}
+
 class _DailyRecoveryNoteCard extends StatelessWidget {
   const _DailyRecoveryNoteCard({
-    required this.note,
+    required this.noteState,
     required this.onEdit,
   });
 
-  final DailyRecoveryNote? note;
+  final _DailyRecoveryNoteLoadState noteState;
   final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
-    final value = note;
+    final value = noteState.note;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -318,10 +335,12 @@ class _DailyRecoveryNoteCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              value == null
-                  ? '用点选方式记录今天的整体感受。'
-                  : '${value.overallFeeling.label} · 腰 ${value.backPainScore} · '
-                      '腿 ${value.legSymptomScore} · 疲劳 ${value.fatigueScore}',
+              noteState.isFailed
+                  ? '今日小结暂时无法读取，可稍后重试。'
+                  : value == null
+                      ? '用点选方式记录今天的整体感受。'
+                      : '${value.overallFeeling.label} · 腰 ${value.backPainScore} · '
+                          '腿 ${value.legSymptomScore} · 疲劳 ${value.fatigueScore}',
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
