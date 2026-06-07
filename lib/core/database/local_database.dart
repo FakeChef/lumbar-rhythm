@@ -150,16 +150,46 @@ class LocalDatabase {
   Future<void> deleteAllLocalData() async {
     final database = await instance;
     await database.transaction((transaction) async {
-      await transaction.delete('records');
-      await transaction.delete('posture_sessions');
-      await transaction.delete('rehab_logs');
-      await transaction.delete('daily_recovery_notes');
-      await transaction.delete('recovery_profile');
-      await transaction.delete('recovery_milestones');
-      await transaction.delete('settings');
-      await transaction.delete('rehab_actions');
+      await _clearLocalData(transaction);
       await _seedRehabActions(transaction);
       await _seedRecoveryMilestones(transaction);
+    });
+  }
+
+  Future<void> replaceWithBackupData(Map<String, Object?> payload) async {
+    final database = await instance;
+    await database.transaction((transaction) async {
+      await _clearLocalData(transaction);
+      await _restoreSettings(transaction, payload['settings']);
+      await _restoreRows(transaction, 'records', payload['records']);
+      await _restoreRows(
+        transaction,
+        'posture_sessions',
+        payload['posture_sessions'],
+      );
+      await _restoreRows(
+        transaction,
+        'rehab_actions',
+        payload['rehab_actions'],
+      );
+      await _restoreRows(transaction, 'rehab_logs', payload['rehab_logs']);
+      await _restoreSingleRow(
+        transaction,
+        'recovery_profile',
+        payload['recovery_profile'],
+      );
+      await _restoreRows(
+        transaction,
+        'daily_recovery_notes',
+        payload['daily_recovery_notes'],
+      );
+      await _restoreRows(
+        transaction,
+        'recovery_milestones',
+        payload['recovery_milestones'],
+      );
+      await _ensureRehabActionsSeeded(transaction);
+      await _ensureRecoveryMilestonesSeeded(transaction);
     });
   }
 
@@ -599,6 +629,85 @@ class LocalDatabase {
     if (!exists) {
       await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
     }
+  }
+
+  Future<void> _clearLocalData(DatabaseExecutor db) async {
+    await db.delete('records');
+    await db.delete('posture_sessions');
+    await db.delete('rehab_logs');
+    await db.delete('daily_recovery_notes');
+    await db.delete('recovery_profile');
+    await db.delete('recovery_milestones');
+    await db.delete('settings');
+    await db.delete('rehab_actions');
+  }
+
+  Future<void> _restoreSettings(
+    DatabaseExecutor db,
+    Object? settings,
+  ) async {
+    if (settings is! Map) return;
+    for (final entry in settings.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      if (key is! String || value == null) continue;
+      await db.insert(
+        'settings',
+        {'key': key, 'value': value.toString()},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
+
+  Future<void> _restoreSingleRow(
+    DatabaseExecutor db,
+    String table,
+    Object? row,
+  ) async {
+    if (row is Map) {
+      await _insertBackupRow(db, table, row);
+    }
+  }
+
+  Future<void> _restoreRows(
+    DatabaseExecutor db,
+    String table,
+    Object? rows,
+  ) async {
+    if (rows is! List) return;
+    for (final row in rows) {
+      if (row is Map) {
+        await _insertBackupRow(db, table, row);
+      }
+    }
+  }
+
+  Future<void> _insertBackupRow(
+    DatabaseExecutor db,
+    String table,
+    Map row,
+  ) async {
+    final columns = await _tableColumns(db, table);
+    final values = <String, Object?>{};
+    for (final entry in row.entries) {
+      final key = entry.key;
+      if (key is String && columns.contains(key)) {
+        values[key] = _normalizeBackupValue(entry.value);
+      }
+    }
+    if (values.isEmpty) return;
+    await db.insert(table, values, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<Set<String>> _tableColumns(DatabaseExecutor db, String table) async {
+    final rows = await db.rawQuery('PRAGMA table_info($table)');
+    return rows.map((row) => row['name']).whereType<String>().toSet();
+  }
+
+  Object? _normalizeBackupValue(Object? value) {
+    if (value is bool) return value ? 1 : 0;
+    if (value is List || value is Map) return jsonEncode(value);
+    return value;
   }
 
   Future<void> _migrateRehabLogsToV3(DatabaseExecutor db) async {

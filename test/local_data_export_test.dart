@@ -1,103 +1,144 @@
-import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumbar_rhythm/core/database/local_database.dart';
+import 'package:lumbar_rhythm/features/settings/data/local_data_repository.dart';
+import 'package:path/path.dart' as p;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
-  test('local export payload keeps app metadata and user data sections', () {
-    final payload = {
-      'schema_version': 4,
-      'app': 'Lumbar Rhythm',
-      'app_version': '0.1.0+1',
-      'exported_at': DateTime(2026, 6, 5, 12).toIso8601String(),
-      'privacy_note':
-          'This file was created locally by user action. Lumbar Rhythm does not upload health data.',
-      'record_count': 1,
-      'setting_count': 1,
-      'posture_session_count': 1,
-      'rehab_action_count': 1,
-      'rehab_log_count': 1,
-      'daily_recovery_note_count': 1,
-      'recovery_milestone_count': 1,
-      'settings': {
-        'reminders_enabled': 'true',
-      },
-      'records': [
-        {
-          'id': 1,
-          'type': 'stretch',
-          'note': 'completed action',
-          'created_at': DateTime(2026, 6, 5, 10).toIso8601String(),
-        },
-      ],
-      'posture_sessions': [
-        {
-          'id': 1,
-          'type': 'sitting',
-          'started_at': DateTime(2026, 6, 5, 9).toIso8601String(),
-          'ended_at': DateTime(2026, 6, 5, 10).toIso8601String(),
-          'duration_seconds': 3600,
-        },
-      ],
-      'rehab_actions': [
-        {
-          'id': 1,
-          'name': '步行',
-          'default_unit': '分钟',
-          'guidance': '按自己舒适节奏记录一次步行。',
-          'sort_order': 1,
-        },
-      ],
-      'rehab_logs': [
-        {
-          'id': 1,
-          'action_id': 1,
-          'amount': '10',
-          'amount_value': 10.0,
-          'unit': '分钟',
-          'reaction': 'noChange',
-          'source': 'manual',
-          'created_at': DateTime(2026, 6, 5, 11).toIso8601String(),
-        },
-      ],
-      'recovery_profile': {
-        'id': 1,
-        'surgery_date': '2026-06-01',
-        'nickname': '小林',
-      },
-      'daily_recovery_notes': [
-        {
-          'date': '2026-06-05',
-          'overall_feeling': 'same',
-          'back_pain_score': 2,
-          'leg_symptom_score': 1,
-          'fatigue_score': 3,
-        },
-      ],
-      'recovery_milestones': [
-        {
-          'id': 1,
-          'title': '第一周康复日志',
-          'status': 'planned',
-        },
-      ],
-    };
+  late String dbPath;
 
-    final encoded = const JsonEncoder.withIndent('  ').convert(payload);
-    final decoded = jsonDecode(encoded) as Map<String, Object?>;
-
-    expect(decoded['schema_version'], 4);
-    expect(decoded['app'], 'Lumbar Rhythm');
-    expect(decoded['app_version'], '0.1.0+1');
-    expect(decoded['record_count'], 1);
-    expect(decoded['setting_count'], 1);
-    expect(decoded['settings'], isA<Map<String, Object?>>());
-    expect(decoded['records'], isA<List<Object?>>());
-    expect(decoded['posture_sessions'], isA<List<Object?>>());
-    expect(decoded['rehab_actions'], isA<List<Object?>>());
-    expect(decoded['rehab_logs'], isA<List<Object?>>());
-    expect(decoded['recovery_profile'], isA<Map<String, Object?>>());
-    expect(decoded['daily_recovery_notes'], isA<List<Object?>>());
-    expect(decoded['recovery_milestones'], isA<List<Object?>>());
-    expect(decoded['privacy_note'], contains('does not upload health data'));
+  setUpAll(() {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
   });
+
+  setUp(() async {
+    dbPath = p.join(
+      await databaseFactory.getDatabasesPath(),
+      'local_backup_test.db',
+    );
+    await databaseFactory.deleteDatabase(dbPath);
+  });
+
+  tearDown(() async {
+    await databaseFactory.deleteDatabase(dbPath);
+  });
+
+  test('local backup payload contains metadata and core tables', () async {
+    final database = LocalDatabase(databasePath: dbPath);
+    await _seedCoreUserData(database);
+
+    final payload = await LocalDataRepository(database).buildBackupPayload(
+      exportedAt: DateTime(2026, 6, 7, 12),
+    );
+    final metadata = payload['metadata'] as Map<String, Object?>;
+
+    expect(metadata['appName'], 'Lumbar Rhythm');
+    expect(metadata['exportedAt'], '2026-06-07T12:00:00.000');
+    expect(metadata['schemaVersion'], LocalDatabase.schemaVersion);
+    expect(metadata['backupVersion'], LocalDataRepository.backupVersion);
+    expect(payload['settings'], isA<Map<String, Object?>>());
+    expect(payload['recovery_profile'], isA<Map<String, Object?>>());
+    expect(payload['daily_recovery_notes'], isA<List<Object?>>());
+    expect(payload['posture_sessions'], isA<List<Object?>>());
+    expect(payload['rehab_actions'], isA<List<Object?>>());
+    expect(payload['activity_master'], isA<List<Object?>>());
+    expect(payload['rehab_logs'], isA<List<Object?>>());
+    expect(payload['recovery_milestones'], isA<List<Object?>>());
+    expect(payload['privacy_note'], contains('does not upload health data'));
+
+    await database.close();
+  });
+
+  test('local backup import restores core user data', () async {
+    final sourceDatabase = LocalDatabase(databasePath: dbPath);
+    await _seedCoreUserData(sourceDatabase);
+    final repository = LocalDataRepository(sourceDatabase);
+    final payload = await repository.buildBackupPayload(
+      exportedAt: DateTime(2026, 6, 7, 12),
+    );
+    await sourceDatabase.close();
+
+    final restoredPath = p.join(
+      await databaseFactory.getDatabasesPath(),
+      'local_backup_restore_test.db',
+    );
+    await databaseFactory.deleteDatabase(restoredPath);
+    final restoredDatabase = LocalDatabase(databasePath: restoredPath);
+    await LocalDataRepository(restoredDatabase).importBackupPayload(payload);
+
+    final settings = await restoredDatabase.readAllSettings();
+    final profile = await restoredDatabase.readRecoveryProfile();
+    final notes = await restoredDatabase.readAllDailyRecoveryNotes();
+    final postureSessions = await restoredDatabase.readAllPostureSessions();
+    final rehabLogs = await restoredDatabase.readAllRehabLogs();
+    final milestones = await restoredDatabase.readAllRecoveryMilestones();
+
+    expect(settings['reminders_enabled'], 'true');
+    expect(profile?['nickname'], '小林');
+    expect(notes.single['date'], '2026-06-07');
+    expect(postureSessions.single['type'], 'sitting');
+    expect(rehabLogs.single['action_id'], 1);
+    expect(milestones, isNotEmpty);
+
+    await restoredDatabase.close();
+    await databaseFactory.deleteDatabase(restoredPath);
+  });
+
+  test('settings page import copy warns before overwrite', () {
+    final text = File('lib/features/settings/presentation/settings_page.dart')
+        .readAsStringSync();
+
+    expect(text, contains('导入会覆盖当前本地数据，请先确认已备份。'));
+    expect(text, contains('备份文件包含你的本地康复记录，请妥善保存。App 不会自动上传备份文件。'));
+  });
+}
+
+Future<void> _seedCoreUserData(LocalDatabase database) async {
+  await database.writeSetting('reminders_enabled', 'true');
+  await database.upsertRecoveryProfile(
+    surgeryDate: DateTime(2026, 6),
+    nickname: '小林',
+    surgeryType: '可选',
+    mainSegment: 'L4-L5',
+    mainGoal: '稳定记录',
+    now: DateTime(2026, 6, 7, 8),
+  );
+  await database.upsertDailyRecoveryNote(
+    date: DateTime(2026, 6, 7),
+    overallFeeling: 'same',
+    backPainScore: 2,
+    legSymptomScore: 1,
+    fatigueScore: 3,
+    tags: '["腰酸"]',
+    note: '今日记录',
+    now: DateTime(2026, 6, 7, 9),
+  );
+  await database.insertPostureSession(
+    type: 'sitting',
+    startedAt: DateTime(2026, 6, 7, 9),
+  );
+  await database.insertRehabLog(
+    actionId: 1,
+    amount: '10',
+    amountValue: 10,
+    unit: '分钟',
+    reaction: 'noChange',
+    symptomTag: null,
+    symptomTags: null,
+    source: 'manual',
+    note: '备份测试',
+    createdAt: DateTime(2026, 6, 7, 10),
+  );
+  await database.insertRecoveryMilestone(
+    title: '自定义节点',
+    category: '记录',
+    plannedDayOffset: null,
+    targetDate: DateTime(2026, 6, 30),
+    status: 'planned',
+    note: null,
+    sortOrder: 99,
+  );
 }

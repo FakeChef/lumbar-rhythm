@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/database/local_database.dart';
+import '../../actions/domain/action_item.dart';
 
 final localDataRepositoryProvider = Provider<LocalDataRepository>((ref) {
   return LocalDataRepository(ref.watch(localDatabaseProvider));
@@ -16,11 +17,27 @@ class LocalDataRepository {
 
   static const appName = 'Lumbar Rhythm';
   static const appVersion = '0.1.0+1';
-  static const exportSchemaVersion = 3;
+  static const backupVersion = 1;
+  static const exportSchemaVersion = LocalDatabase.schemaVersion;
 
   final LocalDatabase _database;
 
   Future<File> exportToJson() async {
+    final payload = await buildBackupPayload();
+    final exportedAt = DateTime.parse(
+      (payload['metadata'] as Map<String, Object?>)['exportedAt'] as String,
+    );
+    final directory = await getApplicationDocumentsDirectory();
+    final fileName = 'lumbar_rhythm_backup_${_dateStamp(exportedAt)}.json';
+    final file = File(p.join(directory.path, fileName));
+
+    return file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(payload),
+      flush: true,
+    );
+  }
+
+  Future<Map<String, Object?>> buildBackupPayload({DateTime? exportedAt}) async {
     final records = await _database.readAllRecords();
     final settings = await _database.readAllSettings();
     final postureSessions = await _database.readAllPostureSessions();
@@ -29,16 +46,15 @@ class LocalDataRepository {
     final recoveryProfile = await _database.readRecoveryProfile();
     final dailyRecoveryNotes = await _database.readAllDailyRecoveryNotes();
     final recoveryMilestones = await _database.readAllRecoveryMilestones();
-    final directory = await getApplicationDocumentsDirectory();
-    final exportedAt = DateTime.now();
-    final fileName = 'lumbar_rhythm_export_${_dateStamp(exportedAt)}.json';
-    final file = File(p.join(directory.path, fileName));
+    final savedAt = exportedAt ?? DateTime.now();
 
-    final payload = {
-      'schema_version': exportSchemaVersion,
-      'app': appName,
-      'app_version': appVersion,
-      'exported_at': exportedAt.toIso8601String(),
+    return {
+      'metadata': {
+        'appName': appName,
+        'exportedAt': savedAt.toIso8601String(),
+        'schemaVersion': exportSchemaVersion,
+        'backupVersion': backupVersion,
+      },
       'privacy_note':
           'This file was created locally by user action. Lumbar Rhythm does not upload health data.',
       'record_count': records.length,
@@ -52,16 +68,25 @@ class LocalDataRepository {
       'records': records,
       'posture_sessions': postureSessions,
       'rehab_actions': rehabActions,
+      'activity_master': activityMasterV1.map(_activityToBackupJson).toList(),
       'rehab_logs': rehabLogs,
       'recovery_profile': recoveryProfile,
       'daily_recovery_notes': dailyRecoveryNotes,
       'recovery_milestones': recoveryMilestones,
     };
+  }
 
-    return file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(payload),
-      flush: true,
-    );
+  Future<void> importFromJsonFile(String path) async {
+    final content = await File(path).readAsString();
+    final decoded = jsonDecode(content);
+    if (decoded is! Map<String, Object?>) {
+      throw const FormatException('Backup root must be a JSON object.');
+    }
+    await importBackupPayload(decoded);
+  }
+
+  Future<void> importBackupPayload(Map<String, Object?> payload) {
+    return _database.replaceWithBackupData(payload);
   }
 
   Future<void> deleteAllLocalData() {
@@ -77,5 +102,24 @@ class LocalDataRepository {
     final second = value.second.toString().padLeft(2, '0');
 
     return '$year$month${day}_$hour$minute$second';
+  }
+
+  Map<String, Object?> _activityToBackupJson(RehabActivity activity) {
+    return {
+      'id': activity.id,
+      'nameCn': activity.nameCn,
+      'category': activity.category,
+      'phaseStart': activity.phaseStart,
+      'phaseEnd': activity.phaseEnd,
+      'defaultUnit': activity.defaultUnit,
+      'optionalUnits': activity.optionalUnits,
+      'riskLevel': activity.riskLevel,
+      'requiresDoctorClearance': activity.requiresDoctorClearance,
+      'isDefaultVisible': activity.isDefaultVisible,
+      'isCoreActivity': activity.isCoreActivity,
+      'sortOrder': activity.sortOrder,
+      'patientTip': activity.patientTip,
+      'stopRule': activity.stopRule,
+    };
   }
 }

@@ -68,7 +68,7 @@ void main() {
     expect(tableNames, contains('rehab_actions'));
     expect(tableNames, contains('rehab_logs'));
     expect(records.length, 1);
-    expect(rehabActions.length, 10);
+    expect(rehabActions.length, actionLibrary.length);
 
     await database.close();
   });
