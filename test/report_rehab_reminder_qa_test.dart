@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumbar_rhythm/core/data/app_data_refresh.dart';
 import 'package:lumbar_rhythm/features/actions/application/posture_reminder_rehab_link.dart';
 import 'package:lumbar_rhythm/features/actions/data/rehab_repository.dart';
 import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
@@ -134,11 +135,76 @@ void main() {
     expect(find.text('坐站节奏报告'), findsOneWidget);
     expect(find.text('最近 7 天趋势'), findsOneWidget);
     expect(find.text('康复动作报告'), findsOneWidget);
-    expect(find.text('分享报告入口'), findsOneWidget);
-    expect(find.text('免责声明'), findsOneWidget);
+    expect(find.text('分享报告入口'), findsNothing);
+    expect(find.text('分享报告'), findsNothing);
+    expect(find.text('保存报告到相册'), findsWidgets);
+    expect(find.text('免责声明'), findsNothing);
     expect(find.text('久坐超过提醒间隔'), findsOneWidget);
     expect(find.text('姿势切换次数'), findsOneWidget);
     expect(find.text(reportDisclaimerText), findsOneWidget);
+  });
+
+  test('dailyReportController refreshes when rehab data changes', () async {
+    final repository = _FakeRehabRepository();
+    final container = ProviderContainer(
+      overrides: _reportOverrides(rehabRepository: repository),
+    );
+    addTearDown(container.dispose);
+
+    final initial = await container.read(dailyReportControllerProvider.future);
+    expect(initial.rehabSummary.totalCount, 0);
+
+    await repository.addLog(
+      action: actionLibrary.first,
+      amount: '3',
+      unit: '分钟',
+      reaction: RehabReaction.noChange,
+    );
+    container.read(appDataRefreshProvider.notifier).state++;
+
+    final updated = await container.read(dailyReportControllerProvider.future);
+    expect(updated.rehabSummary.totalCount, 1);
+  });
+
+  test('dailyReportController refreshes when reminder settings change',
+      () async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final settingsRepository = _MutableReminderSettingsRepository(
+      const ReminderSettings(
+        remindersEnabled: true,
+        sittingIntervalMinutes: 45,
+        standingIntervalMinutes: 30,
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: _reportOverrides(
+        postureSessions: [
+          PostureSession(
+            id: 1,
+            type: PostureType.sitting,
+            startedAt: today.add(const Duration(hours: 8)),
+            endedAt: today.add(const Duration(hours: 8, minutes: 20)),
+            durationSeconds: 1200,
+          ),
+        ],
+        reminderSettingsRepository: settingsRepository,
+      ),
+    );
+    addTearDown(container.dispose);
+
+    final initial = await container.read(dailyReportControllerProvider.future);
+    expect(initial.postureSummary.sittingOverThresholdCount, 0);
+
+    settingsRepository.settings = const ReminderSettings(
+      remindersEnabled: true,
+      sittingIntervalMinutes: 15,
+      standingIntervalMinutes: 30,
+    );
+    container.read(appDataRefreshProvider.notifier).state++;
+
+    final updated = await container.read(dailyReportControllerProvider.future);
+    expect(updated.postureSummary.sittingOverThresholdCount, 1);
   });
 
   testWidgets('settings page shows four groups and privacy copy',
@@ -311,10 +377,12 @@ List<Override> _reportOverrides({
   List<PostureSession> postureSessions = const [],
   List<RehabLog> rehabLogs = const [],
   ReminderSettings settings = ReminderSettings.defaults,
+  RehabRepository? rehabRepository,
+  ReminderSettingsRepository? reminderSettingsRepository,
 }) {
   return [
     rehabRepositoryProvider.overrideWithValue(
-      _FakeRehabRepository(initialLogs: rehabLogs),
+      rehabRepository ?? _FakeRehabRepository(initialLogs: rehabLogs),
     ),
     postureSessionRepositoryProvider.overrideWithValue(
       _FakePostureRepository(postureSessions),
@@ -324,7 +392,7 @@ List<Override> _reportOverrides({
       _FakeMilestoneRepository(),
     ),
     reminderSettingsRepositoryProvider.overrideWithValue(
-      _FakeReminderSettingsRepository(settings),
+      reminderSettingsRepository ?? _FakeReminderSettingsRepository(settings),
     ),
   ];
 }
@@ -517,4 +585,18 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 
   @override
   Future<void> save(ReminderSettings settings) async {}
+}
+
+class _MutableReminderSettingsRepository implements ReminderSettingsRepository {
+  _MutableReminderSettingsRepository(this.settings);
+
+  ReminderSettings settings;
+
+  @override
+  Future<ReminderSettings> load() async => settings;
+
+  @override
+  Future<void> save(ReminderSettings settings) async {
+    this.settings = settings;
+  }
 }

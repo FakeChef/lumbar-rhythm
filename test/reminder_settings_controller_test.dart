@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumbar_rhythm/core/data/app_data_refresh.dart';
 import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
 import 'package:lumbar_rhythm/features/posture/data/posture_session_repository.dart';
 import 'package:lumbar_rhythm/features/posture/domain/posture_session.dart';
@@ -54,6 +55,7 @@ void main() {
     expect(notificationService.scheduledSettings.last.enabled, isFalse);
     expect(
         notificationService.scheduledSettings.last.sittingIntervalMinutes, 60);
+    expect(container.read(appDataRefreshProvider), 2);
   });
 }
 

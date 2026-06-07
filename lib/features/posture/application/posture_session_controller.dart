@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/data/app_data_refresh.dart';
 import '../../../core/notifications/notification_service.dart';
 import '../../reports/application/daily_report_controller.dart';
 import '../../settings/data/reminder_settings_repository.dart';
@@ -35,6 +36,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
         );
     state = AsyncData(session);
     ref.invalidate(dailyReportControllerProvider);
+    notifyAppDataChanged(ref);
     await _scheduleFor(session.type);
   }
 
@@ -45,6 +47,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
           standingThresholdMinutes: settings.standingIntervalMinutes,
         );
     state = const AsyncData(null);
+    notifyAppDataChanged(ref);
     await _scheduleFor(null);
   }
 

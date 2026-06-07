@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/data/app_data_refresh.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../milestones/data/recovery_milestone_repository.dart';
 import '../../posture/data/posture_session_repository.dart';
@@ -38,6 +39,7 @@ final dailyReportControllerProvider =
 class DailyReportController extends AsyncNotifier<DailyReport> {
   @override
   Future<DailyReport> build() async {
+    ref.watch(appDataRefreshProvider);
     final rehabRepository = ref.watch(rehabRepositoryProvider);
     final postureRepository = ref.watch(postureSessionRepositoryProvider);
     final recoveryRepository = ref.watch(recoveryRepositoryProvider);

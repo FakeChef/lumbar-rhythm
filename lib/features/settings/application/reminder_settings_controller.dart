@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/data/app_data_refresh.dart';
 import '../../../core/notifications/notification_service.dart';
 import '../../posture/data/posture_session_repository.dart';
 import '../data/reminder_settings_repository.dart';
@@ -41,6 +42,7 @@ class ReminderSettingsController extends AsyncNotifier<ReminderSettings> {
     final next = update(current);
     state = AsyncData(next);
     await ref.read(reminderSettingsRepositoryProvider).save(next);
+    notifyAppDataChanged(ref);
     try {
       final openSession =
           await ref.read(postureSessionRepositoryProvider).loadOpenSession();

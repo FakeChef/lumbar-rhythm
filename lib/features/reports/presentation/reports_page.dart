@@ -1,19 +1,31 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/media/gallery_image_saver.dart';
 import '../../actions/domain/action_item.dart';
 import '../../posture/domain/posture_summary.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
 import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
 
-const reportDisclaimerText = '本报告仅用于个人康复记录回顾，不作为医疗诊断或治疗依据。';
+const reportDisclaimerText = '本报告仅用于个人记录回顾，不作为医疗依据。';
 
-class ReportsPage extends ConsumerWidget {
+class ReportsPage extends ConsumerStatefulWidget {
   const ReportsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReportsPage> createState() => _ReportsPageState();
+}
+
+class _ReportsPageState extends ConsumerState<ReportsPage> {
+  final _reportBoundaryKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
     final reportState = ref.watch(dailyReportControllerProvider);
     final period = ref.watch(reportPeriodProvider);
 
@@ -40,11 +52,6 @@ class ReportsPage extends ConsumerWidget {
                 ],
               ),
             ),
-            IconButton(
-              tooltip: '刷新报告',
-              icon: const Icon(Icons.refresh_outlined),
-              onPressed: () => ref.invalidate(dailyReportControllerProvider),
-            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -64,34 +71,94 @@ class ReportsPage extends ConsumerWidget {
           error: (error, stackTrace) => _ReportError(
             onRetry: () => ref.invalidate(dailyReportControllerProvider),
           ),
-          data: (report) => _ReportContent(report: report, period: period),
+          data: (report) => _ReportContent(
+            boundaryKey: _reportBoundaryKey,
+            report: report,
+            period: period,
+            onSaveToGallery: _saveReportToGallery,
+          ),
         ),
       ],
     );
   }
+
+  Future<void> _saveReportToGallery() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final bytes = await _captureReportPng();
+      final result = await ref.read(galleryImageSaverProvider).savePng(
+            bytes: bytes,
+            fileName: 'lumbar-rhythm-report-${DateTime.now().millisecondsSinceEpoch}.png',
+          );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result.saved ? '已保存到相册：Pictures/Lumbar Rhythm' : '保存失败，请稍后重试。',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('保存失败，请稍后重试。')),
+      );
+    }
+  }
+
+  Future<Uint8List> _captureReportPng() async {
+    final boundary = _reportBoundaryKey.currentContext?.findRenderObject()
+        as RenderRepaintBoundary?;
+    if (boundary == null) {
+      throw StateError('Report content is not ready.');
+    }
+    final image = await boundary.toImage(pixelRatio: 2);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) {
+      throw StateError('Failed to encode report image.');
+    }
+    return byteData.buffer.asUint8List();
+  }
 }
 
 class _ReportContent extends StatelessWidget {
-  const _ReportContent({required this.report, required this.period});
+  const _ReportContent({
+    required this.boundaryKey,
+    required this.report,
+    required this.period,
+    required this.onSaveToGallery,
+  });
 
+  final GlobalKey boundaryKey;
   final DailyReport report;
   final ReportPeriod period;
+  final VoidCallback onSaveToGallery;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _TodayReportSection(report: report),
+        RepaintBoundary(
+          key: boundaryKey,
+          child: ColoredBox(
+            color: Theme.of(context).colorScheme.surface,
+            child: Column(
+              children: [
+                _TodayReportSection(report: report),
+                const SizedBox(height: 12),
+                _SittingStandingReportSection(report: report),
+                const SizedBox(height: 12),
+                _RecentTrendSection(report: report),
+                const SizedBox(height: 12),
+                _RehabActionReportSection(report: report, period: period),
+                const SizedBox(height: 12),
+                const _ShortDisclaimerText(),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 12),
-        _SittingStandingReportSection(report: report),
-        const SizedBox(height: 12),
-        _RecentTrendSection(report: report),
-        const SizedBox(height: 12),
-        _RehabActionReportSection(report: report, period: period),
-        const SizedBox(height: 12),
-        const _ShareReportSection(),
-        const SizedBox(height: 12),
-        const _DisclaimerSection(),
+        _SaveReportSection(onSaveToGallery: onSaveToGallery),
       ],
     );
   }
@@ -261,37 +328,43 @@ class _RehabActionReportSection extends StatelessWidget {
   }
 }
 
-class _ShareReportSection extends StatelessWidget {
-  const _ShareReportSection();
+class _SaveReportSection extends StatelessWidget {
+  const _SaveReportSection({required this.onSaveToGallery});
+
+  final VoidCallback onSaveToGallery;
 
   @override
   Widget build(BuildContext context) {
     return _ReportSection(
-      icon: Icons.ios_share_outlined,
-      title: '分享报告入口',
-      subtitle: '分享前请确认内容适合给对方查看',
+      icon: Icons.photo_library_outlined,
+      title: '保存报告到相册',
+      subtitle: '保存为本地 PNG 图片，不上传数据',
       child: Align(
         alignment: Alignment.centerLeft,
-        child: OutlinedButton.icon(
-          onPressed: null,
-          icon: const Icon(Icons.share_outlined),
-          label: const Text('分享报告'),
+        child: FilledButton.icon(
+          onPressed: onSaveToGallery,
+          icon: const Icon(Icons.save_alt_outlined),
+          label: const Text('保存报告到相册'),
         ),
       ),
     );
   }
 }
 
-class _DisclaimerSection extends StatelessWidget {
-  const _DisclaimerSection();
+class _ShortDisclaimerText extends StatelessWidget {
+  const _ShortDisclaimerText();
 
   @override
   Widget build(BuildContext context) {
-    return const _ReportSection(
-      icon: Icons.info_outline,
-      title: '免责声明',
-      subtitle: '使用边界',
-      child: Text(reportDisclaimerText),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Text(
+        reportDisclaimerText,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+      ),
     );
   }
 }
