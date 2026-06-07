@@ -43,7 +43,7 @@ void main() {
       find.byKey(const ValueKey('today-rhythm-duration')),
     );
     expect(durationText.style?.fontSize, greaterThanOrEqualTo(88));
-    expect(find.text('当前姿势：我在坐'), findsOneWidget);
+    expect(find.text('当前状态：我在坐'), findsOneWidget);
     expect(find.text('节奏正常'), findsWidgets);
     final rhythmCard = tester.widget<Card>(
       find.byKey(const ValueKey('today-rhythm-card')),
@@ -102,43 +102,61 @@ void main() {
     await _pumpHome(
       tester,
       postureRepository: _FakePostureRepository(
-        openSession: _session(PostureType.standing, minutesAgo: 40),
+        openSession: _session(PostureType.sitting, minutesAgo: 50),
       ),
     );
     expect(find.text('已超过建议时间'), findsOneWidget);
     expect(find.textContaining('已超过建议时间'), findsWidgets);
   });
 
-  testWidgets('shows walking and resting states', (tester) async {
+  testWidgets('shows walking state without old resting main state',
+      (tester) async {
     await _pumpHome(
       tester,
       postureRepository: _FakePostureRepository(
         openSession: _session(PostureType.walking, minutesAgo: 60),
       ),
     );
-    expect(find.text('正在走动 / 休息中'), findsOneWidget);
+    expect(find.text('当前状态：我去走动了'), findsOneWidget);
     expect(find.text('正在走动'), findsOneWidget);
     expect(find.text('已超过建议时间'), findsNothing);
-
-    await _pumpHome(
-      tester,
-      postureRepository: _FakePostureRepository(
-        openSession: _session(PostureType.resting, minutesAgo: 60),
-      ),
-    );
-    expect(find.text('正在走动 / 休息中'), findsOneWidget);
-    expect(find.text('正在休息'), findsOneWidget);
-    expect(find.text('已超过建议时间'), findsNothing);
+    expect(find.text('正在休息'), findsNothing);
   });
 
-  testWidgets('shows only sitting and standing posture buttons',
+  testWidgets('shows only sitting and walking posture buttons',
       (tester) async {
     await _pumpHome(tester);
 
     expect(find.text('我在坐'), findsWidgets);
-    expect(find.text('我在站'), findsWidgets);
+    expect(find.text('我去走动了'), findsWidgets);
+    expect(find.text('我在站'), findsNothing);
     expect(find.text('我在走'), findsNothing);
     expect(find.text('我在休息'), findsNothing);
+    expect(find.byKey(const ValueKey('today-add-rehab-log')), findsOneWidget);
+  });
+
+  testWidgets('sitting schedules reminder and walking clears sitting reminder',
+      (tester) async {
+    final postureRepository = _FakePostureRepository();
+    final notificationService = _FakeNotification();
+    final rehabRepository = _FakeRehabRepository();
+    await _pumpHome(
+      tester,
+      postureRepository: postureRepository,
+      notificationService: notificationService,
+      rehabRepository: rehabRepository,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
+    await tester.pumpAndSettle();
+    expect(notificationService.scheduledPostures, contains(PostureType.sitting));
+    expect(postureRepository.openSession?.type, PostureType.sitting);
+
+    await tester.tap(find.byKey(const ValueKey('today-posture-walking')));
+    await tester.pumpAndSettle();
+    expect(notificationService.scheduledPostures, contains(PostureType.walking));
+    expect(postureRepository.openSession?.type, PostureType.walking);
+    expect(rehabRepository.addedLogs.single.source, 'posture_session');
   });
 
   testWidgets('hides recovery overview quick entries and threshold row',
@@ -166,22 +184,21 @@ void main() {
           ),
           PostureSession(
             id: 2,
-            type: PostureType.standing,
+            type: PostureType.walking,
             startedAt: DateTime(2026, 6, 6, 9),
             endedAt: DateTime(2026, 6, 6, 9, 35),
             durationSeconds: 2100,
-            exceededSeconds: 300,
           ),
         ],
       ),
     );
 
     await _scrollDown(tester);
-    expect(find.text('今日坐站摘要'), findsOneWidget);
+    expect(find.text('今日节奏'), findsOneWidget);
     expect(find.text('今日最长坐姿'), findsOneWidget);
-    expect(find.text('今日最长站立'), findsOneWidget);
-    expect(find.text('今日打断次数'), findsOneWidget);
-    expect(find.text('今日超时次数'), findsOneWidget);
+    expect(find.text('久坐中断'), findsOneWidget);
+    expect(find.text('超时次数'), findsOneWidget);
+    expect(find.text('今日康复记录数'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('today-posture-summary')),
@@ -194,8 +211,7 @@ void main() {
     expect(find.text('今日走动累计'), findsNothing);
     expect(find.text('今日休息累计'), findsNothing);
     expect(find.text('50 分'), findsWidgets);
-    expect(find.text('35 分'), findsWidgets);
-    expect(find.text('2 次'), findsWidgets);
+    expect(find.text('1 次'), findsWidgets);
   });
 
   testWidgets('today core content fits a common Android viewport',
@@ -218,13 +234,13 @@ void main() {
     expect(find.textContaining('今天是术后第'), findsOneWidget);
     expect(find.byKey(const ValueKey('today-rhythm-timer')), findsOneWidget);
     expect(find.text('我在坐'), findsWidgets);
-    expect(find.text('我在站'), findsWidgets);
+    expect(find.text('我去走动了'), findsWidgets);
     expect(find.text('今日最长坐姿'), findsOneWidget);
-    expect(find.text('今日最长站立'), findsOneWidget);
-    expect(find.text('今日打断次数'), findsOneWidget);
-    expect(find.text('今日超时次数'), findsOneWidget);
+    expect(find.text('久坐中断'), findsOneWidget);
+    expect(find.text('超时次数'), findsOneWidget);
+    expect(find.text('今日康复记录数'), findsOneWidget);
     expect(
-      tester.getBottomRight(find.text('今日超时次数')).dy,
+      tester.getBottomRight(find.text('今日康复记录数')).dy,
       lessThanOrEqualTo(800),
     );
   });
@@ -239,6 +255,8 @@ Future<void> _pumpHome(
   WidgetTester tester, {
   _FakePostureRepository? postureRepository,
   _FakeRecoveryRepository? recoveryRepository,
+  _FakeNotification? notificationService,
+  _FakeRehabRepository? rehabRepository,
   ValueChanged<int>? onOpenTab,
 }) async {
   await tester.binding.setSurfaceSize(const Size(420, 2200));
@@ -248,6 +266,8 @@ Future<void> _pumpHome(
     child: Scaffold(body: HomePage(onOpenTab: onOpenTab)),
     postureRepository: postureRepository,
     recoveryRepository: recoveryRepository,
+    notificationService: notificationService,
+    rehabRepository: rehabRepository,
   );
 }
 
@@ -256,6 +276,8 @@ Future<void> _pumpApp(
   required Widget child,
   _FakePostureRepository? postureRepository,
   _FakeRecoveryRepository? recoveryRepository,
+  _FakeNotification? notificationService,
+  _FakeRehabRepository? rehabRepository,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -266,8 +288,12 @@ Future<void> _pumpApp(
         reminderSettingsRepositoryProvider.overrideWithValue(
           _FakeReminderSettingsRepository(),
         ),
-        notificationServiceProvider.overrideWithValue(_FakeNotification()),
-        rehabRepositoryProvider.overrideWithValue(_FakeRehabRepository()),
+        notificationServiceProvider.overrideWithValue(
+          notificationService ?? _FakeNotification(),
+        ),
+        rehabRepositoryProvider.overrideWithValue(
+          rehabRepository ?? _FakeRehabRepository(),
+        ),
         recoveryRepositoryProvider.overrideWithValue(
           recoveryRepository ?? _FakeRecoveryRepository(),
         ),
@@ -357,6 +383,8 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 }
 
 class _FakeNotification extends NotificationService {
+  final scheduledPostures = <PostureType?>[];
+
   @override
   Future<void> scheduleNextReminders({
     required bool enabled,
@@ -364,10 +392,14 @@ class _FakeNotification extends NotificationService {
     required int standingIntervalMinutes,
     ReminderMode reminderMode = ReminderMode.soft,
     PostureType? currentPosture,
-  }) async {}
+  }) async {
+    scheduledPostures.add(currentPosture);
+  }
 }
 
 class _FakeRehabRepository implements RehabRepository {
+  final addedLogs = <RehabLog>[];
+
   @override
   Future<RehabLog> addLog({
     required RehabAction action,
@@ -382,31 +414,49 @@ class _FakeRehabRepository implements RehabRepository {
     String? note,
     DateTime? createdAt,
   }) async {
-    throw UnimplementedError();
+    final log = RehabLog(
+      id: addedLogs.length + 1,
+      actionId: action.id,
+      amount: amount,
+      amountValue: double.tryParse(amount.trim()) ?? 0,
+      unit: unit,
+      reaction: reaction,
+      source: source,
+      symptomTag: symptomTag,
+      symptomTags: symptomTags,
+      preSymptomScore: preSymptomScore,
+      postSymptomScore: postSymptomScore,
+      note: note,
+      createdAt: createdAt ?? DateTime.now(),
+    );
+    addedLogs.add(log);
+    return log;
   }
 
   @override
   Future<List<RehabAction>> loadActions() async => actionLibrary;
 
   @override
-  Future<List<RehabLog>> loadAllLogs() async => const [];
+  Future<List<RehabLog>> loadAllLogs() async => addedLogs;
 
   @override
   Future<List<RehabLog>> loadRecentDays({
     required int days,
     DateTime? now,
   }) async =>
-      const [];
+      addedLogs;
 
   @override
   Future<List<RehabLog>> loadLogsBetween({
     required DateTime start,
     required DateTime end,
   }) async =>
-      const [];
+      addedLogs.where((log) {
+        return !log.createdAt.isBefore(start) && log.createdAt.isBefore(end);
+      }).toList();
 
   @override
-  Future<List<RehabLog>> loadToday({DateTime? now}) async => const [];
+  Future<List<RehabLog>> loadToday({DateTime? now}) async => addedLogs;
 }
 
 class _FakeRecoveryRepository implements RecoveryRepository {

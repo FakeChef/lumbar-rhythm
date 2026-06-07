@@ -42,9 +42,9 @@ void main() {
       reminderMode: ReminderMode.alarm,
     ).android;
 
-    expect(soft?.channelId, 'lumbar_rhythm_soft_reminders_v1');
-    expect(vibration?.channelId, 'lumbar_rhythm_vibration_reminders_v1');
-    expect(alarm?.channelId, 'lumbar_rhythm_alarm_reminders_v1');
+    expect(soft?.channelId, 'lumbar_rhythm_soft_reminders_v2');
+    expect(vibration?.channelId, 'lumbar_rhythm_vibration_reminders_v2');
+    expect(alarm?.channelId, 'lumbar_rhythm_alarm_reminders_v2');
   });
 
   test('notification details are Android-only and include gentle actions', () {

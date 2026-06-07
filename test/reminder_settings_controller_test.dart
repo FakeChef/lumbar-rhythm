@@ -63,6 +63,8 @@ void main() {
         notificationService.scheduledSettings.last.sittingIntervalMinutes, 60);
     expect(notificationService.scheduledSettings.last.reminderMode,
         ReminderMode.vibration);
+    expect(notificationService.scheduledSettings.last.currentPosture,
+        PostureType.sitting);
     expect(container.read(appDataRefreshProvider), 3);
   });
 }
@@ -180,6 +182,7 @@ class _FakeNotificationService extends NotificationService {
         sittingIntervalMinutes: sittingIntervalMinutes,
         standingIntervalMinutes: standingIntervalMinutes,
         reminderMode: reminderMode,
+        currentPosture: currentPosture,
       ),
     );
   }
@@ -191,10 +194,12 @@ class _ScheduledSettings {
     required this.sittingIntervalMinutes,
     required this.standingIntervalMinutes,
     required this.reminderMode,
+    required this.currentPosture,
   });
 
   final bool enabled;
   final int sittingIntervalMinutes;
   final int standingIntervalMinutes;
   final ReminderMode reminderMode;
+  final PostureType? currentPosture;
 }

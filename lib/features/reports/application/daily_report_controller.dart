@@ -120,8 +120,8 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
           end: today.add(const Duration(days: 1)),
         ),
       ReportPeriod.month => (
-          start: DateTime(now.year, now.month),
-          end: DateTime(now.year, now.month + 1),
+          start: today.subtract(const Duration(days: 29)),
+          end: today.add(const Duration(days: 1)),
         ),
     };
   }

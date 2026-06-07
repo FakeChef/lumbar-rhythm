@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/data/app_data_refresh.dart';
 import '../../../core/notifications/notification_service.dart';
+import '../../actions/application/posture_reminder_rehab_link.dart';
+import '../../actions/data/rehab_repository.dart';
 import '../../reports/application/daily_report_controller.dart';
 import '../../settings/data/reminder_settings_repository.dart';
 import '../data/posture_session_repository.dart';
@@ -29,11 +31,22 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
 
   Future<void> switchTo(PostureType type) async {
     final settings = await ref.read(reminderSettingsRepositoryProvider).load();
+    final previous =
+        await ref.read(postureSessionRepositoryProvider).loadOpenSession();
     final session = await ref.read(postureSessionRepositoryProvider).switchTo(
           type: type,
           sittingThresholdMinutes: settings.sittingIntervalMinutes,
           standingThresholdMinutes: settings.standingIntervalMinutes,
         );
+    if (previous?.type == PostureType.sitting && type == PostureType.walking) {
+      try {
+        await PostureReminderRehabLink(ref.read(rehabRepositoryProvider))
+            .recordSittingBreak(createdAt: DateTime.now());
+      } catch (_) {
+        // The posture switch is the primary action; rehab link failures should
+        // not block reminder cancellation or the current session update.
+      }
+    }
     state = AsyncData(session);
     ref.invalidate(dailyReportControllerProvider);
     notifyAppDataChanged(ref);

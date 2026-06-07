@@ -11,7 +11,7 @@ import '../application/reminder_settings_controller.dart';
 import '../data/local_data_repository.dart';
 import '../domain/reminder_settings.dart';
 
-const _settingsDisclaimerText = '本报告仅用于个人康复记录回顾，不作为医疗诊断或治疗依据。';
+const _settingsDisclaimerText = '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
 
 final _settingsTestReminderFeedbackProvider =
     StateProvider.autoDispose<String?>((ref) => null);
@@ -49,8 +49,8 @@ class SettingsPage extends ConsumerWidget {
           children: [
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('手术日期、手术类型、当前目标'),
-              subtitle: const Text('这些内容只用于本地记录展示，可随时跳过或修改。'),
+              title: const Text('昵称与手术日期'),
+              subtitle: const Text('患者昵称可选，手术日期为必填，用于显示术后天数。'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _showRecoveryProfileDialog(context, ref),
             ),
@@ -107,6 +107,28 @@ class SettingsPage extends ConsumerWidget {
                       .showTestReminder(reminderMode: settings.reminderMode);
                   if (!context.mounted) return;
                   final message = sent ? '已发送测试提醒' : '通知没有发出，请在系统设置中允许通知权限';
+                  messenger.showSnackBar(SnackBar(content: Text(message)));
+                  ref
+                      .read(_settingsTestReminderFeedbackProvider.notifier)
+                      .state = message;
+                },
+                onOneMinuteTestPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  ref
+                      .read(_settingsTestReminderFeedbackProvider.notifier)
+                      .state = '正在安排 1 分钟测试久坐提醒';
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('正在安排 1 分钟测试久坐提醒')),
+                  );
+                  final scheduled = await ref
+                      .read(notificationServiceProvider)
+                      .scheduleOneMinuteSittingTestReminder(
+                        reminderMode: settings.reminderMode,
+                      );
+                  if (!context.mounted) return;
+                  final message = scheduled
+                      ? '已安排 1 分钟测试久坐提醒'
+                      : '测试久坐提醒没有安排成功，请检查系统通知设置';
                   messenger.showSnackBar(SnackBar(content: Text(message)));
                   ref
                       .read(_settingsTestReminderFeedbackProvider.notifier)
@@ -397,8 +419,6 @@ class SettingsPage extends ConsumerWidget {
 
     DateTime? surgeryDate = profile?.surgeryDate;
     var nickname = profile?.nickname ?? '';
-    var surgeryType = profile?.surgeryType ?? '';
-    var mainGoal = profile?.mainGoal ?? '';
 
     final saved = await showDialog<bool>(
       context: context,
@@ -420,7 +440,7 @@ class SettingsPage extends ConsumerWidget {
                             ? '未设置手术日期'
                             : _formatDate(surgeryDate!),
                       ),
-                      subtitle: const Text('可跳过，也可用于显示术后第几天。'),
+                      subtitle: const Text('必填，用于今日页显示术后第几天。'),
                       trailing: TextButton(
                         onPressed: () async {
                           final picked = await showDatePicker(
@@ -430,6 +450,7 @@ class SettingsPage extends ConsumerWidget {
                             lastDate: DateTime.now().add(
                               const Duration(days: 365),
                             ),
+                            locale: const Locale('zh', 'CN'),
                           );
                           if (picked != null) {
                             setDialogState(() => surgeryDate = picked);
@@ -437,10 +458,6 @@ class SettingsPage extends ConsumerWidget {
                         },
                         child: const Text('选择'),
                       ),
-                    ),
-                    TextButton(
-                      onPressed: () => setDialogState(() => surgeryDate = null),
-                      child: const Text('跳过手术日期'),
                     ),
                     TextFormField(
                       initialValue: nickname,
@@ -450,16 +467,16 @@ class SettingsPage extends ConsumerWidget {
                       ),
                       onChanged: (value) => nickname = value,
                     ),
-                    TextFormField(
-                      initialValue: surgeryType,
-                      decoration: const InputDecoration(labelText: '手术类型（可选）'),
-                      onChanged: (value) => surgeryType = value,
-                    ),
-                    TextFormField(
-                      initialValue: mainGoal,
-                      decoration: const InputDecoration(labelText: '当前目标（可选）'),
-                      onChanged: (value) => mainGoal = value,
-                    ),
+                    if (surgeryDate == null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '请先选择手术日期。',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -469,7 +486,9 @@ class SettingsPage extends ConsumerWidget {
                   child: const Text('取消'),
                 ),
                 FilledButton(
-                  onPressed: () => Navigator.of(context).pop(true),
+                  onPressed: surgeryDate == null
+                      ? null
+                      : () => Navigator.of(context).pop(true),
                   child: const Text('保存'),
                 ),
               ],
@@ -484,8 +503,8 @@ class SettingsPage extends ConsumerWidget {
     await repository.saveProfile(
       surgeryDate: surgeryDate,
       nickname: nickname,
-      surgeryType: surgeryType,
-      mainGoal: mainGoal,
+      surgeryType: profile?.surgeryType,
+      mainGoal: profile?.mainGoal,
     );
     ref.invalidate(dailyReportControllerProvider);
     ref.read(appDataRefreshProvider.notifier).state++;
@@ -570,7 +589,7 @@ class SettingsPage extends ConsumerWidget {
 }
 
 String _formatDate(DateTime date) {
-  return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  return '${date.year}年${date.month}月${date.day}日';
 }
 
 class _SettingsGroup extends StatelessWidget {
@@ -638,6 +657,7 @@ class _ReminderSettingsSection extends StatelessWidget {
     required this.onStandingIntervalChanged,
     required this.onReminderModeChanged,
     required this.onTestReminderPressed,
+    required this.onOneMinuteTestPressed,
   });
 
   final ReminderSettings settings;
@@ -649,6 +669,7 @@ class _ReminderSettingsSection extends StatelessWidget {
   final ValueChanged<int?> onStandingIntervalChanged;
   final ValueChanged<ReminderMode?> onReminderModeChanged;
   final VoidCallback onTestReminderPressed;
+  final VoidCallback onOneMinuteTestPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -704,13 +725,26 @@ class _ReminderSettingsSection extends StatelessWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.notifications_outlined),
-          title: const Text('发送测试提醒'),
+          title: const Text('立即发送测试提醒'),
           subtitle: Text('立即发送一条${settings.reminderMode.label}，用于确认提醒是否可用。'),
           trailing: IconButton(
-            tooltip: '发送测试提醒',
+            tooltip: '立即发送测试提醒',
             icon: const Icon(Icons.send_outlined),
             onPressed: settings.remindersEnabled && !testReminderSending
                 ? onTestReminderPressed
+                : null,
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.schedule_outlined),
+          title: const Text('1 分钟测试久坐提醒'),
+          subtitle: Text('1 分钟后发送一条${settings.reminderMode.label}，用于确认定时调度。'),
+          trailing: IconButton(
+            tooltip: '1 分钟测试久坐提醒',
+            icon: const Icon(Icons.timer_outlined),
+            onPressed: settings.remindersEnabled && !testReminderSending
+                ? onOneMinuteTestPressed
                 : null,
           ),
         ),
