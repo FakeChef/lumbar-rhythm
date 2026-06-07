@@ -25,7 +25,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
       padding: const EdgeInsets.all(20),
       children: [
         const _RehabHeaderCard(),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
         pageState.when(
           loading: () => const Card(
             child: ListTile(
@@ -47,7 +47,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _TodayRehabLogListCard(data: data),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
               Builder(
                 builder: (context) {
                   final categories = _availableCategories(data.actions);
@@ -156,15 +156,15 @@ class _RehabHeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: const Color(0xFFEAF6FD),
+      color: Theme.of(context).colorScheme.secondaryContainer,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(
+            Icon(
               Icons.self_improvement_outlined,
-              color: Color(0xFF2E86C1),
+              color: Theme.of(context).colorScheme.primary,
               size: 34,
             ),
             const SizedBox(width: 14),
@@ -175,7 +175,7 @@ class _RehabHeaderCard extends StatelessWidget {
                   Text(
                     '今日康复记录',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: const Color(0xFF1F2937),
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w800,
                         ),
                   ),
@@ -276,7 +276,7 @@ class _TodayRehabLogListCard extends StatelessWidget {
                   ),
                   trailing: Text(_formatTime(log.createdAt)),
                 ),
-                if (log != data.todayLogs.last) const Divider(height: 1),
+                if (log != data.todayLogs.last) const SizedBox(height: 8),
               ],
           ],
         ),
@@ -325,7 +325,7 @@ class _RehabActionPickerCard extends StatelessWidget {
               ],
               onChanged: onCategoryChanged,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             KeyedSubtree(
               key: const ValueKey('rehab-action-dropdown'),
               child: DropdownButtonFormField<int>(
@@ -342,7 +342,7 @@ class _RehabActionPickerCard extends StatelessWidget {
                 onChanged: onActionChanged,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: actions.isEmpty ? null : onRecord,
               icon: const Icon(Icons.add_task_outlined),
@@ -606,7 +606,7 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                 const Card(
                   color: Color(0xFFFFF1F0),
                   child: Padding(
-                    padding: EdgeInsets.all(12),
+                    padding: EdgeInsets.all(16),
                     child: Text('建议减少量、暂停观察，必要时咨询医生或康复师。'),
                   ),
                 ),

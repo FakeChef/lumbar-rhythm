@@ -44,7 +44,7 @@ class SettingsPage extends ConsumerWidget {
           '管理康复资料、坐站提醒、本地数据和隐私说明',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         _SettingsGroup(
           icon: Icons.person_outline,
           title: '我的康复资料',
@@ -58,7 +58,7 @@ class SettingsPage extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
         settingsState.when(
           loading: () => const _SettingsLoading(),
           error: (error, stackTrace) => _SettingsError(
@@ -134,7 +134,7 @@ class SettingsPage extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
         _SettingsGroup(
           icon: Icons.folder_open_outlined,
           title: '数据管理',
@@ -182,8 +182,11 @@ class SettingsPage extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               '备份安全提示：备份文件包含你的本地康复记录，请妥善保存。App 不会自动上传备份文件。',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -198,7 +201,7 @@ class SettingsPage extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
         _SettingsGroup(
           icon: Icons.privacy_tip_outlined,
           title: '隐私与免责声明',
@@ -559,7 +562,6 @@ class _SettingsGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(

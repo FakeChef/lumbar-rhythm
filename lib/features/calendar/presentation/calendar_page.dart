@@ -92,7 +92,7 @@ class CalendarPage extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         state.when(
           loading: () => const Card(
             child: ListTile(
@@ -119,7 +119,7 @@ class CalendarPage extends ConsumerWidget {
                 onNextMonth: () => _moveMonth(ref, 1),
               ),
               if (!data.hasAnyRecord) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
                 const _CalendarEmptyHint(),
               ],
             ],
@@ -403,7 +403,10 @@ class _CalendarEmptyHint extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            const Icon(Icons.edit_calendar_outlined, color: Color(0xFF3498DB)),
+            Icon(
+              Icons.edit_calendar_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -421,11 +424,11 @@ class _CalendarEmptyHint extends StatelessWidget {
 Color calendarStatusDotColor(CalendarStatusDot dot) {
   return switch (dot) {
     CalendarStatusDot.none => const Color(0xFFCBD5E1),
-    CalendarStatusDot.rehabAction => const Color(0xFF3498DB),
-    CalendarStatusDot.postureStable => const Color(0xFF27AE60),
-    CalendarStatusDot.postureExceeded => const Color(0xFFF2994A),
-    CalendarStatusDot.muchWorse => const Color(0xFFEB5757),
-    CalendarStatusDot.milestoneCompleted => const Color(0xFF9B51E0),
+    CalendarStatusDot.rehabAction => const Color(0xFF6B9AC4),
+    CalendarStatusDot.postureStable => const Color(0xFF6F9B82),
+    CalendarStatusDot.postureExceeded => const Color(0xFFC39A61),
+    CalendarStatusDot.muchWorse => const Color(0xFFC77972),
+    CalendarStatusDot.milestoneCompleted => const Color(0xFF8D82AD),
   };
 }
 
