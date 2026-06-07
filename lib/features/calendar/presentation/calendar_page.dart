@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/data/app_data_refresh.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../actions/domain/action_item.dart';
 import '../../calendar/domain/calendar_day_status.dart';
@@ -19,6 +20,7 @@ final calendarMonthProvider = StateProvider<DateTime>((ref) {
 });
 
 final _calendarDataProvider = FutureProvider<_CalendarData>((ref) async {
+  ref.watch(appDataRefreshProvider);
   final monthStart = ref.watch(calendarMonthProvider);
   final monthEnd = DateTime(monthStart.year, monthStart.month + 1);
   final rehabRepository = ref.watch(rehabRepositoryProvider);

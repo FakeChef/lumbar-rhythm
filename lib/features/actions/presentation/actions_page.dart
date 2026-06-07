@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/data/app_data_refresh.dart';
 import '../../reports/application/daily_report_controller.dart';
 import '../data/rehab_repository.dart';
 import '../domain/action_item.dart';
@@ -90,6 +91,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
         );
     ref.invalidate(_rehabPageDataProvider);
     ref.invalidate(dailyReportControllerProvider);
+    ref.read(appDataRefreshProvider.notifier).state++;
 
     if (!context.mounted) {
       return;
@@ -163,6 +165,7 @@ class _RehabHeaderCard extends StatelessWidget {
 }
 
 final _rehabPageDataProvider = FutureProvider<_RehabPageData>((ref) async {
+  ref.watch(appDataRefreshProvider);
   final repository = ref.watch(rehabRepositoryProvider);
   final actions = await repository.loadActions();
   final todayLogs = await repository.loadToday();

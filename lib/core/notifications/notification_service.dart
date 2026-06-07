@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
@@ -47,7 +49,7 @@ class NotificationService {
   static const _sittingReminderId = 101;
   static const _standingReminderId = 102;
   static const _testReminderId = 199;
-  static const _channelId = 'lumbar_rhythm_reminders';
+  static const _channelId = 'lumbar_rhythm_reminders_v2';
   static const _channelName = '姿势提醒';
   static const _channelDescription = '久坐久站和休息节奏提醒';
 
@@ -181,18 +183,7 @@ class NotificationService {
     );
   }
 
-  NotificationDetails _notificationDetails() {
-    const android = AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: _channelDescription,
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
-    );
-    const ios = DarwinNotificationDetails();
-
-    return const NotificationDetails(android: android, iOS: ios);
-  }
+  NotificationDetails _notificationDetails() => buildReminderNotificationDetails();
 
   void _ensureTimeZonesInitialized() {
     if (_timeZonesInitialized) {
@@ -202,4 +193,20 @@ class NotificationService {
     tz_data.initializeTimeZones();
     _timeZonesInitialized = true;
   }
+}
+
+NotificationDetails buildReminderNotificationDetails() {
+  final android = AndroidNotificationDetails(
+    NotificationService._channelId,
+    NotificationService._channelName,
+    channelDescription: NotificationService._channelDescription,
+    importance: Importance.high,
+    priority: Priority.high,
+    playSound: true,
+    enableVibration: true,
+    vibrationPattern: Int64List.fromList([0, 450, 180, 450]),
+  );
+  const ios = DarwinNotificationDetails(presentSound: true);
+
+  return NotificationDetails(android: android, iOS: ios);
 }

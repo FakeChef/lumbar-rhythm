@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/data/app_data_refresh.dart';
 import '../../../core/notifications/notification_service.dart';
 import '../../posture/application/posture_session_controller.dart';
 import '../../records/application/activity_records_controller.dart';
 import '../../recovery/data/recovery_repository.dart';
 import '../../reports/application/daily_report_controller.dart';
-import '../../reports/presentation/reports_page.dart';
 import '../application/reminder_settings_controller.dart';
 import '../data/local_data_repository.dart';
 import '../domain/reminder_settings.dart';
+
+const _settingsDisclaimerText = '本报告仅用于个人康复记录回顾，不作为医疗诊断或治疗依据。';
 
 final _settingsTestReminderFeedbackProvider =
     StateProvider.autoDispose<String?>((ref) => null);
@@ -184,7 +186,7 @@ class SettingsPage extends ConsumerWidget {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.info_outline),
               title: const Text('免责声明'),
-              subtitle: const Text(reportDisclaimerText),
+              subtitle: const Text(_settingsDisclaimerText),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _showDisclaimerDialog(context),
             ),
@@ -253,6 +255,7 @@ class SettingsPage extends ConsumerWidget {
     ref.invalidate(reminderSettingsControllerProvider);
     ref.invalidate(activityRecordsControllerProvider);
     ref.invalidate(dailyReportControllerProvider);
+    ref.read(appDataRefreshProvider.notifier).state++;
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -351,6 +354,7 @@ class SettingsPage extends ConsumerWidget {
       mainGoal: mainGoal,
     );
     ref.invalidate(dailyReportControllerProvider);
+    ref.read(appDataRefreshProvider.notifier).state++;
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('已保存康复资料')),
@@ -383,7 +387,7 @@ class SettingsPage extends ConsumerWidget {
           title: '免责声明',
           items: [
             '本 App 是康复提醒和自我记录工具。',
-            reportDisclaimerText,
+            _settingsDisclaimerText,
             '不替代医生、康复师或其他专业人员的线下指导。',
             '出现大小便异常、鞍区麻木、进行性下肢无力、术后伤口红肿发热渗液、疼痛突然明显加重等情况，应及时就医。',
           ],
@@ -404,6 +408,7 @@ class SettingsPage extends ConsumerWidget {
             '部分 Android 手机会为了省电延迟本地提醒，这是系统行为。',
             '本 App 不使用精确闹钟权限，也不依赖云端推送。',
             '如果提醒没有弹出，可先用设置页的测试提醒确认权限状态。',
+            '如果测试提醒没有声音，可能需要卸载重装 App，或进入系统通知频道设置打开声音和震动。',
           ],
         );
       },

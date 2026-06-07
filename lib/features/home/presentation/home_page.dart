@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/data/app_data_refresh.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../actions/domain/action_item.dart';
 import '../../posture/application/posture_session_controller.dart';
@@ -15,6 +16,7 @@ import '../../settings/domain/reminder_settings.dart';
 
 final _homeTodayOverviewProvider = FutureProvider<_HomeTodayOverview>(
   (ref) async {
+    ref.watch(appDataRefreshProvider);
     final now = DateTime.now();
     final rehabRepository = ref.watch(rehabRepositoryProvider);
     final actions = await rehabRepository.loadActions();
