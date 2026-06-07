@@ -6,7 +6,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/media/gallery_image_saver.dart';
-import '../../actions/domain/action_item.dart';
 import '../../posture/domain/posture_summary.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
 import '../application/daily_report_controller.dart';
@@ -54,7 +53,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         SegmentedButton<ReportPeriod>(
           segments: [
             for (final value in ReportPeriod.values)
@@ -65,7 +64,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             ref.read(reportPeriodProvider.notifier).state = values.single;
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         reportState.when(
           loading: () => const _ReportLoading(),
           error: (error, stackTrace) => _ReportError(
@@ -145,19 +144,19 @@ class _ReportContent extends StatelessWidget {
             child: Column(
               children: [
                 _TodayReportSection(report: report),
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
                 _SittingStandingReportSection(report: report),
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
                 _RecentTrendSection(report: report),
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
                 _RehabActionReportSection(report: report, period: period),
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
                 const _ShortDisclaimerText(),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
         _SaveReportSection(onSaveToGallery: onSaveToGallery),
       ],
     );
@@ -192,14 +191,6 @@ class _TodayReportSection extends StatelessWidget {
             label: '今日站立累计',
             value: _formatDuration(posture.standingTotal),
           ),
-          _MetricRow(
-            label: '今日走动累计',
-            value: _formatDuration(posture.walkingTotal),
-          ),
-          _MetricRow(
-            label: '已完成康复节点',
-            value: '${report.completedMilestoneCount} 个',
-          ),
           const SizedBox(height: 8),
           _DailyNotePanel(report: report),
         ],
@@ -224,30 +215,13 @@ class _SittingStandingReportSection extends StatelessWidget {
       child: Column(
         children: [
           _MetricRow(
-              label: '坐姿累计', value: _formatDuration(posture.sittingTotal)),
-          _MetricRow(
-            label: '站立累计',
-            value: _formatDuration(posture.standingTotal),
-          ),
-          _MetricRow(
-              label: '走动累计', value: _formatDuration(posture.walkingTotal)),
-          _MetricRow(
-              label: '休息累计', value: _formatDuration(posture.restingTotal)),
-          _MetricRow(
-            label: '最长连续坐姿',
-            value: _formatDuration(posture.longestSitting),
-          ),
-          _MetricRow(
-            label: '最长连续站立',
-            value: _formatDuration(posture.longestStanding),
+            label: '坐姿 / 站立累计',
+            value:
+                '${_formatDuration(posture.sittingTotal)} / ${_formatDuration(posture.standingTotal)}',
           ),
           _MetricRow(
             label: '久坐超过提醒间隔',
             value: '${posture.sittingOverThresholdCount} 次',
-          ),
-          _MetricRow(
-            label: '久站超过提醒间隔',
-            value: '${posture.standingOverThresholdCount} 次',
           ),
           _MetricRow(label: '姿势切换次数', value: '${posture.switchCount} 次'),
         ],
@@ -308,7 +282,6 @@ class _RehabActionReportSection extends StatelessWidget {
     final summary = report.rehabSummary;
     final topAction = summary.mostCompletedAction()?.name ?? '暂无';
     final walkingTotal = summary.totalAmountForActionNamed('平地步行');
-    final muchWorseCount = summary.reactionCount(RehabReaction.muchWorse);
 
     return _ReportSection(
       icon: Icons.self_improvement_outlined,
@@ -319,9 +292,6 @@ class _RehabActionReportSection extends StatelessWidget {
           _MetricRow(label: '动作记录总数', value: '${summary.totalCount} 次'),
           _MetricRow(label: '步行总量', value: '${_formatNumber(walkingTotal)} 分钟'),
           _MetricRow(label: '记录最多的动作', value: topAction),
-          _MetricRow(label: '明显加重记录', value: '$muchWorseCount 次'),
-          _MetricRow(
-              label: '需要继续观察的动作', value: summary.observationActionNames()),
         ],
       ),
     );
@@ -441,7 +411,6 @@ class _ReportSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -508,29 +477,29 @@ class _MetricRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Expanded(child: Text(label)),
-              Flexible(
-                child: Text(
-                  value,
-                  textAlign: TextAlign.end,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-              ),
-            ],
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
           ),
-        ),
+          const SizedBox(width: 16),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -831,10 +800,10 @@ class _PostureTrendBin {
 }
 
 abstract final class _ReportColors {
-  static const primary = Color(0xFF2F6B5F);
-  static const walking = Color(0xFFE09F3E);
-  static const highlight = Color(0xFF5B7CFA);
-  static const resting = Color(0xFF7A6FF0);
+  static const primary = Color(0xFF6B9AC4);
+  static const walking = Color(0xFF6F9B82);
+  static const highlight = Color(0xFFC39A61);
+  static const resting = Color(0xFF8D82AD);
 }
 
 List<_PostureTrendBin> _postureTrendBinsFor(DailyReport report) {

@@ -43,7 +43,7 @@ void main() {
     final rhythmCard = tester.widget<Card>(
       find.byKey(const ValueKey('today-rhythm-card')),
     );
-    expect(rhythmCard.color, const Color(0xFF2E86C1).withValues(alpha: 0.12));
+    expect(rhythmCard.color, const Color(0xFF6B9AC4).withValues(alpha: 0.12));
     expect(find.textContaining('距离久坐提醒还有'), findsOneWidget);
   });
 

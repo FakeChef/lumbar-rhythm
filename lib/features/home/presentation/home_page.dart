@@ -94,7 +94,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         _refresh(ref);
       },
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         children: [
           settingsState.when(
             loading: () => const _HomeLoadingCard(title: '正在读取提醒设置'),
@@ -169,7 +169,7 @@ class _TodayPostureSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -348,7 +348,7 @@ class _PostureStatusCard extends StatelessWidget {
         key: const ValueKey('today-rhythm-card'),
         color: statusColor.withValues(alpha: 0.12),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -437,11 +437,11 @@ class _PostureStatusCard extends StatelessWidget {
 
   Color _timerToneColor(SittingStandingTimerTone tone) {
     return switch (tone) {
-      SittingStandingTimerTone.blue => const Color(0xFF2E86C1),
-      SittingStandingTimerTone.yellow => const Color(0xFFF2C94C),
-      SittingStandingTimerTone.orange => const Color(0xFFF2994A),
-      SittingStandingTimerTone.redOrange => const Color(0xFFEB5757),
-      SittingStandingTimerTone.green => const Color(0xFF27AE60),
+      SittingStandingTimerTone.blue => const Color(0xFF6B9AC4),
+      SittingStandingTimerTone.yellow => const Color(0xFFC9AD65),
+      SittingStandingTimerTone.orange => const Color(0xFFC58C62),
+      SittingStandingTimerTone.redOrange => const Color(0xFFC77972),
+      SittingStandingTimerTone.green => const Color(0xFF6F9B82),
     };
   }
 
@@ -528,7 +528,7 @@ class _PostureSwitchSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(16),
         child: _PostureActionGrid(
           activeType: activeType,
           selectedType: selectedType,
@@ -607,7 +607,7 @@ class _PostureActionButton extends StatelessWidget {
           color: isActive || isSelected ? color : scheme.outlineVariant,
           width: isActive ? 2 : 1,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }
@@ -623,10 +623,10 @@ class _PostureActionButton extends StatelessWidget {
 
   Color _buttonColor(BuildContext context, PostureType type) {
     return switch (type) {
-      PostureType.sitting => const Color(0xFF2E86C1),
-      PostureType.standing => const Color(0xFF2E86C1),
-      PostureType.walking => const Color(0xFF27AE60),
-      PostureType.resting => const Color(0xFF27AE60),
+      PostureType.sitting => Theme.of(context).colorScheme.primary,
+      PostureType.standing => Theme.of(context).colorScheme.primary,
+      PostureType.walking => Theme.of(context).colorScheme.tertiary,
+      PostureType.resting => Theme.of(context).colorScheme.tertiary,
     };
   }
 }

@@ -239,6 +239,7 @@ void main() {
 
     await tester.scrollUntilVisible(find.text('数据管理'), 300.0);
     expect(find.text('数据管理'), findsOneWidget);
+    expect(find.text('本地备份'), findsOneWidget);
 
     await tester.scrollUntilVisible(find.text('隐私与免责声明'), 300.0);
     expect(find.text('隐私与免责声明'), findsOneWidget);
