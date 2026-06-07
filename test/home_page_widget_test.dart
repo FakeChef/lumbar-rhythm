@@ -10,10 +10,25 @@ import 'package:lumbar_rhythm/features/posture/domain/posture_session.dart';
 import 'package:lumbar_rhythm/features/recovery/data/recovery_repository.dart';
 import 'package:lumbar_rhythm/features/recovery/domain/daily_recovery_note.dart';
 import 'package:lumbar_rhythm/features/recovery/domain/recovery_profile.dart';
+import 'package:lumbar_rhythm/features/shell/presentation/main_shell.dart';
 import 'package:lumbar_rhythm/features/settings/data/reminder_settings_repository.dart';
 import 'package:lumbar_rhythm/features/settings/domain/reminder_settings.dart';
 
 void main() {
+  testWidgets('bottom navigation order is today rehab calendar reports settings',
+      (tester) async {
+    await _pumpApp(tester, child: const MainShell());
+
+    final navigationBar = tester.widget<NavigationBar>(
+      find.byType(NavigationBar),
+    );
+    final labels = navigationBar.destinations
+        .map((destination) => (destination as NavigationDestination).label)
+        .toList();
+
+    expect(labels, ['今日', '康复', '日历', '报告', '设置']);
+  });
+
   testWidgets('shows sitting timer normal state', (tester) async {
     await _pumpHome(
       tester,
@@ -23,6 +38,7 @@ void main() {
     );
 
     expect(find.text('坐站节奏'), findsOneWidget);
+    expect(find.byKey(const ValueKey('today-rhythm-timer')), findsOneWidget);
     expect(find.text('当前姿势：我在坐'), findsOneWidget);
     expect(find.text('节奏正常'), findsWidgets);
     final rhythmCard = tester.widget<Card>(
@@ -73,14 +89,24 @@ void main() {
     expect(find.text('已超过建议时间'), findsNothing);
   });
 
-  testWidgets('shows four posture switch buttons', (tester) async {
+  testWidgets('shows only sitting and standing posture buttons', (tester) async {
     await _pumpHome(tester);
 
     expect(find.text('切换当前姿势'), findsOneWidget);
     expect(find.text('我在坐'), findsWidgets);
     expect(find.text('我在站'), findsWidgets);
-    expect(find.text('我在走'), findsWidgets);
-    expect(find.text('我在休息'), findsWidgets);
+    expect(find.text('我在走'), findsNothing);
+    expect(find.text('我在休息'), findsNothing);
+  });
+
+  testWidgets('hides recovery overview quick entries and threshold row',
+      (tester) async {
+    await _pumpHome(tester);
+
+    expect(find.text('今日恢复概览'), findsNothing);
+    expect(find.text('快捷入口'), findsNothing);
+    expect(find.text('久坐阈值'), findsNothing);
+    expect(find.text('久站阈值'), findsNothing);
   });
 
   testWidgets('today posture summary uses posture sessions', (tester) async {
@@ -110,43 +136,17 @@ void main() {
 
     await _scrollDown(tester);
     expect(find.text('今日坐站摘要'), findsOneWidget);
-    expect(find.text('今日坐姿累计'), findsOneWidget);
-    expect(find.text('今日站立累计'), findsOneWidget);
-    expect(find.text('今日走动累计'), findsOneWidget);
-    expect(find.text('今日休息累计'), findsOneWidget);
-    expect(find.text('最长连续坐姿'), findsOneWidget);
-    expect(find.text('最长连续站立'), findsOneWidget);
-    expect(find.text('姿势打断次数'), findsOneWidget);
-    expect(find.text('久坐/久站超时'), findsOneWidget);
+    expect(find.text('今日最长坐姿'), findsOneWidget);
+    expect(find.text('今日最长站立'), findsOneWidget);
+    expect(find.text('今日打断次数'), findsOneWidget);
+    expect(find.text('今日超时次数'), findsOneWidget);
+    expect(find.text('今日坐姿累计'), findsNothing);
+    expect(find.text('今日站立累计'), findsNothing);
+    expect(find.text('今日走动累计'), findsNothing);
+    expect(find.text('今日休息累计'), findsNothing);
     expect(find.text('50 分'), findsWidgets);
     expect(find.text('35 分'), findsWidgets);
     expect(find.text('2 次'), findsWidgets);
-  });
-
-  testWidgets('daily note dialog saves quickly', (tester) async {
-    final recoveryRepository = _FakeRecoveryRepository();
-    await _pumpHome(tester, recoveryRepository: recoveryRepository);
-
-    await tester.tap(find.text('记录今日状态').last);
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('保存'));
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(recoveryRepository.savedNoteCount, 1);
-  });
-
-  testWidgets('quick entries call tab callbacks', (tester) async {
-    final openedTabs = <int>[];
-    await _pumpHome(tester, onOpenTab: openedTabs.add);
-
-    await tester.tap(find.text('记录康复动作').last);
-    await tester.pump();
-    await tester.tap(find.text('查看报告').last);
-    await tester.pump();
-    await tester.tap(find.text('设置提醒').last);
-    await tester.pump();
-
-    expect(openedTabs, [2, 3, 4]);
   });
 }
 
@@ -163,6 +163,20 @@ Future<void> _pumpHome(
 }) async {
   await tester.binding.setSurfaceSize(const Size(420, 2200));
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  await _pumpApp(
+    tester,
+    child: Scaffold(body: HomePage(onOpenTab: onOpenTab)),
+    postureRepository: postureRepository,
+    recoveryRepository: recoveryRepository,
+  );
+}
+
+Future<void> _pumpApp(
+  WidgetTester tester, {
+  required Widget child,
+  _FakePostureRepository? postureRepository,
+  _FakeRecoveryRepository? recoveryRepository,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -178,7 +192,7 @@ Future<void> _pumpHome(
           recoveryRepository ?? _FakeRecoveryRepository(),
         ),
       ],
-      child: MaterialApp(home: Scaffold(body: HomePage(onOpenTab: onOpenTab))),
+      child: MaterialApp(home: child),
     ),
   );
   await tester.pump(const Duration(seconds: 1));

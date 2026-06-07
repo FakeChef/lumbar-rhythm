@@ -20,8 +20,8 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final pages = [
       HomePage(onOpenTab: _selectTab),
-      const CalendarPage(),
       const ActionsPage(),
+      const CalendarPage(),
       const ReportsPage(),
       const SettingsPage(),
     ];
@@ -38,14 +38,14 @@ class _MainShellState extends State<MainShell> {
             label: '今日',
           ),
           NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
-            label: '日历',
-          ),
-          NavigationDestination(
             icon: Icon(Icons.self_improvement_outlined),
             selectedIcon: Icon(Icons.self_improvement),
             label: '康复',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
+            label: '日历',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
