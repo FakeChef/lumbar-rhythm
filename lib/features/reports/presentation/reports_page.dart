@@ -10,8 +10,18 @@ import '../../posture/domain/posture_summary.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
 import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
+import 'follow_up_report_image.dart';
 
 const reportDisclaimerText = '本报告仅用于个人记录回顾，不作为医疗依据。';
+
+typedef FollowUpReportPngCapture = Future<Uint8List> Function(
+  BuildContext context,
+  DailyReport report,
+);
+
+final followUpReportPngCaptureProvider = Provider<FollowUpReportPngCapture>(
+  (ref) => captureFollowUpReportPng,
+);
 
 class ReportsPage extends ConsumerStatefulWidget {
   const ReportsPage({super.key});
@@ -21,8 +31,6 @@ class ReportsPage extends ConsumerStatefulWidget {
 }
 
 class _ReportsPageState extends ConsumerState<ReportsPage> {
-  final _reportBoundaryKey = GlobalKey();
-
   @override
   Widget build(BuildContext context) {
     final reportState = ref.watch(dailyReportControllerProvider);
@@ -71,64 +79,97 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             onRetry: () => ref.invalidate(dailyReportControllerProvider),
           ),
           data: (report) => _ReportContent(
-            boundaryKey: _reportBoundaryKey,
             report: report,
             period: period,
-            onSaveToGallery: _saveReportToGallery,
+            onSaveToGallery: () => _saveReportToGallery(report),
           ),
         ),
       ],
     );
   }
 
-  Future<void> _saveReportToGallery() async {
+  Future<void> _saveReportToGallery(DailyReport report) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final bytes = await _captureReportPng();
+      final bytes =
+          await ref.read(followUpReportPngCaptureProvider)(context, report);
       final result = await ref.read(galleryImageSaverProvider).savePng(
             bytes: bytes,
-            fileName: 'lumbar-rhythm-report-${DateTime.now().millisecondsSinceEpoch}.png',
+            fileName:
+                'lumbar-rhythm-follow-up-${DateTime.now().millisecondsSinceEpoch}.png',
           );
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            result.saved ? '已保存到相册：Pictures/Lumbar Rhythm' : '保存失败，请稍后重试。',
+            result.saved
+                ? '已保存复诊报告到相册：Pictures/Lumbar Rhythm'
+                : '保存复诊报告失败，请稍后重试。',
           ),
         ),
       );
     } catch (_) {
       if (!mounted) return;
       messenger.showSnackBar(
-        const SnackBar(content: Text('保存失败，请稍后重试。')),
+        const SnackBar(content: Text('保存复诊报告失败，请稍后重试。')),
       );
     }
   }
 
-  Future<Uint8List> _captureReportPng() async {
-    final boundary = _reportBoundaryKey.currentContext?.findRenderObject()
-        as RenderRepaintBoundary?;
+}
+
+Future<Uint8List> captureFollowUpReportPng(
+  BuildContext context,
+  DailyReport report,
+) async {
+  final boundaryKey = GlobalKey();
+  final overlay = Overlay.of(context);
+  final generatedAt = DateTime.now();
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (context) {
+      return Positioned.fill(
+        child: Material(
+          color: Colors.white,
+          child: SingleChildScrollView(
+            child: RepaintBoundary(
+              key: boundaryKey,
+              child: FollowUpReportImage(
+                report: report,
+                generatedAt: generatedAt,
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+  overlay.insert(entry);
+  try {
+    await WidgetsBinding.instance.endOfFrame;
+    final boundary =
+        boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
     if (boundary == null) {
-      throw StateError('Report content is not ready.');
+      throw StateError('Follow-up report image is not ready.');
     }
-    final image = await boundary.toImage(pixelRatio: 2);
+    final image = await boundary.toImage(pixelRatio: 3);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     if (byteData == null) {
-      throw StateError('Failed to encode report image.');
+      throw StateError('Failed to encode follow-up report image.');
     }
     return byteData.buffer.asUint8List();
+  } finally {
+    entry.remove();
   }
 }
 
 class _ReportContent extends StatelessWidget {
   const _ReportContent({
-    required this.boundaryKey,
     required this.report,
     required this.period,
     required this.onSaveToGallery,
   });
 
-  final GlobalKey boundaryKey;
   final DailyReport report;
   final ReportPeriod period;
   final VoidCallback onSaveToGallery;
@@ -137,23 +178,20 @@ class _ReportContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        RepaintBoundary(
-          key: boundaryKey,
-          child: ColoredBox(
-            color: Theme.of(context).colorScheme.surface,
-            child: Column(
-              children: [
-                _TodayReportSection(report: report),
-                const SizedBox(height: 20),
-                _SittingStandingReportSection(report: report),
-                const SizedBox(height: 20),
-                _RecentTrendSection(report: report),
-                const SizedBox(height: 20),
-                _RehabActionReportSection(report: report, period: period),
-                const SizedBox(height: 20),
-                const _ShortDisclaimerText(),
-              ],
-            ),
+        ColoredBox(
+          color: Theme.of(context).colorScheme.surface,
+          child: Column(
+            children: [
+              _TodayReportSection(report: report),
+              const SizedBox(height: 20),
+              _SittingStandingReportSection(report: report),
+              const SizedBox(height: 20),
+              _RecentTrendSection(report: report),
+              const SizedBox(height: 20),
+              _RehabActionReportSection(report: report, period: period),
+              const SizedBox(height: 20),
+              const _ShortDisclaimerText(),
+            ],
           ),
         ),
         const SizedBox(height: 20),
@@ -307,14 +345,14 @@ class _SaveReportSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return _ReportSection(
       icon: Icons.photo_library_outlined,
-      title: '保存报告到相册',
+      title: '保存复诊报告到相册',
       subtitle: '保存为本地 PNG 图片，不上传数据',
       child: Align(
         alignment: Alignment.centerLeft,
         child: FilledButton.icon(
           onPressed: onSaveToGallery,
           icon: const Icon(Icons.save_alt_outlined),
-          label: const Text('保存报告到相册'),
+          label: const Text('保存复诊报告到相册'),
         ),
       ),
     );
