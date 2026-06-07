@@ -199,7 +199,7 @@ class _RehabPageData {
         return action.name;
       }
     }
-    return '';
+    return legacyActionNameForId(actionId) ?? '未知活动';
   }
 }
 
@@ -276,7 +276,7 @@ class _RehabActionPickerCard extends StatelessWidget {
                 for (final action in actions)
                   DropdownMenuItem(
                     value: action.id,
-                    child: Text(action.name),
+                    child: Text('${action.name} · ${action.category ?? '活动'}'),
                   ),
               ],
               onChanged: onChanged,
@@ -339,35 +339,42 @@ class _QuickAmount {
 
 List<_QuickAmount> _quickAmountsFor(RehabAction action) {
   return switch (action.name) {
-    '步行' => const [
+    '平地步行' || '分段步行' || '连续步行耐力' => const [
         _QuickAmount('3', '分钟'),
         _QuickAmount('5', '分钟'),
         _QuickAmount('10', '分钟'),
       ],
-    '室内慢走' => const [
+    '腹式呼吸' ||
+    '骨盆中立训练' ||
+    '固定自行车' ||
+    '轻松游泳/水中步行' ||
+    '站立姿势重置' => const [
         _QuickAmount('3', '分钟'),
         _QuickAmount('5', '分钟'),
-        _QuickAmount('10', '分钟'),
       ],
-    '腹式呼吸' => const [
-        _QuickAmount('5', '次'),
-        _QuickAmount('10', '次'),
+    '久坐中断' || '久站中断' => const [
+        _QuickAmount('1', '次/天'),
+        _QuickAmount('3', '次/天'),
       ],
-    '坐站转换' => const [
-        _QuickAmount('5', '次'),
-        _QuickAmount('10', '次'),
-      ],
-    '仰卧放松' => const [
-        _QuickAmount('5', '分钟'),
-        _QuickAmount('10', '分钟'),
-      ],
-    'Bird-dog 简化版' => const [
-        _QuickAmount('1', '组'),
-        _QuickAmount('2', '组'),
-      ],
-    '侧桥简化版' => const [
+    '腹部轻收缩' ||
+    '改良侧桥' ||
+    '腘绳肌轻拉伸' ||
+    '髋屈肌拉伸' => const [
         _QuickAmount('10', '秒'),
         _QuickAmount('20', '秒'),
+      ],
+    '踝泵' ||
+    '足跟滑动' ||
+    '仰卧交替抬腿' ||
+    '臀桥' ||
+    '蚌式开合' ||
+    '站姿髋外展' ||
+    '站姿提踵' ||
+    '扶桌半蹲' ||
+    'Bird-dog 简化版' ||
+    '弹力带抗旋转' => const [
+        _QuickAmount('5', '次'),
+        _QuickAmount('10', '次'),
       ],
     _ => [
         _QuickAmount('1', action.defaultUnit),

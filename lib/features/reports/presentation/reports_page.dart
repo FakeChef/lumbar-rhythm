@@ -307,7 +307,7 @@ class _RehabActionReportSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final summary = report.rehabSummary;
     final topAction = summary.mostCompletedAction()?.name ?? '暂无';
-    final walkingTotal = summary.totalAmountForActionNamed('步行');
+    final walkingTotal = summary.totalAmountForActionNamed('平地步行');
     final muchWorseCount = summary.reactionCount(RehabReaction.muchWorse);
 
     return _ReportSection(

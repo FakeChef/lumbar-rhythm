@@ -29,7 +29,7 @@ class PostureReminderRehabLink {
   final RehabRepository _repository;
 
   Future<RehabLog> recordShortWalk({DateTime? createdAt}) async {
-    final action = await _findActionByName('步行');
+    final action = await _findFirstActionByNames(['平地步行', '步行']);
     return _repository.addLog(
       action: action,
       amount: '3',
@@ -42,6 +42,7 @@ class PostureReminderRehabLink {
 
   Future<RehabLog> recordRelaxationRest({DateTime? createdAt}) async {
     final action = await _findFirstActionByNames([
+      '站立姿势重置',
       '仰卧放松',
       '一脚垫高放松站姿',
     ]);
@@ -53,10 +54,6 @@ class PostureReminderRehabLink {
       source: 'posture_reminder',
       createdAt: createdAt,
     );
-  }
-
-  Future<RehabAction> _findActionByName(String name) async {
-    return _findFirstActionByNames([name]);
   }
 
   Future<RehabAction> _findFirstActionByNames(List<String> names) async {

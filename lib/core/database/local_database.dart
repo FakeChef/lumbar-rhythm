@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import '../../features/actions/domain/action_item.dart';
+
 final localDatabaseProvider = Provider<LocalDatabase>((ref) {
   final database = LocalDatabase();
   ref.onDispose(database.close);
@@ -624,8 +626,8 @@ class LocalDatabase {
   }
 
   Future<void> _ensureRehabActionsSeeded(DatabaseExecutor db) async {
-    final rows = await db.query('rehab_actions', limit: 1);
-    if (rows.isEmpty) {
+    final rows = await db.query('rehab_actions');
+    if (rows.length < actionLibrary.length) {
       await _seedRehabActions(db);
     }
   }
@@ -642,28 +644,15 @@ class LocalDatabase {
   }
 
   Future<void> _seedRehabActions(DatabaseExecutor db) async {
-    const actions = [
-      (1, '步行', '分钟', '按自己舒适节奏记录一次步行。'),
-      (2, '室内慢走', '分钟', '在室内缓慢走动，留意身体反应。'),
-      (3, '腹式呼吸', '次', '选择舒适姿势，放慢呼吸并记录完成量。'),
-      (4, '肩胛后收', '次', '轻轻向后收肩胛，避免憋气和猛发力。'),
-      (5, '坐站转换', '次', '从坐到站缓慢转换，记录完成次数。'),
-      (6, '仰卧放松', '分钟', '仰卧或舒适躺姿休息，记录持续时间。'),
-      (7, '腹横肌轻收紧', '次', '轻柔收紧核心，保持自然呼吸。'),
-      (8, 'Bird-dog 简化版', '次', '降低幅度，按可接受的范围记录。'),
-      (9, '侧桥简化版', '次', '采用简化支撑方式，记录完成次数。'),
-      (10, '一脚垫高放松站姿', '分钟', '一脚轻放垫高物，观察站姿放松感。'),
-    ];
-
-    for (final action in actions) {
+    for (final action in actionLibrary) {
       await db.insert(
         'rehab_actions',
         {
-          'id': action.$1,
-          'name': action.$2,
-          'default_unit': action.$3,
-          'guidance': action.$4,
-          'sort_order': action.$1,
+          'id': action.id,
+          'name': action.name,
+          'default_unit': action.defaultUnit,
+          'guidance': action.guidance,
+          'sort_order': action.id,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
