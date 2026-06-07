@@ -5,11 +5,18 @@ import '../../reports/application/daily_report_controller.dart';
 import '../data/rehab_repository.dart';
 import '../domain/action_item.dart';
 
-class ActionsPage extends ConsumerWidget {
+class ActionsPage extends ConsumerStatefulWidget {
   const ActionsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ActionsPage> createState() => _ActionsPageState();
+}
+
+class _ActionsPageState extends ConsumerState<ActionsPage> {
+  int? _selectedActionId;
+
+  @override
+  Widget build(BuildContext context) {
     final pageState = ref.watch(_rehabPageDataProvider);
 
     return ListView(
@@ -35,18 +42,23 @@ class ActionsPage extends ConsumerWidget {
             ),
           ),
           data: (data) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _TodayRehabSummaryCard(data: data),
+              _TodayRehabLogListCard(data: data),
               const SizedBox(height: 12),
-              for (final action in data.actions) ...[
-                _RehabActionCard(
-                  action: action,
-                  todayProgress: data.todayProgressFor(action),
-                  latestReaction: data.majorityReactionFor(action),
-                  onRecord: () => _showLogDialog(context, ref, action),
-                ),
-                const SizedBox(height: 12),
-              ],
+              _RehabActionPickerCard(
+                actions: data.actions,
+                selectedActionId: _selectedActionId ?? data.actions.firstOrNull?.id,
+                onChanged: (value) => setState(() => _selectedActionId = value),
+                onRecord: () {
+                  final selectedAction = data.actionById(
+                    _selectedActionId ?? data.actions.firstOrNull?.id,
+                  );
+                  if (selectedAction != null) {
+                    _showLogDialog(context, ref, selectedAction);
+                  }
+                },
+              ),
             ],
           ),
         ),
@@ -121,7 +133,7 @@ class _RehabHeaderCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '康复记录',
+                    '今日康复记录',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           color: const Color(0xFF1F2937),
                           fontWeight: FontWeight.w800,
@@ -166,45 +178,16 @@ class _RehabPageData {
   final List<RehabAction> actions;
   final List<RehabLog> todayLogs;
 
-  _ActionProgress todayProgressFor(RehabAction action) {
-    final amount = todayLogs
-        .where((log) => log.actionId == action.id)
-        .map((log) => log.amountValue)
-        .fold(0.0, (sum, value) => sum + value);
-    return _ActionProgress(
-      amount: amount,
-      target: _defaultTargetFor(action),
-      unit: action.defaultUnit,
-    );
-  }
-
-  RehabReaction? majorityReactionFor(RehabAction action) {
-    final logs = todayLogs.where((log) => log.actionId == action.id).toList();
-    if (logs.isEmpty) {
+  RehabAction? actionById(int? actionId) {
+    if (actionId == null) {
       return null;
     }
-    final counts = {
-      for (final reaction in RehabReaction.values)
-        reaction: logs.where((log) => log.reaction == reaction).length,
-    };
-    return counts.entries.reduce((left, right) {
-      return left.value >= right.value ? left : right;
-    }).key;
-  }
-
-  int get totalCount => todayLogs.length;
-
-  double get walkingMinutes {
-    return todayLogs
-        .where((log) => actionNameFor(log.actionId) == '步行')
-        .map((log) => log.amountValue)
-        .fold(0.0, (sum, value) => sum + value);
-  }
-
-  int get muchWorseCount {
-    return todayLogs
-        .where((log) => log.reaction == RehabReaction.muchWorse)
-        .length;
+    for (final action in actions) {
+      if (action.id == actionId) {
+        return action;
+      }
+    }
+    return null;
   }
 
   String actionNameFor(int actionId) {
@@ -217,103 +200,8 @@ class _RehabPageData {
   }
 }
 
-class _ActionProgress {
-  const _ActionProgress({
-    required this.amount,
-    required this.target,
-    required this.unit,
-  });
-
-  final double amount;
-  final double target;
-  final String unit;
-
-  String get label {
-    return '今日 ${_formatNumber(amount)} / ${_formatNumber(target)} $unit';
-  }
-}
-
-class _RehabActionCard extends StatelessWidget {
-  const _RehabActionCard({
-    required this.action,
-    required this.todayProgress,
-    required this.latestReaction,
-    required this.onRecord,
-  });
-
-  final RehabAction action;
-  final _ActionProgress todayProgress;
-  final RehabReaction? latestReaction;
-  final VoidCallback onRecord;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(_actionIcon(action), color: const Color(0xFF2E86C1)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        action.name,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        todayProgress.label,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: const Color(0xFF2E86C1),
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                FilledButton.icon(
-                  onPressed: onRecord,
-                  icon: const Icon(Icons.add_task_outlined),
-                  label: const Text('记录'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '默认目标：${_formatNumber(todayProgress.target)} ${todayProgress.unit}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            if (latestReaction != null) ...[
-              const SizedBox(height: 8),
-              _ReactionBadge(reaction: latestReaction!),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              action.guidance,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF6B7280),
-                    height: 1.35,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TodayRehabSummaryCard extends StatelessWidget {
-  const _TodayRehabSummaryCard({required this.data});
+class _TodayRehabLogListCard extends StatelessWidget {
+  const _TodayRehabLogListCard({required this.data});
 
   final _RehabPageData data;
 
@@ -326,39 +214,29 @@ class _TodayRehabSummaryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '今日完成',
+              '今天已记录',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _SummaryMetric(
-                    label: '动作记录',
-                    value: '${data.totalCount}次',
-                    color: const Color(0xFF27AE60),
+            if (data.todayLogs.isEmpty)
+              Text(
+                '今天还没有康复记录，记录一点也有价值。',
+                style: Theme.of(context).textTheme.bodyMedium,
+              )
+            else
+              for (final log in data.todayLogs) ...[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(data.actionNameFor(log.actionId)),
+                  subtitle: Text(
+                    '${_formatNumber(log.amountValue)} ${log.unit} · ${log.reaction.label}',
                   ),
+                  trailing: Text(_formatTime(log.createdAt)),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _SummaryMetric(
-                    label: '步行',
-                    value: '${_formatNumber(data.walkingMinutes)}分钟',
-                    color: const Color(0xFF27AE60),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _SummaryMetric(
-                    label: '明显加重',
-                    value: '${data.muchWorseCount}次',
-                    color: const Color(0xFFEB5757),
-                  ),
-                ),
+                if (log != data.todayLogs.last) const Divider(height: 1),
               ],
-            ),
           ],
         ),
       ),
@@ -366,36 +244,45 @@ class _TodayRehabSummaryCard extends StatelessWidget {
   }
 }
 
-class _SummaryMetric extends StatelessWidget {
-  const _SummaryMetric({
-    required this.label,
-    required this.value,
-    required this.color,
+class _RehabActionPickerCard extends StatelessWidget {
+  const _RehabActionPickerCard({
+    required this.actions,
+    required this.selectedActionId,
+    required this.onChanged,
+    required this.onRecord,
   });
 
-  final String label;
-  final String value;
-  final Color color;
+  final List<RehabAction> actions;
+  final int? selectedActionId;
+  final ValueChanged<int?> onChanged;
+  final VoidCallback onRecord;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
+    return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        padding: const EdgeInsets.all(18),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w800,
+            DropdownButtonFormField<int>(
+              key: const ValueKey('rehab-action-dropdown'),
+              initialValue: selectedActionId,
+              decoration: const InputDecoration(labelText: '选择康复动作'),
+              items: [
+                for (final action in actions)
+                  DropdownMenuItem(
+                    value: action.id,
+                    child: Text(action.name),
                   ),
+              ],
+              onChanged: onChanged,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: actions.isEmpty ? null : onRecord,
+              icon: const Icon(Icons.add_task_outlined),
+              label: const Text('记录一次'),
             ),
           ],
         ),
@@ -404,54 +291,10 @@ class _SummaryMetric extends StatelessWidget {
   }
 }
 
-class _ReactionBadge extends StatelessWidget {
-  const _ReactionBadge({required this.reaction});
-
-  final RehabReaction reaction;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _reactionColor(reaction);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(_reactionIcon(reaction), size: 16, color: color),
-            const SizedBox(width: 6),
-            Text(
-              '做后记录多数为：${reaction.label}',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
+extension _FirstOrNull<T> on List<T> {
+  T? get firstOrNull {
+    return isEmpty ? null : first;
   }
-}
-
-IconData _actionIcon(RehabAction action) {
-  return switch (action.name) {
-    '步行' => Icons.directions_walk_outlined,
-    '室内慢走' => Icons.directions_walk_outlined,
-    '腹式呼吸' => Icons.air_outlined,
-    '肩胛后收' => Icons.accessibility_new_outlined,
-    '坐站转换' => Icons.sync_alt_outlined,
-    '仰卧放松' => Icons.hotel_outlined,
-    '腹横肌轻收紧' => Icons.center_focus_strong_outlined,
-    'Bird-dog 简化版' => Icons.fitness_center_outlined,
-    '侧桥简化版' => Icons.straighten_outlined,
-    '一脚垫高放松站姿' => Icons.accessibility_new_outlined,
-    _ => Icons.self_improvement_outlined,
-  };
 }
 
 Color _reactionColor(RehabReaction reaction) {
@@ -472,24 +315,14 @@ IconData _reactionIcon(RehabReaction reaction) {
   };
 }
 
-double _defaultTargetFor(RehabAction action) {
-  return switch (action.name) {
-    '步行' => 20,
-    '室内慢走' => 10,
-    '腹式呼吸' => 10,
-    '肩胛后收' => 10,
-    '坐站转换' => 10,
-    '仰卧放松' => 10,
-    '腹横肌轻收紧' => 10,
-    'Bird-dog 简化版' => 2,
-    '侧桥简化版' => 20,
-    '一脚垫高放松站姿' => 5,
-    _ => 1,
-  };
-}
-
 String _formatNumber(double value) {
   return value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(1);
+}
+
+String _formatTime(DateTime time) {
+  final hour = time.hour.toString().padLeft(2, '0');
+  final minute = time.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
 }
 
 class _QuickAmount {
