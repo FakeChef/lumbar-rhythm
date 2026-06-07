@@ -10,7 +10,7 @@ void main() {
   final day = DateTime(2026, 6, 7);
   const actions = actionLibrary;
 
-  test('shows a status dot when a daily recovery note exists', () {
+  test('daily recovery note counts as a record without adding status dot', () {
     final status = CalendarDayStatus(
       date: day,
       actions: actions,
@@ -20,7 +20,8 @@ void main() {
     );
 
     expect(status.hasDailyStatus, isTrue);
-    expect(status.dots, contains(CalendarStatusDot.dailyStatus));
+    expect(status.hasAnyRecord, isTrue);
+    expect(status.dots, isEmpty);
   });
 
   test('shows a blue rehab dot when rehab logs exist', () {

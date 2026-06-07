@@ -7,7 +7,6 @@ import '../../recovery/domain/recovery_profile.dart';
 
 enum CalendarStatusDot {
   none,
-  dailyStatus,
   rehabAction,
   postureStable,
   postureExceeded,
@@ -99,21 +98,17 @@ class CalendarDayStatus {
     }
     if (hasPostureExceeded) {
       values.add(CalendarStatusDot.postureExceeded);
-    } else if (hasPostureStable || hasDailyStatus) {
-      values.add(
-        hasPostureStable
-            ? CalendarStatusDot.postureStable
-            : CalendarStatusDot.dailyStatus,
-      );
-    }
-    if (hasCompletedMilestone) {
-      values.add(CalendarStatusDot.milestoneCompleted);
+    } else if (hasPostureStable) {
+      values.add(CalendarStatusDot.postureStable);
     }
     if (hasRehabAction) {
       values.add(CalendarStatusDot.rehabAction);
     }
+    if (hasCompletedMilestone) {
+      values.add(CalendarStatusDot.milestoneCompleted);
+    }
     if (values.isEmpty) {
-      return [CalendarStatusDot.none];
+      return hasAnyRecord ? const [] : [CalendarStatusDot.none];
     }
     return values.take(3).toList();
   }

@@ -13,10 +13,14 @@ import '../../recovery/domain/daily_recovery_note.dart';
 import '../../recovery/domain/recovery_profile.dart';
 import 'calendar_day_detail_page.dart';
 
-final _calendarDataProvider = FutureProvider<_CalendarData>((ref) async {
+final calendarMonthProvider = StateProvider<DateTime>((ref) {
   final now = DateTime.now();
-  final monthStart = DateTime(now.year, now.month);
-  final monthEnd = DateTime(now.year, now.month + 1);
+  return DateTime(now.year, now.month);
+});
+
+final _calendarDataProvider = FutureProvider<_CalendarData>((ref) async {
+  final monthStart = ref.watch(calendarMonthProvider);
+  final monthEnd = DateTime(monthStart.year, monthStart.month + 1);
   final rehabRepository = ref.watch(rehabRepositoryProvider);
   final postureRepository = ref.watch(postureSessionRepositoryProvider);
   final recoveryRepository = ref.watch(recoveryRepositoryProvider);
@@ -67,11 +71,21 @@ class CalendarPage extends ConsumerWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                '日历',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '康复日历',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '看看这个月的恢复轨迹',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
               ),
             ),
             IconButton(
@@ -99,17 +113,44 @@ class CalendarPage extends ConsumerWidget {
               ),
             ),
           ),
-          data: (data) => _MonthGrid(data: data),
+          data: (data) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _MonthGrid(
+                data: data,
+                onPreviousMonth: () => _moveMonth(ref, -1),
+                onNextMonth: () => _moveMonth(ref, 1),
+              ),
+              if (!data.hasAnyRecord) ...[
+                const SizedBox(height: 12),
+                const _CalendarEmptyHint(),
+              ],
+            ],
+          ),
         ),
       ],
     );
   }
+
+  void _moveMonth(WidgetRef ref, int delta) {
+    final current = ref.read(calendarMonthProvider);
+    ref.read(calendarMonthProvider.notifier).state = DateTime(
+          current.year,
+          current.month + delta,
+        );
+  }
 }
 
 class _MonthGrid extends StatelessWidget {
-  const _MonthGrid({required this.data});
+  const _MonthGrid({
+    required this.data,
+    required this.onPreviousMonth,
+    required this.onNextMonth,
+  });
 
   final _CalendarData data;
+  final VoidCallback onPreviousMonth;
+  final VoidCallback onNextMonth;
 
   @override
   Widget build(BuildContext context) {
@@ -123,11 +164,35 @@ class _MonthGrid extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              '${data.month.year} 年 ${data.month.month} 月',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+            Row(
+              children: [
+                const Icon(Icons.calendar_month_outlined),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${data.month.year} 年 ${data.month.month} 月',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                   ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: onPreviousMonth,
+                  icon: const Icon(Icons.chevron_left),
+                  label: const Text('上个月'),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: onNextMonth,
+                  icon: const Icon(Icons.chevron_right),
+                  label: const Text('下个月'),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             Row(
@@ -165,6 +230,7 @@ class _MonthGrid extends StatelessWidget {
                 final isToday = _isSameDay(date, DateTime.now());
 
                 return InkWell(
+                  key: ValueKey('calendar-day-${date.year}-${date.month}-$day'),
                   borderRadius: BorderRadius.circular(8),
                   onTap: () {
                     Navigator.of(context).push(
@@ -225,8 +291,9 @@ class _StatusDots extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 1.5),
             child: DecoratedBox(
+              key: ValueKey('calendar-day-dot-${dot.name}'),
               decoration: BoxDecoration(
-                color: _dotColor(context, dot),
+                color: calendarStatusDotColor(dot),
                 shape: BoxShape.circle,
               ),
               child: const SizedBox.square(dimension: 6),
@@ -246,10 +313,10 @@ class _CalendarLegend extends StatelessWidget {
       spacing: 12,
       runSpacing: 8,
       children: [
-        _LegendItem(dot: CalendarStatusDot.rehabAction, label: '康复动作'),
-        _LegendItem(dot: CalendarStatusDot.postureStable, label: '坐站记录'),
-        _LegendItem(dot: CalendarStatusDot.postureExceeded, label: '超阈值'),
-        _LegendItem(dot: CalendarStatusDot.muchWorse, label: '明显加重'),
+        _LegendItem(dot: CalendarStatusDot.rehabAction, label: '有康复记录'),
+        _LegendItem(dot: CalendarStatusDot.postureStable, label: '坐站节奏稳定'),
+        _LegendItem(dot: CalendarStatusDot.postureExceeded, label: '有超时'),
+        _LegendItem(dot: CalendarStatusDot.muchWorse, label: '有明显加重'),
         _LegendItem(dot: CalendarStatusDot.milestoneCompleted, label: '完成节点'),
       ],
     );
@@ -268,8 +335,9 @@ class _LegendItem extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         DecoratedBox(
+          key: ValueKey('calendar-legend-dot-${dot.name}'),
           decoration: BoxDecoration(
-            color: _dotColor(context, dot),
+            color: calendarStatusDotColor(dot),
             shape: BoxShape.circle,
           ),
           child: const SizedBox.square(dimension: 8),
@@ -300,6 +368,13 @@ class _CalendarData {
   final RecoveryProfile? profile;
   final List<RecoveryMilestone> milestones;
 
+  bool get hasAnyRecord {
+    return logs.isNotEmpty ||
+        sessions.isNotEmpty ||
+        notes.isNotEmpty ||
+        milestones.isNotEmpty;
+  }
+
   CalendarDayStatus statusFor(DateTime date) {
     return CalendarDayStatus(
       date: date,
@@ -321,16 +396,39 @@ class _CalendarData {
   }
 }
 
-Color _dotColor(BuildContext context, CalendarStatusDot dot) {
-  final scheme = Theme.of(context).colorScheme;
+class _CalendarEmptyHint extends StatelessWidget {
+  const _CalendarEmptyHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(Icons.edit_calendar_outlined, color: Color(0xFF3498DB)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '这个月还没有记录。记录一点也有价值。',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Color calendarStatusDotColor(CalendarStatusDot dot) {
   return switch (dot) {
-    CalendarStatusDot.none => scheme.outlineVariant,
-    CalendarStatusDot.dailyStatus => Colors.green,
-    CalendarStatusDot.rehabAction => Colors.blue,
-    CalendarStatusDot.postureStable => Colors.green,
-    CalendarStatusDot.postureExceeded => Colors.orange,
-    CalendarStatusDot.muchWorse => Colors.red,
-    CalendarStatusDot.milestoneCompleted => Colors.purple,
+    CalendarStatusDot.none => const Color(0xFFCBD5E1),
+    CalendarStatusDot.rehabAction => const Color(0xFF3498DB),
+    CalendarStatusDot.postureStable => const Color(0xFF27AE60),
+    CalendarStatusDot.postureExceeded => const Color(0xFFF2994A),
+    CalendarStatusDot.muchWorse => const Color(0xFFEB5757),
+    CalendarStatusDot.milestoneCompleted => const Color(0xFF9B51E0),
   };
 }
 

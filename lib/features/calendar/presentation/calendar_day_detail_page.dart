@@ -14,38 +14,45 @@ class CalendarDayDetailPage extends StatelessWidget {
     final postSurgeryDay = status.postSurgeryDay;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('当天记录')),
+      appBar: AppBar(title: const Text('当天详情')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           Text(
-            '${status.date.year} 年 ${status.date.month} 月 ${status.date.day} 日',
+            _dateTitle(status.date, postSurgeryDay),
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            postSurgeryDay == null ? '可在设置中添加手术日期' : '术后第 $postSurgeryDay 天',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
           const SizedBox(height: 16),
-          _DailyStatusCard(note: status.note),
-          const SizedBox(height: 12),
-          _PostureCard(status: status),
-          const SizedBox(height: 12),
-          _RehabLogsCard(status: status),
-          if (status.hasMuchWorse) ...[
+          if (!status.hasAnyRecord)
+            const _DayEmptyState()
+          else ...[
+            _DailyStatusCard(note: status.note),
             const SizedBox(height: 12),
-            _GentleNoticeCard(),
-          ],
-          if (status.completedMilestones.isNotEmpty) ...[
+            _PostureCard(status: status),
             const SizedBox(height: 12),
-            _MilestoneCard(status: status),
+            _RehabLogsCard(status: status),
+            if (status.hasMuchWorse) ...[
+              const SizedBox(height: 12),
+              const _GentleNoticeCard(),
+            ],
+            if (status.completedMilestones.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _MilestoneCard(status: status),
+            ],
           ],
         ],
       ),
     );
+  }
+
+  String _dateTitle(DateTime date, int? postSurgeryDay) {
+    final dayText = '${date.year}年${date.month}月${date.day}日';
+    if (postSurgeryDay == null) {
+      return dayText;
+    }
+    return '$dayText · 术后第$postSurgeryDay天';
   }
 }
 
@@ -163,14 +170,46 @@ class _RehabLogsCard extends StatelessWidget {
 }
 
 class _GentleNoticeCard extends StatelessWidget {
+  const _GentleNoticeCard();
+
   @override
   Widget build(BuildContext context) {
     return Card(
-      color:
-          Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.5),
+      color: const Color(0xFFFFF1F0),
       child: const Padding(
         padding: EdgeInsets.all(16),
-        child: Text('建议减少量、暂停观察，必要时咨询医生或康复师。'),
+        child: Text('这一天有明显加重记录，可作为后续观察参考。必要时请咨询医生或康复师。'),
+      ),
+    );
+  }
+}
+
+class _DayEmptyState extends StatelessWidget {
+  const _DayEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.event_note_outlined,
+              size: 42,
+              color: Color(0xFF3498DB),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '这一天还没有记录。',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            const Text('记录一点也有价值。'),
+          ],
+        ),
       ),
     );
   }
