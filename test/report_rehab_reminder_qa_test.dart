@@ -369,6 +369,10 @@ void main() {
     expect(find.text('踝泵'), findsOneWidget);
     expect(find.text('平地步行'), findsNothing);
 
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('rehab-action-dropdown')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('rehab-action-dropdown')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('腹式呼吸').last);
@@ -392,7 +396,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('建议减少量、暂停观察，必要时咨询医生或康复师。'), findsOneWidget);
 
-    await tester.tap(find.text('保存'));
+    final saveButton = find.byKey(const ValueKey('rehab-log-save-button'));
+    await tester.ensureVisible(saveButton);
+    await tester.pumpAndSettle();
+    await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
     expect(repository.addedLogs, hasLength(1));
