@@ -204,19 +204,26 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('康复记录'), findsWidgets);
+    expect(find.text('今日康复记录'), findsOneWidget);
     expect(find.text('记录今天做了什么、做了多少、做后感觉如何。'), findsOneWidget);
-    expect(find.text('今日 0 / 20 分钟'), findsOneWidget);
-    expect(find.byIcon(Icons.directions_walk_outlined), findsWidgets);
+    expect(find.byKey(const ValueKey('rehab-action-dropdown')), findsOneWidget);
+    expect(find.text('今天还没有康复记录，记录一点也有价值。'), findsOneWidget);
+    expect(find.text('默认目标：20 分钟'), findsNothing);
+    expect(find.text('室内慢走'), findsNothing);
 
-    await tester.tap(find.text('记录').first);
+    await tester.tap(find.byKey(const ValueKey('rehab-action-dropdown')));
     await tester.pumpAndSettle();
-    expect(find.text('记录 步行'), findsOneWidget);
-    expect(find.text('3分钟'), findsOneWidget);
-    expect(find.text('5分钟'), findsWidgets);
-    expect(find.text('10分钟'), findsWidgets);
+    await tester.tap(find.text('腹式呼吸').last);
+    await tester.pumpAndSettle();
+    expect(find.text('腹式呼吸'), findsOneWidget);
 
-    await tester.tap(find.text('3分钟'));
+    await tester.tap(find.text('记录一次'));
+    await tester.pumpAndSettle();
+    expect(find.text('记录 腹式呼吸'), findsOneWidget);
+    expect(find.text('5次'), findsOneWidget);
+    expect(find.text('10次'), findsOneWidget);
+
+    await tester.tap(find.text('5次'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('腰酸'));
     await tester.pumpAndSettle();
@@ -230,12 +237,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.addedLogs, hasLength(1));
-    expect(repository.addedLogs.single.actionId, actionLibrary.first.id);
-    expect(repository.addedLogs.single.amountValue, 3);
-    expect(repository.addedLogs.single.unit, '分钟');
+    expect(repository.addedLogs.single.actionId, actionLibrary[2].id);
+    expect(repository.addedLogs.single.amountValue, 5);
+    expect(repository.addedLogs.single.unit, '次');
     expect(repository.addedLogs.single.reaction, RehabReaction.muchWorse);
     expect(repository.addedLogs.single.symptomTags, containsAll(['腰酸', '腿麻']));
     expect(repository.addedLogs.single.source, 'manual');
+    expect(find.text('腹式呼吸'), findsWidgets);
+    expect(find.text('5 次 · 明显加重'), findsOneWidget);
   });
 
   test('posture reminder link creates posture_reminder rehab logs', () async {
