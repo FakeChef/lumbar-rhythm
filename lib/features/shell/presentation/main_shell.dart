@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_icons.dart';
 import '../../actions/presentation/actions_page.dart';
 import '../../calendar/presentation/calendar_page.dart';
 import '../../home/presentation/home_page.dart';
@@ -33,28 +34,28 @@ class _MainShellState extends State<MainShell> {
         onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+            icon: Icon(AppIcons.today),
+            selectedIcon: Icon(AppIcons.todaySelected),
             label: '今日',
           ),
           NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
+            icon: Icon(AppIcons.calendar),
+            selectedIcon: Icon(AppIcons.calendarSelected),
             label: '日历',
           ),
           NavigationDestination(
-            icon: Icon(Icons.self_improvement_outlined),
-            selectedIcon: Icon(Icons.self_improvement),
+            icon: Icon(AppIcons.rehab),
+            selectedIcon: Icon(AppIcons.rehabSelected),
             label: '康复',
           ),
           NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
+            icon: Icon(AppIcons.reports),
+            selectedIcon: Icon(AppIcons.reportsSelected),
             label: '报告',
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
+            icon: Icon(AppIcons.settings),
+            selectedIcon: Icon(AppIcons.settingsSelected),
             label: '设置',
           ),
         ],
