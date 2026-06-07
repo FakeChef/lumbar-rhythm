@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumbar_rhythm/core/data/app_data_refresh.dart';
+import 'package:lumbar_rhythm/core/media/gallery_image_saver.dart';
 import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
 import 'package:lumbar_rhythm/features/actions/application/posture_reminder_rehab_link.dart';
 import 'package:lumbar_rhythm/features/actions/data/rehab_repository.dart';
@@ -138,11 +140,41 @@ void main() {
     expect(find.text('康复动作报告'), findsOneWidget);
     expect(find.text('分享报告入口'), findsNothing);
     expect(find.text('分享报告'), findsNothing);
-    expect(find.text('保存报告到相册'), findsWidgets);
+    expect(find.text('保存复诊报告到相册'), findsWidgets);
     expect(find.text('免责声明'), findsNothing);
     expect(find.text('久坐超过提醒间隔'), findsOneWidget);
     expect(find.text('姿势切换次数'), findsOneWidget);
     expect(find.text(reportDisclaimerText), findsOneWidget);
+  });
+
+  testWidgets('saving follow-up report uses gallery image saver',
+      (tester) async {
+    final saver = _FakeGalleryImageSaver();
+    await tester.binding.setSurfaceSize(const Size(800, 1800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._reportOverrides(),
+          galleryImageSaverProvider.overrideWithValue(saver),
+          followUpReportPngCaptureProvider.overrideWithValue(
+            (context, report) async => Uint8List.fromList([137, 80, 78, 71]),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: ReportsPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final saveButton =
+        find.widgetWithText(FilledButton, '保存复诊报告到相册');
+    await tester.scrollUntilVisible(saveButton, 500);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(saver.savedFileNames, hasLength(1));
+    expect(saver.savedFileNames.single, startsWith('lumbar-rhythm-follow-up-'));
+    expect(saver.savedBytes.single, isNotEmpty);
   });
 
   test('dailyReportController refreshes when rehab data changes', () async {
@@ -662,6 +694,21 @@ class _FakeNotificationService extends NotificationService {
   }) async {
     testReminderModes.add(reminderMode);
     return true;
+  }
+}
+
+class _FakeGalleryImageSaver extends GalleryImageSaver {
+  final savedBytes = <Uint8List>[];
+  final savedFileNames = <String>[];
+
+  @override
+  Future<GalleryImageSaveResult> savePng({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    savedBytes.add(bytes);
+    savedFileNames.add(fileName);
+    return const GalleryImageSaveResult(saved: true);
   }
 }
 
