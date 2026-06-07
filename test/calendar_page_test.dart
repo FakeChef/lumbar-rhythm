@@ -187,6 +187,15 @@ class _FakeRehabRepository implements RehabRepository {
       logs;
 
   @override
+  Future<List<RehabLog>> loadLogsBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async =>
+      logs.where((log) {
+        return !log.createdAt.isBefore(start) && log.createdAt.isBefore(end);
+      }).toList();
+
+  @override
   Future<List<RehabLog>> loadToday({DateTime? now}) async => logs;
 }
 
@@ -217,6 +226,16 @@ class _FakePostureRepository implements PostureSessionRepository {
     DateTime? now,
   }) async =>
       sessions;
+
+  @override
+  Future<List<PostureSession>> loadSessionsBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async =>
+      sessions.where((session) {
+        return !session.startedAt.isBefore(start) &&
+            session.startedAt.isBefore(end);
+      }).toList();
 
   @override
   Future<List<PostureSession>> loadToday({DateTime? now}) async => sessions;

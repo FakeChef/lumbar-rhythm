@@ -87,11 +87,70 @@ void main() {
     await databaseFactory.deleteDatabase(restoredPath);
   });
 
+  test('backup import rejects missing metadata', () async {
+    final database = LocalDatabase(databasePath: dbPath);
+    final repository = LocalDataRepository(database);
+
+    expect(
+      () => repository.importBackupPayload(const {}),
+      throwsA(
+        isA<BackupImportException>().having(
+          (error) => error.message,
+          'message',
+          '备份文件格式不正确。',
+        ),
+      ),
+    );
+
+    await database.close();
+  });
+
+  test('backup import rejects missing or invalid backup version', () async {
+    final database = LocalDatabase(databasePath: dbPath);
+    final repository = LocalDataRepository(database);
+
+    expect(
+      () => repository.importBackupPayload(const {'metadata': {}}),
+      throwsA(isA<BackupImportException>()),
+    );
+    expect(
+      () => repository.importBackupPayload(const {
+        'metadata': {'backupVersion': '1'},
+      }),
+      throwsA(isA<BackupImportException>()),
+    );
+
+    await database.close();
+  });
+
+  test('backup import rejects newer backup version', () async {
+    final database = LocalDatabase(databasePath: dbPath);
+    final repository = LocalDataRepository(database);
+
+    expect(
+      () => repository.importBackupPayload(const {
+        'metadata': {'backupVersion': LocalDataRepository.backupVersion + 1},
+      }),
+      throwsA(
+        isA<BackupImportException>().having(
+          (error) => error.message,
+          'message',
+          '备份版本较新，请升级 App 后再导入。',
+        ),
+      ),
+    );
+
+    await database.close();
+  });
+
   test('settings page import copy warns before overwrite', () {
     final text = File('lib/features/settings/presentation/settings_page.dart')
         .readAsStringSync();
 
     expect(text, contains('导入会覆盖当前本地数据，请先确认已备份。'));
+    expect(text, contains('导入本地备份（高级）'));
+    expect(text, contains('当前版本需要粘贴本地 JSON 文件路径，后续会支持文件选择。'));
+    expect(text, contains('我确认导入会覆盖当前本地数据'));
     expect(text, contains('备份文件包含你的本地康复记录，请妥善保存。App 不会自动上传备份文件。'));
   });
 }

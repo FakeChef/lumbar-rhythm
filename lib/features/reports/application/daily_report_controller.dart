@@ -51,26 +51,28 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
     final rehabActions = await rehabRepository.loadActions();
     final reminderSettings = await reminderSettingsRepository.load();
     final range = _rangeFor(period, now);
-    final allRehabLogs = await rehabRepository.loadAllLogs();
-    final allPostureSessions = await postureRepository.loadAll();
     final recentRange = (
       start: DateTime(now.year, now.month, now.day).subtract(
         const Duration(days: 6),
       ),
       end: DateTime(now.year, now.month, now.day).add(const Duration(days: 1)),
     );
-    final rehabLogs = allRehabLogs.where((log) {
-      return _isWithin(log.createdAt, range);
-    }).toList();
-    final recentRehabLogs = allRehabLogs.where((log) {
-      return _isWithin(log.createdAt, recentRange);
-    }).toList();
-    final postureSessions = allPostureSessions.where((session) {
-      return _isWithin(session.startedAt, range);
-    }).toList();
-    final recentPostureSessions = allPostureSessions.where((session) {
-      return _isWithin(session.startedAt, recentRange);
-    }).toList();
+    final rehabLogs = await rehabRepository.loadLogsBetween(
+      start: range.start,
+      end: range.end,
+    );
+    final recentRehabLogs = await rehabRepository.loadLogsBetween(
+      start: recentRange.start,
+      end: recentRange.end,
+    );
+    final postureSessions = await postureRepository.loadSessionsBetween(
+      start: range.start,
+      end: range.end,
+    );
+    final recentPostureSessions = await postureRepository.loadSessionsBetween(
+      start: recentRange.start,
+      end: recentRange.end,
+    );
     final dailyNotes = await recoveryRepository.loadNotesBetween(
       start: range.start,
       end: range.end,
@@ -122,10 +124,6 @@ class DailyReportController extends AsyncNotifier<DailyReport> {
           end: DateTime(now.year, now.month + 1),
         ),
     };
-  }
-
-  bool _isWithin(DateTime value, ({DateTime start, DateTime end}) range) {
-    return !value.isBefore(range.start) && value.isBefore(range.end);
   }
 
   PostureSummary _postureSummary({

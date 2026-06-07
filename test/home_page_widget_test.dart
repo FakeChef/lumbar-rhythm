@@ -319,6 +319,13 @@ class _FakePostureRepository implements PostureSessionRepository {
       todaySessions;
 
   @override
+  Future<List<PostureSession>> loadSessionsBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async =>
+      todaySessions;
+
+  @override
   Future<List<PostureSession>> loadToday({DateTime? now}) async =>
       todaySessions;
 
@@ -388,6 +395,13 @@ class _FakeRehabRepository implements RehabRepository {
   Future<List<RehabLog>> loadRecentDays({
     required int days,
     DateTime? now,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<RehabLog>> loadLogsBetween({
+    required DateTime start,
+    required DateTime end,
   }) async =>
       const [];
 

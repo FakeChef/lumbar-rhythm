@@ -78,6 +78,67 @@ void main() {
     expect(weekly.postureSummary.sessions.length, 2);
   });
 
+  test('dailyReportController uses repository date range reads', () async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final rehabRepository = _FakeRehabRepository(
+      initialLogs: [
+        RehabLog(
+          id: 1,
+          actionId: actionLibrary.first.id,
+          amount: '5',
+          amountValue: 5,
+          unit: '分钟',
+          reaction: RehabReaction.noChange,
+          source: 'manual',
+          createdAt: today.add(const Duration(hours: 10)),
+        ),
+        RehabLog(
+          id: 2,
+          actionId: actionLibrary.first.id,
+          amount: '9',
+          amountValue: 9,
+          unit: '分钟',
+          reaction: RehabReaction.noChange,
+          source: 'manual',
+          createdAt: today.subtract(const Duration(days: 40)),
+        ),
+      ],
+    );
+    final postureRepository = _FakePostureRepository([
+      PostureSession(
+        id: 1,
+        type: PostureType.sitting,
+        startedAt: today.add(const Duration(hours: 8)),
+        endedAt: today.add(const Duration(hours: 8, minutes: 20)),
+      ),
+      PostureSession(
+        id: 2,
+        type: PostureType.standing,
+        startedAt: today.subtract(const Duration(days: 40)),
+        endedAt: today.subtract(const Duration(days: 40)).add(
+              const Duration(hours: 1),
+            ),
+      ),
+    ]);
+    final container = ProviderContainer(
+      overrides: _reportOverrides(
+        rehabRepository: rehabRepository,
+        postureRepository: postureRepository,
+      ),
+    );
+    addTearDown(container.dispose);
+
+    final report = await container.read(dailyReportControllerProvider.future);
+
+    expect(report.rehabSummary.totalCount, 1);
+    expect(report.postureSummary.sessions.length, 1);
+    expect(rehabRepository.loadLogsBetweenCalls, 2);
+    expect(rehabRepository.loadAllLogsCalls, 0);
+    expect(postureRepository.loadSessionsBetweenCalls, 2);
+    expect(postureRepository.loadAllCalls, 0);
+  });
+
   test('PostureSummary uses custom reminder thresholds', () {
     final summary = PostureSummary(
       now: DateTime(2026, 6, 7, 12),
@@ -166,8 +227,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final saveButton =
-        find.widgetWithText(FilledButton, '保存复诊报告到相册');
+    final saveButton = find.widgetWithText(FilledButton, '保存复诊报告到相册');
     await tester.scrollUntilVisible(saveButton, 500);
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
@@ -259,6 +319,8 @@ void main() {
     expect(find.text('我的康复资料'), findsOneWidget);
     expect(find.text('坐站提醒'), findsOneWidget);
     expect(find.text('该记录一下今天的状态了'), findsOneWidget);
+    expect(find.widgetWithText(SwitchListTile, '夜间勿扰'), findsNothing);
+    expect(find.text('当前版本暂未启用，后续会用于减少夜间提醒打扰。'), findsOneWidget);
 
     await tester.tap(find.text('手术日期、手术类型、当前目标'));
     await tester.pumpAndSettle();
@@ -272,6 +334,7 @@ void main() {
     await tester.scrollUntilVisible(find.text('数据管理'), 300.0);
     expect(find.text('数据管理'), findsOneWidget);
     expect(find.text('本地备份'), findsOneWidget);
+    expect(find.text('导入本地备份（高级）'), findsOneWidget);
 
     await tester.scrollUntilVisible(find.text('隐私与免责声明'), 300.0);
     expect(find.text('隐私与免责声明'), findsOneWidget);
@@ -283,8 +346,7 @@ void main() {
     expect(find.textContaining('无云端上传'), findsOneWidget);
   });
 
-  testWidgets('settings page test reminder uses selected mode',
-      (tester) async {
+  testWidgets('settings page test reminder uses selected mode', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -302,7 +364,8 @@ void main() {
               ),
             ),
           ),
-          recoveryRepositoryProvider.overrideWithValue(_FakeRecoveryRepository()),
+          recoveryRepositoryProvider
+              .overrideWithValue(_FakeRecoveryRepository()),
           notificationServiceProvider.overrideWithValue(notificationService),
         ],
         child: const MaterialApp(home: Scaffold(body: SettingsPage())),
@@ -317,6 +380,74 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(notificationService.testReminderModes, [ReminderMode.alarm]);
+  });
+
+  testWidgets('settings import backup requires overwrite confirmation',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          reminderSettingsRepositoryProvider.overrideWithValue(
+            const _FakeReminderSettingsRepository(ReminderSettings.defaults),
+          ),
+          recoveryRepositoryProvider
+              .overrideWithValue(_FakeRecoveryRepository()),
+        ],
+        child: const MaterialApp(home: Scaffold(body: SettingsPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final importBackupEntry = find.text('导入本地备份（高级）');
+    await tester.scrollUntilVisible(importBackupEntry, 500);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.ancestor(
+        of: importBackupEntry,
+        matching: find.byType(OutlinedButton),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('当前版本需要粘贴本地 JSON 文件路径，后续会支持文件选择。'), findsOneWidget);
+    expect(find.text('我确认导入会覆盖当前本地数据'), findsOneWidget);
+
+    FilledButton confirmButton = tester.widget(
+      find.widgetWithText(FilledButton, '确认导入'),
+    );
+    expect(confirmButton.onPressed, isNull);
+
+    await tester.tap(find.text('我确认导入会覆盖当前本地数据'));
+    await tester.pumpAndSettle();
+
+    confirmButton = tester.widget(
+      find.widgetWithText(FilledButton, '确认导入'),
+    );
+    expect(confirmButton.onPressed, isNotNull);
+  });
+
+  testWidgets('rehab tab shows daily note read failure without hiding actions',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          rehabRepositoryProvider.overrideWithValue(_FakeRehabRepository()),
+          recoveryRepositoryProvider.overrideWithValue(
+            _FakeRecoveryRepository(throwOnLoadNote: true),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: ActionsPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('今日小结暂时无法读取，可稍后重试。'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('rehab-category-dropdown')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-action-dropdown')), findsOneWidget);
   });
 
   test('RehabSummary uses amountValue for walking totals', () {
@@ -353,7 +484,8 @@ void main() {
 
     expect(find.text('今日康复记录'), findsOneWidget);
     expect(find.text('记录今天做了什么、做了多少、做后感觉如何。'), findsOneWidget);
-    expect(find.byKey(const ValueKey('rehab-category-dropdown')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('rehab-category-dropdown')), findsOneWidget);
     expect(find.byKey(const ValueKey('rehab-action-dropdown')), findsOneWidget);
     expect(find.text('步行与有氧'), findsOneWidget);
     expect(find.text('平地步行'), findsOneWidget);
@@ -478,6 +610,7 @@ List<Override> _reportOverrides({
   List<RehabLog> rehabLogs = const [],
   ReminderSettings settings = ReminderSettings.defaults,
   RehabRepository? rehabRepository,
+  PostureSessionRepository? postureRepository,
   ReminderSettingsRepository? reminderSettingsRepository,
 }) {
   return [
@@ -485,7 +618,7 @@ List<Override> _reportOverrides({
       rehabRepository ?? _FakeRehabRepository(initialLogs: rehabLogs),
     ),
     postureSessionRepositoryProvider.overrideWithValue(
-      _FakePostureRepository(postureSessions),
+      postureRepository ?? _FakePostureRepository(postureSessions),
     ),
     recoveryRepositoryProvider.overrideWithValue(_FakeRecoveryRepository()),
     recoveryMilestoneRepositoryProvider.overrideWithValue(
@@ -502,6 +635,8 @@ class _FakeRehabRepository implements RehabRepository {
       : addedLogs = [...initialLogs];
 
   final List<RehabLog> addedLogs;
+  int loadAllLogsCalls = 0;
+  int loadLogsBetweenCalls = 0;
 
   @override
   Future<RehabLog> addLog({
@@ -541,7 +676,10 @@ class _FakeRehabRepository implements RehabRepository {
   Future<List<RehabAction>> loadActions() async => actionLibrary;
 
   @override
-  Future<List<RehabLog>> loadAllLogs() async => addedLogs;
+  Future<List<RehabLog>> loadAllLogs() async {
+    loadAllLogsCalls++;
+    return addedLogs;
+  }
 
   @override
   Future<List<RehabLog>> loadRecentDays({
@@ -558,6 +696,17 @@ class _FakeRehabRepository implements RehabRepository {
   }
 
   @override
+  Future<List<RehabLog>> loadLogsBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    loadLogsBetweenCalls++;
+    return addedLogs.where((log) {
+      return !log.createdAt.isBefore(start) && log.createdAt.isBefore(end);
+    }).toList();
+  }
+
+  @override
   Future<List<RehabLog>> loadToday({DateTime? now}) {
     return loadRecentDays(days: 1, now: now);
   }
@@ -568,9 +717,11 @@ class _FakeRehabRepository implements RehabRepository {
 }
 
 class _FakePostureRepository implements PostureSessionRepository {
-  const _FakePostureRepository(this.sessions);
+  _FakePostureRepository(this.sessions);
 
   final List<PostureSession> sessions;
+  int loadAllCalls = 0;
+  int loadSessionsBetweenCalls = 0;
 
   @override
   Future<void> endCurrent({
@@ -583,7 +734,10 @@ class _FakePostureRepository implements PostureSessionRepository {
   }) async {}
 
   @override
-  Future<List<PostureSession>> loadAll() async => sessions;
+  Future<List<PostureSession>> loadAll() async {
+    loadAllCalls++;
+    return sessions;
+  }
 
   @override
   Future<PostureSession?> loadOpenSession() async => null;
@@ -597,6 +751,18 @@ class _FakePostureRepository implements PostureSessionRepository {
     final today = DateTime(anchor.year, anchor.month, anchor.day);
     final start = today.subtract(Duration(days: days - 1));
     final end = today.add(const Duration(days: 1));
+    return sessions.where((session) {
+      return !session.startedAt.isBefore(start) &&
+          session.startedAt.isBefore(end);
+    }).toList();
+  }
+
+  @override
+  Future<List<PostureSession>> loadSessionsBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    loadSessionsBetweenCalls++;
     return sessions.where((session) {
       return !session.startedAt.isBefore(start) &&
           session.startedAt.isBefore(end);
@@ -623,13 +789,21 @@ class _FakePostureRepository implements PostureSessionRepository {
 }
 
 class _FakeRecoveryRepository implements RecoveryRepository {
+  _FakeRecoveryRepository({this.throwOnLoadNote = false});
+
+  final bool throwOnLoadNote;
   String? savedNickname;
 
   @override
   Future<RecoveryProfile?> loadProfile() async => null;
 
   @override
-  Future<DailyRecoveryNote?> loadNote(DateTime date) async => null;
+  Future<DailyRecoveryNote?> loadNote(DateTime date) async {
+    if (throwOnLoadNote) {
+      throw StateError('daily note unavailable');
+    }
+    return null;
+  }
 
   @override
   Future<List<DailyRecoveryNote>> loadNotesBetween({

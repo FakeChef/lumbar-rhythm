@@ -36,7 +36,7 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
           children: [
             Expanded(
               child: Text(
-                '记录',
+                '旧版记录（兼容）',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -60,8 +60,8 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
         const ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.info_outline),
-          title: Text('症状记录仅用于自我回顾'),
-          subtitle: Text('这里只做个人记录，不输出医学判断。'),
+          title: Text('旧版记录（兼容）'),
+          subtitle: Text('这里只保留旧数据的查看和兼容记录，新主流程请使用康复页。'),
         ),
         const Divider(height: 32),
         Text(

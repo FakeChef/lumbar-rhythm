@@ -129,6 +129,14 @@ class _FakePostureSessionRepository implements PostureSessionRepository {
   }
 
   @override
+  Future<List<PostureSession>> loadSessionsBetween({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    return const [];
+  }
+
+  @override
   Future<PostureSession?> loadOpenSession() async {
     return PostureSession(
       id: 1,
