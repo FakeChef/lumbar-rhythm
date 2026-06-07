@@ -72,8 +72,7 @@ void main() {
       MaterialApp(home: CalendarDayDetailPage(status: status)),
     );
 
-    expect(find.text('2026 年 6 月 7 日'), findsOneWidget);
-    expect(find.text('术后第 7 天'), findsOneWidget);
+    expect(find.text('2026年6月7日 · 术后第7天'), findsOneWidget);
     expect(find.text('每日状态'), findsOneWidget);
     expect(find.text('差不多'), findsOneWidget);
     expect(find.text('坐姿累计'), findsOneWidget);
@@ -82,6 +81,31 @@ void main() {
     expect(find.text('步行'), findsOneWidget);
     expect(find.text('12 分钟 · 明显加重'), findsOneWidget);
     expect(find.text('症状标签：腰酸'), findsOneWidget);
-    expect(find.text('建议减少量、暂停观察，必要时咨询医生或康复师。'), findsOneWidget);
+    expect(
+      find.text('这一天有明显加重记录，可作为后续观察参考。必要时请咨询医生或康复师。'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('day detail page shows empty state when there is no record',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(420, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CalendarDayDetailPage(
+          status: CalendarDayStatus(
+            date: DateTime(2026, 6, 8),
+            actions: actionLibrary,
+            rehabLogs: const [],
+            postureSessions: const [],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('这一天还没有记录。'), findsOneWidget);
+    expect(find.text('记录一点也有价值。'), findsOneWidget);
   });
 }

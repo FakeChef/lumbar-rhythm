@@ -47,12 +47,12 @@ class SittingStandingTimerState {
 
   String get statusLabel {
     return switch (status) {
-      SittingStandingTimerStatus.normal => '正常',
+      SittingStandingTimerStatus.normal => '节奏正常',
       SittingStandingTimerStatus.nearReminder => '接近提醒',
-      SittingStandingTimerStatus.overdue => '已超时',
-      SittingStandingTimerStatus.overdueWithDiscomfort => '超时且记录明显不适',
-      SittingStandingTimerStatus.walking => '走动中',
-      SittingStandingTimerStatus.resting => '休息中',
+      SittingStandingTimerStatus.overdue => '已超过建议时间',
+      SittingStandingTimerStatus.overdueWithDiscomfort => '建议降低负荷',
+      SittingStandingTimerStatus.walking => '正在走动 / 休息中',
+      SittingStandingTimerStatus.resting => '正在走动 / 休息中',
     };
   }
 
@@ -83,8 +83,10 @@ class SittingStandingTimerState {
             ? SittingStandingTimerStatus.walking
             : SittingStandingTimerStatus.resting,
         tone: SittingStandingTimerTone.green,
-        message: posture == PostureType.walking ? '走动中' : '休息中',
-        suggestion: '正在走动 / 休息，继续按自己的节奏来。',
+        message: posture == PostureType.walking ? '正在走动' : '正在休息',
+        suggestion: posture == PostureType.walking
+            ? '正在走动，继续按自己的节奏来。'
+            : '正在休息，给身体一点缓冲。',
       );
     }
 
