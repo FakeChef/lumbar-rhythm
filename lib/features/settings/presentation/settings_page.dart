@@ -150,6 +150,35 @@ class SettingsPage extends ConsumerWidget {
                 onPressed: () => _exportLocalData(context, ref),
               ),
             ),
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.backup_outlined),
+              title: Text('本地备份'),
+              subtitle: Text('备份文件包含你的本地康复记录，请妥善保存。App 不会自动上传备份文件。'),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.file_download_outlined),
+                    label: const Text('导出本地备份'),
+                    onPressed: () => _exportLocalData(context, ref),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.file_upload_outlined),
+                    label: const Text('导入本地备份'),
+                    onPressed: () => _confirmImportLocalBackup(context, ref),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '备份安全提示：备份文件包含你的本地康复记录，请妥善保存。App 不会自动上传备份文件。',
+            ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.delete_outline),
@@ -221,6 +250,63 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
+  Future<void> _confirmImportLocalBackup(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    var backupPath = '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('导入本地备份？'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('导入会覆盖当前本地数据，请先确认已备份。App 不会上传任何数据。'),
+              const SizedBox(height: 12),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: '本地 JSON 备份文件路径',
+                  hintText: '例如：/storage/emulated/0/Download/backup.json',
+                ),
+                onChanged: (value) => backupPath = value,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('确认导入'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || backupPath.trim().isEmpty) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(localDataRepositoryProvider)
+          .importFromJsonFile(backupPath.trim());
+      _refreshLocalDataProviders(ref);
+      if (!context.mounted) return;
+      messenger.showSnackBar(const SnackBar(content: Text('已导入本地备份')));
+    } on Object {
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('导入失败，请确认备份文件是有效的 JSON 文件。')),
+      );
+    }
+  }
+
   Future<void> _confirmDeleteLocalData(
     BuildContext context,
     WidgetRef ref,
@@ -251,16 +337,20 @@ class SettingsPage extends ConsumerWidget {
 
     await ref.read(localDataRepositoryProvider).deleteAllLocalData();
     await ref.read(notificationServiceProvider).cancelScheduledReminders();
-    ref.invalidate(postureSessionControllerProvider);
-    ref.invalidate(reminderSettingsControllerProvider);
-    ref.invalidate(activityRecordsControllerProvider);
-    ref.invalidate(dailyReportControllerProvider);
-    ref.read(appDataRefreshProvider.notifier).state++;
+    _refreshLocalDataProviders(ref);
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('已删除全部本地数据')),
     );
+  }
+
+  void _refreshLocalDataProviders(WidgetRef ref) {
+    ref.invalidate(postureSessionControllerProvider);
+    ref.invalidate(reminderSettingsControllerProvider);
+    ref.invalidate(activityRecordsControllerProvider);
+    ref.invalidate(dailyReportControllerProvider);
+    ref.read(appDataRefreshProvider.notifier).state++;
   }
 
   Future<void> _showRecoveryProfileDialog(
