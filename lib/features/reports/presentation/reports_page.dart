@@ -242,7 +242,7 @@ class _ActivityTrendReportSection extends StatelessWidget {
             : Column(
                 children: [
                   for (final trend in trends) ...[
-                    _ActivityTrendCard(trend: trend, days: days),
+                    _RehabActivityTrendSection(trend: trend, days: days),
                     if (trend != trends.last) const SizedBox(height: 16),
                   ],
                 ],
@@ -252,10 +252,11 @@ class _ActivityTrendReportSection extends StatelessWidget {
   }
 }
 
-class _ActivityTrendCard extends StatelessWidget {
-  const _ActivityTrendCard({
+class _RehabActivityTrendSection extends StatelessWidget {
+  const _RehabActivityTrendSection({
     required this.trend,
     required this.days,
+    super.key,
   });
 
   final _ActivityTrend trend;
@@ -292,45 +293,10 @@ class _ActivityTrendCard extends StatelessWidget {
             ),
             KeyedSubtree(
               key: ValueKey('rehab-activity-trend-chart-${trend.action.id}'),
-              child: SizedBox(
-                height: 176,
-                child: days == 30
-                    ? SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            for (final day in trend.days)
-                              SizedBox(
-                                width: 34,
-                                child: Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 2),
-                                  child: _ActivityTrendBar(
-                                    day: day,
-                                    maxValue: maxValue,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      )
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          for (final day in trend.days)
-                            Expanded(
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 2),
-                                child: _ActivityTrendBar(
-                                  day: day,
-                                  maxValue: maxValue,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+              child: _RehabActivityBarChart(
+                days: trend.days,
+                maxValue: maxValue,
+                scrollHorizontally: days == 30,
               ),
             ),
           ],
@@ -340,8 +306,63 @@ class _ActivityTrendCard extends StatelessWidget {
   }
 }
 
-class _ActivityTrendBar extends StatelessWidget {
-  const _ActivityTrendBar({
+class _RehabActivityBarChart extends StatelessWidget {
+  const _RehabActivityBarChart({
+    required this.days,
+    required this.maxValue,
+    required this.scrollHorizontally,
+    super.key,
+  });
+
+  final List<_ActivityTrendDay> days;
+  final double maxValue;
+  final bool scrollHorizontally;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 176,
+      child: scrollHorizontally
+          ? SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (final day in days)
+                    SizedBox(
+                      width: 34,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: _RehabActivityBar(
+                          day: day,
+                          maxValue: maxValue,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final day in days)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: _RehabActivityBar(
+                        day: day,
+                        maxValue: maxValue,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+class _RehabActivityBar extends StatelessWidget {
+  const _RehabActivityBar({
     required this.day,
     required this.maxValue,
   });
@@ -610,17 +631,46 @@ List<_ActivityTrend> _activityTrends(DailyReport report, int days) {
   final actionsById = {
     for (final action in report.rehabActions) action.id: action,
   };
-  final actionIds = <int>[
-    for (final log in report.rehabLogs)
-      if (!actionIdsContainPrevious(report.rehabLogs, log)) log.actionId,
-  ];
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
   final start = today.subtract(Duration(days: days - 1));
+  final end = today.add(const Duration(days: 1));
+  final logsInRange = report.rehabLogs.where((log) {
+    return !log.createdAt.isBefore(start) && log.createdAt.isBefore(end);
+  }).toList();
+  final amountsByActionAndDate = <int, Map<DateTime, double>>{};
+  final countsByAction = <int, int>{};
+  final totalsByAction = <int, double>{};
+  final latestLogByAction = <int, DateTime>{};
+  final unitsByAction = <int, String>{};
 
-  return [
-    for (final actionId in actionIds)
-      _activityTrendForAction(
+  for (final log in logsInRange) {
+    final day = DateTime(
+      log.createdAt.year,
+      log.createdAt.month,
+      log.createdAt.day,
+    );
+    final amount = _amountForLog(log);
+    final actionAmounts = amountsByActionAndDate.putIfAbsent(
+      log.actionId,
+      () => <DateTime, double>{},
+    );
+    actionAmounts[day] = (actionAmounts[day] ?? 0) + amount;
+    countsByAction[log.actionId] = (countsByAction[log.actionId] ?? 0) + 1;
+    totalsByAction[log.actionId] = (totalsByAction[log.actionId] ?? 0) + amount;
+
+    final latest = latestLogByAction[log.actionId];
+    if (latest == null || log.createdAt.isAfter(latest)) {
+      latestLogByAction[log.actionId] = log.createdAt;
+    }
+    unitsByAction.putIfAbsent(log.actionId, () => _unitForLogAmount(log));
+  }
+
+  final trends = <_ActivityTrend>[];
+  for (final actionId in amountsByActionAndDate.keys) {
+    final dailyAmounts = amountsByActionAndDate[actionId] ?? {};
+    trends.add(
+      _ActivityTrend(
         action: actionsById[actionId] ??
             RehabAction(
               id: actionId,
@@ -628,68 +678,50 @@ List<_ActivityTrend> _activityTrends(DailyReport report, int days) {
               defaultUnit: '次',
               guidance: '',
             ),
-        logs:
-            report.rehabLogs.where((log) => log.actionId == actionId).toList(),
-        start: start,
-        days: days,
+        unit: unitsByAction[actionId] ?? '次',
+        totalCount: countsByAction[actionId] ?? 0,
+        totalAmount: totalsByAction[actionId] ?? 0,
+        latestLogAt: latestLogByAction[actionId],
+        days: [
+          for (var index = 0; index < days; index++)
+            _ActivityTrendDay(
+              day: start.add(Duration(days: index)),
+              value: dailyAmounts[start.add(Duration(days: index))] ?? 0,
+            ),
+        ],
       ),
-  ];
-}
-
-bool actionIdsContainPrevious(List<RehabLog> logs, RehabLog current) {
-  for (final log in logs) {
-    if (log == current) {
-      return false;
-    }
-    if (log.actionId == current.actionId) {
-      return true;
-    }
+    );
   }
-  return false;
+
+  return trends..sort(_compareActivityTrends);
 }
 
-_ActivityTrend _activityTrendForAction({
-  required RehabAction action,
-  required List<RehabLog> logs,
-  required DateTime start,
-  required int days,
-}) {
-  final unit = logs.isEmpty ? action.defaultUnit : logs.first.unit;
-  final useAmountValue = _usesAmountValue(unit);
-  final trendUnit = useAmountValue ? unit : '次';
-  return _ActivityTrend(
-    action: action,
-    unit: trendUnit,
-    totalCount: logs.length,
-    totalAmount: useAmountValue
-        ? logs.fold(0.0, (sum, log) => sum + log.amountValue)
-        : logs.length.toDouble(),
-    days: [
-      for (var index = 0; index < days; index++)
-        _activityTrendDayFor(
-          day: start.add(Duration(days: index)),
-          logs: logs,
-          useAmountValue: useAmountValue,
-        ),
-    ],
-  );
-}
+int _compareActivityTrends(_ActivityTrend left, _ActivityTrend right) {
+  final leftActivity = activityForAction(left.action);
+  final rightActivity = activityForAction(right.action);
+  final leftSortOrder = leftActivity?.sortOrder;
+  final rightSortOrder = rightActivity?.sortOrder;
+  if (leftSortOrder != null && rightSortOrder != null) {
+    final order = leftSortOrder.compareTo(rightSortOrder);
+    if (order != 0) return order;
+  } else if (leftSortOrder != null) {
+    return -1;
+  } else if (rightSortOrder != null) {
+    return 1;
+  }
 
-_ActivityTrendDay _activityTrendDayFor({
-  required DateTime day,
-  required List<RehabLog> logs,
-  required bool useAmountValue,
-}) {
-  final nextDay = day.add(const Duration(days: 1));
-  final dayLogs = logs.where((log) {
-    return !log.createdAt.isBefore(day) && log.createdAt.isBefore(nextDay);
-  }).toList();
-  return _ActivityTrendDay(
-    day: day,
-    value: useAmountValue
-        ? dayLogs.fold(0.0, (sum, log) => sum + log.amountValue)
-        : dayLogs.length.toDouble(),
-  );
+  final leftLatest = left.latestLogAt;
+  final rightLatest = right.latestLogAt;
+  if (leftLatest != null && rightLatest != null) {
+    final latestOrder = rightLatest.compareTo(leftLatest);
+    if (latestOrder != 0) return latestOrder;
+  } else if (leftLatest != null) {
+    return -1;
+  } else if (rightLatest != null) {
+    return 1;
+  }
+
+  return left.action.name.compareTo(right.action.name);
 }
 
 bool _usesAmountValue(String unit) {
@@ -697,6 +729,16 @@ bool _usesAmountValue(String unit) {
     '分钟' || '次' || '秒' || '秒保持' || '次/天' || '组' => true,
     _ => false,
   };
+}
+
+double _amountForLog(RehabLog log) {
+  return _usesAmountValue(log.unit) && log.amountValue > 0
+      ? log.amountValue
+      : 1;
+}
+
+String _unitForLogAmount(RehabLog log) {
+  return _usesAmountValue(log.unit) && log.amountValue > 0 ? log.unit : '次';
 }
 
 String _actionNameFor(DailyReport report, int actionId) {
@@ -728,6 +770,7 @@ class _ActivityTrend {
     required this.unit,
     required this.totalCount,
     required this.totalAmount,
+    required this.latestLogAt,
     required this.days,
   });
 
@@ -735,6 +778,7 @@ class _ActivityTrend {
   final String unit;
   final int totalCount;
   final double totalAmount;
+  final DateTime? latestLogAt;
   final List<_ActivityTrendDay> days;
 }
 
