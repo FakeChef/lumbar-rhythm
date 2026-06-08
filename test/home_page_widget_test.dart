@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumbar_rhythm/app/lumbar_rhythm_app.dart';
 import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
 import 'package:lumbar_rhythm/features/actions/data/rehab_repository.dart';
 import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
@@ -146,6 +149,35 @@ void main() {
         findsOneWidget);
   });
 
+  testWidgets('app startup requests notification permission when reminders run',
+      (tester) async {
+    final notificationService = _FakeNotification();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          postureSessionRepositoryProvider.overrideWithValue(
+            _FakePostureRepository(),
+          ),
+          reminderSettingsRepositoryProvider.overrideWithValue(
+            _FakeReminderSettingsRepository(),
+          ),
+          notificationServiceProvider.overrideWithValue(notificationService),
+          rehabRepositoryProvider.overrideWithValue(_FakeRehabRepository()),
+          recoveryRepositoryProvider.overrideWithValue(
+            _FakeRecoveryRepository(),
+          ),
+        ],
+        child: const LumbarRhythmApp(),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(notificationService.permissionRequests, 1);
+    expect(notificationService.scheduledPostures, contains(null));
+  });
+
   testWidgets('sitting schedules reminder and walking clears sitting reminder',
       (tester) async {
     final postureRepository = _FakePostureRepository();
@@ -170,6 +202,54 @@ void main() {
         notificationService.scheduledPostures, contains(PostureType.walking));
     expect(postureRepository.openSession?.type, PostureType.walking);
     expect(rehabRepository.addedLogs.single.source, 'posture_session');
+  });
+
+  testWidgets('posture switch keeps record and records scheduling failures',
+      (tester) async {
+    final postureRepository = _FakePostureRepository();
+    final notificationService = _FakeNotification(failScheduling: true);
+
+    await _pumpHome(
+      tester,
+      postureRepository: postureRepository,
+      notificationService: notificationService,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
+    await tester.pumpAndSettle();
+
+    expect(postureRepository.openSession?.type, PostureType.sitting);
+    expect(notificationService.lastRecordedError, contains('schedule failed'));
+  });
+
+  test('latest posture schedule is not overwritten by stale startup cancel',
+      () async {
+    final postureRepository = _FakePostureRepository();
+    final notificationService = _FakeNotification(delayFirstSchedule: true);
+    final container = ProviderContainer(
+      overrides: [
+        postureSessionRepositoryProvider.overrideWithValue(postureRepository),
+        reminderSettingsRepositoryProvider.overrideWithValue(
+          _FakeReminderSettingsRepository(),
+        ),
+        notificationServiceProvider.overrideWithValue(notificationService),
+        rehabRepositoryProvider.overrideWithValue(_FakeRehabRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(postureSessionControllerProvider.future);
+    final switchFuture = container
+        .read(postureSessionControllerProvider.notifier)
+        .startSitting();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(notificationService.scheduledPostures, isEmpty);
+
+    notificationService.completeFirstSchedule();
+    await switchFuture;
+
+    expect(notificationService.scheduledPostures, [PostureType.sitting]);
   });
 
   test('restored overdue sitting and walking sessions fire foreground reminder',
@@ -203,7 +283,8 @@ void main() {
     }
   });
 
-  testWidgets('foreground reminder retries after a failed show', (tester) async {
+  testWidgets('foreground reminder retries after a failed show',
+      (tester) async {
     final postureRepository = _FakePostureRepository(
       openSession: _session(PostureType.sitting, minutesAgo: 60),
     );
@@ -467,14 +548,41 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 }
 
 class _FakeNotification extends NotificationService {
-  _FakeNotification({List<bool> dueResults = const []})
-      : _dueResults = [...dueResults];
+  _FakeNotification({
+    List<bool> dueResults = const [],
+    this.failScheduling = false,
+    this.delayFirstSchedule = false,
+  }) : _dueResults = [...dueResults];
 
   final List<bool> _dueResults;
+  final bool failScheduling;
+  final bool delayFirstSchedule;
   final scheduledPostures = <PostureType?>[];
   final duePostures = <PostureType>[];
   final dueModes = <ReminderMode>[];
   final cancelledPostures = <PostureType>[];
+  final Completer<void> _firstScheduleCompleter = Completer<void>();
+  var _scheduleCalls = 0;
+  int initializeCalls = 0;
+  int permissionRequests = 0;
+  String? lastRecordedError;
+
+  void completeFirstSchedule() {
+    if (!_firstScheduleCompleter.isCompleted) {
+      _firstScheduleCompleter.complete();
+    }
+  }
+
+  @override
+  Future<void> initialize() async {
+    initializeCalls++;
+  }
+
+  @override
+  Future<bool> requestPermissions() async {
+    permissionRequests++;
+    return true;
+  }
 
   @override
   Future<void> scheduleNextReminders({
@@ -484,7 +592,15 @@ class _FakeNotification extends NotificationService {
     int walkingIntervalMinutes = 10,
     ReminderMode reminderMode = ReminderMode.soft,
     PostureType? currentPosture,
+    DateTime? currentSessionStartedAt,
   }) async {
+    if (failScheduling) {
+      throw StateError('schedule failed');
+    }
+    _scheduleCalls++;
+    if (delayFirstSchedule && _scheduleCalls == 1) {
+      await _firstScheduleCompleter.future;
+    }
     scheduledPostures.add(currentPosture);
   }
 
@@ -504,6 +620,11 @@ class _FakeNotification extends NotificationService {
   @override
   Future<void> cancelScheduledReminderForPosture(PostureType posture) async {
     cancelledPostures.add(posture);
+  }
+
+  @override
+  void recordError(Object error) {
+    lastRecordedError = error.toString();
   }
 }
 

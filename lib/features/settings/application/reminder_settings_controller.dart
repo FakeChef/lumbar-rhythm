@@ -95,8 +95,10 @@ class ReminderSettingsController extends AsyncNotifier<ReminderSettings> {
             walkingIntervalMinutes: next.walkingIntervalMinutes,
             reminderMode: next.reminderMode,
             currentPosture: openSession?.type,
+            currentSessionStartedAt: openSession?.startedAt,
           );
-    } catch (_) {
+    } catch (error) {
+      ref.read(notificationServiceProvider).recordError(error);
       // Settings remain saved even if the platform cannot schedule reminders.
     }
   }

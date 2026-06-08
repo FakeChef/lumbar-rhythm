@@ -335,8 +335,8 @@ void main() {
       find.byKey(ValueKey('rehab-activity-trend-chart-${breathing.id}')),
       findsOneWidget,
     );
-    for (var index = 0; index < 30; index++) {
-      final day = today.subtract(Duration(days: 29 - index));
+    for (final offset in [29, 28, 21, 14, 7, 0]) {
+      final day = today.subtract(Duration(days: offset));
       expect(
         find.byKey(
           ValueKey('rehab-trend-date-${day.year}-${day.month}-${day.day}'),
@@ -344,6 +344,15 @@ void main() {
         findsWidgets,
       );
     }
+    final hiddenTick = today.subtract(const Duration(days: 27));
+    expect(
+      find.byKey(
+        ValueKey(
+          'rehab-trend-date-${hiddenTick.year}-${hiddenTick.month}-${hiddenTick.day}',
+        ),
+      ),
+      findsNothing,
+    );
     expect(find.text('今日康复动作记录'), findsNothing);
     expect(find.text('康复记录总次数'), findsNothing);
     expect(find.text('今日坐姿状态'), findsNothing);

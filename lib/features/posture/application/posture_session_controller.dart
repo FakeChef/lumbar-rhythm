@@ -26,6 +26,8 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
   Timer? _foregroundTimer;
   int? _foregroundReminderSessionId;
   int? _foregroundReminderAttemptSessionId;
+  int _scheduleRequestVersion = 0;
+  Future<void> _scheduleQueue = Future<void>.value();
 
   @override
   Future<PostureSession?> build() async {
@@ -33,7 +35,9 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     final session =
         await ref.watch(postureSessionRepositoryProvider).loadOpenSession();
     _startForegroundMonitor(session);
-    unawaited(_scheduleFor(session?.type));
+    if (session != null) {
+      unawaited(_scheduleFor(session));
+    }
     return session;
   }
 
@@ -76,7 +80,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     ref.invalidate(dailyReportControllerProvider);
     notifyAppDataChanged(ref);
     _startForegroundMonitor(session);
-    unawaited(_scheduleFor(session.type));
+    await _scheduleFor(session);
   }
 
   Future<void> endCurrent() async {
@@ -90,26 +94,46 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     ref.read(postureReminderStatusProvider.notifier).state = null;
     notifyAppDataChanged(ref);
     _stopForegroundMonitor();
-    unawaited(_scheduleFor(null));
+    await _scheduleFor(null);
   }
 
   Future<void> rescheduleForCurrent() async {
-    await _scheduleFor(state.value?.type);
+    await _scheduleFor(state.valueOrNull);
   }
 
-  Future<void> _scheduleFor(PostureType? posture) async {
+  Future<void> _scheduleFor(PostureSession? session) {
+    final version = ++_scheduleRequestVersion;
+    final next = _scheduleQueue.then(
+      (_) => _runLatestScheduleFor(session, version),
+    );
+    _scheduleQueue = next.catchError((_) {});
+    return next;
+  }
+
+  Future<void> _runLatestScheduleFor(
+    PostureSession? session,
+    int version,
+  ) async {
+    if (version != _scheduleRequestVersion) {
+      return;
+    }
     try {
       final settings =
           await ref.read(reminderSettingsRepositoryProvider).load();
+      if (version != _scheduleRequestVersion) {
+        return;
+      }
       await ref.read(notificationServiceProvider).scheduleNextReminders(
             enabled: settings.remindersEnabled,
             sittingIntervalMinutes: settings.sittingIntervalMinutes,
             standingIntervalMinutes: settings.standingIntervalMinutes,
             walkingIntervalMinutes: settings.walkingIntervalMinutes,
             reminderMode: settings.reminderMode,
-            currentPosture: posture,
+            currentPosture: session?.type,
+            currentSessionStartedAt: session?.startedAt,
           );
-    } catch (_) {
+    } catch (error) {
+      ref.read(notificationServiceProvider).recordError(error);
       // Posture changes remain saved even if the platform cannot schedule.
     }
   }

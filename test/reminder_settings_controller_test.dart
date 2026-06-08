@@ -178,6 +178,7 @@ class _FakeNotificationService extends NotificationService {
     int walkingIntervalMinutes = 10,
     ReminderMode reminderMode = ReminderMode.soft,
     PostureType? currentPosture,
+    DateTime? currentSessionStartedAt,
   }) async {
     scheduledSettings.add(
       _ScheduledSettings(
@@ -186,6 +187,7 @@ class _FakeNotificationService extends NotificationService {
         standingIntervalMinutes: standingIntervalMinutes,
         reminderMode: reminderMode,
         currentPosture: currentPosture,
+        currentSessionStartedAt: currentSessionStartedAt,
       ),
     );
   }
@@ -198,6 +200,7 @@ class _ScheduledSettings {
     required this.standingIntervalMinutes,
     required this.reminderMode,
     required this.currentPosture,
+    required this.currentSessionStartedAt,
   });
 
   final bool enabled;
@@ -205,4 +208,5 @@ class _ScheduledSettings {
   final int standingIntervalMinutes;
   final ReminderMode reminderMode;
   final PostureType? currentPosture;
+  final DateTime? currentSessionStartedAt;
 }

@@ -24,6 +24,9 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <meta-data
+            android:name="app.lumbarhythm.notification_icon"
+            android:resource="@drawable/ic_stat_notification" />
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
             android:exported="false" />
