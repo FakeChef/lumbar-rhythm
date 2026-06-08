@@ -96,4 +96,109 @@ void main() {
     expect(android.enableVibration, isTrue);
     expect(android.vibrationPattern, isNotNull);
   });
+
+  test('reminder debug state records scheduled notification metadata', () {
+    final dueAt = DateTime(2026, 6, 7, 14, 32);
+    final state = ReminderDebugState(
+      lastLocalScheduleRequestedAt: DateTime(2026, 6, 7, 14, 31),
+      lastLocalScheduleDueAt: dueAt,
+      lastNotificationId: 201,
+      lastReminderMode: ReminderMode.alarm,
+      lastChannelId: NotificationService.alarmChannelId,
+      pendingNotificationCount: 1,
+      pendingNotificationIds: const [201],
+    );
+
+    expect(state.lastLocalScheduleDueAt, dueAt);
+    expect(state.lastNotificationId, 201);
+    expect(state.lastChannelId, NotificationService.alarmChannelId);
+    expect(state.pendingNotificationCount, 1);
+    expect(state.pendingNotificationIds, [201]);
+  });
+
+  test('notification diagnostic source exposes four verification layers', () {
+    final settings = File('lib/features/settings/presentation/settings_page.dart')
+        .readAsStringSync();
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+
+    expect(settings, contains('立即测试提醒'));
+    expect(settings, contains('10 秒前台测试'));
+    expect(settings, contains('1 分钟定时测试：inexactAllowWhileIdle'));
+    expect(settings, contains('1 分钟定时测试：exactAllowWhileIdle'));
+    expect(settings, contains('1 分钟定时测试：alarmClock'));
+    expect(settings, contains('查看待触发提醒'));
+    expect(service, contains('showTestReminder'));
+    expect(service, contains('scheduleForegroundTimerTestReminder'));
+    expect(service, contains('scheduleOneMinuteSittingTestReminder'));
+    expect(service, contains('pendingNotificationRequests'));
+  });
+
+  test('scheduled notifications are documented as background fallback', () {
+    final settings = File('lib/features/settings/presentation/settings_page.dart')
+        .readAsStringSync();
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+
+    expect(settings, contains('主提醒路径'));
+    expect(settings, contains('Android 后台定时辅助路径'));
+    expect(settings, contains('系统已处理该定时提醒，但本机可能未展示'));
+    expect(service, contains('系统已处理该定时提醒，但本机可能未展示'));
+  });
+
+  test('one minute test uses a dedicated id and records pending state', () {
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+
+    expect(service, contains('_oneMinuteSittingTestReminderId = 201'));
+    expect(service, contains('ReminderScheduleDiagnosticMode'));
+    expect(service, contains('AndroidScheduleMode.inexactAllowWhileIdle'));
+    expect(service, contains('AndroidScheduleMode.exactAllowWhileIdle'));
+    expect(service, contains('AndroidScheduleMode.alarmClock'));
+    expect(service, contains('lastLocalScheduleDueAt'));
+    expect(service, contains('lastNotificationId: id'));
+    expect(service, contains('lastChannelId: channelIdForReminderMode'));
+    expect(service, contains('refreshPendingScheduledNotifications'));
+  });
+
+  test('stop recording cancels pending reminders and foreground timer can show',
+      () {
+    final postureController = File(
+      'lib/features/posture/application/posture_session_controller.dart',
+    ).readAsStringSync();
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+
+    expect(postureController, contains('showPostureDueReminder'));
+    expect(postureController, contains('postureReminderStatusProvider'));
+    expect(postureController, contains('_foregroundReminderSessionId'));
+    expect(service, contains('cancelScheduledReminders'));
+    expect(service, contains('_foregroundTestTimer?.cancel()'));
+  });
+
+  test('does not request exact alarm permission by default', () {
+    final androidManifest = File('android/app/src/main/AndroidManifest.xml')
+        .readAsStringSync();
+
+    expect(androidManifest, isNot(contains('SCHEDULE_EXACT_ALARM')));
+    expect(androidManifest, isNot(contains('USE_EXACT_ALARM')));
+  });
+
+  test('reminder diagnostics do not add medical judgment copy', () {
+    final source = File('lib/core/notifications/notification_service.dart')
+            .readAsStringSync() +
+        File('lib/features/settings/presentation/settings_page.dart')
+            .readAsStringSync();
+    const forbidden = [
+      '诊断',
+      '治疗',
+      '治愈',
+      '复发判断',
+      '医疗建议',
+    ];
+
+    for (final word in forbidden) {
+      expect(source, isNot(contains(word)));
+    }
+  });
 }
