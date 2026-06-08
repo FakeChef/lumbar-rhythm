@@ -59,6 +59,8 @@ void main() {
     expect(reports, contains('最近 7 天按活动趋势'));
     expect(reports, contains('最近 30 天按活动趋势'));
     expect(reports, contains('左右滑动查看 30 天趋势'));
+    expect(reports, contains('reverse: true'));
+    expect(reports, contains('minimumHeight = value == 0 ? 4.0 : 18.0'));
     expect(reports, isNot(contains("ValueKey('report-rehab-trend-chart')")));
     expect(reports, isNot(contains('最近 7 天康复柱状图')));
     expect(reports, isNot(contains('最近 30 天康复柱状图')));

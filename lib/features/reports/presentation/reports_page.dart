@@ -340,6 +340,7 @@ class _RehabActivityBarChart extends StatelessWidget {
       height: 176,
       child: scrollHorizontally
           ? SingleChildScrollView(
+              reverse: true,
               scrollDirection: Axis.horizontal,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -397,19 +398,30 @@ class _RehabActivityBar extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         Expanded(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: FractionallySizedBox(
-              heightFactor: heightFactor,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: ColoredBox(
-                  color: value == 0
-                      ? scheme.outlineVariant.withValues(alpha: 0.7)
-                      : scheme.primary,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final minimumHeight = value == 0 ? 4.0 : 18.0;
+              final height =
+                  (constraints.maxHeight * heightFactor).clamp(
+                minimumHeight,
+                constraints.maxHeight,
+              );
+              return Align(
+                alignment: Alignment.bottomCenter,
+                child: SizedBox(
+                  height: height,
+                  width: double.infinity,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: ColoredBox(
+                      color: value == 0
+                          ? scheme.outlineVariant.withValues(alpha: 0.55)
+                          : scheme.primary,
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
         const SizedBox(height: 6),
