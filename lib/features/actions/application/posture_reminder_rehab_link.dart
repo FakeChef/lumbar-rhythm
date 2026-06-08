@@ -28,8 +28,15 @@ class PostureReminderRehabLink {
 
   final RehabRepository _repository;
 
-  Future<RehabLog> recordShortWalk({DateTime? createdAt}) async {
-    final action = await _findFirstActionByNames(['平地步行', '步行']);
+  Future<RehabLog?> recordShortWalk({DateTime? createdAt}) async {
+    final action = await _findFirstAction(
+      activityIds: ['short_walking_program'],
+      categories: ['WALK'],
+      names: ['短距离步行', '平地步行', '步行'],
+    );
+    if (action == null) {
+      return null;
+    }
     return _repository.addLog(
       action: action,
       amount: '3',
@@ -40,8 +47,15 @@ class PostureReminderRehabLink {
     );
   }
 
-  Future<RehabLog> recordSittingBreak({DateTime? createdAt}) async {
-    final action = await _findFirstActionByNames(['久坐中断']);
+  Future<RehabLog?> recordSittingBreak({DateTime? createdAt}) async {
+    final action = await _findFirstAction(
+      activityIds: ['short_walking_program'],
+      categories: ['WALK'],
+      names: ['短距离步行', '久坐中断'],
+    );
+    if (action == null) {
+      return null;
+    }
     return _repository.addLog(
       action: action,
       amount: '1',
@@ -52,12 +66,24 @@ class PostureReminderRehabLink {
     );
   }
 
-  Future<RehabLog> recordRelaxationRest({DateTime? createdAt}) async {
-    final action = await _findFirstActionByNames([
-      '站立姿势重置',
-      '仰卧放松',
-      '一脚垫高放松站姿',
-    ]);
+  Future<RehabLog?> recordRelaxationRest({DateTime? createdAt}) async {
+    final action = await _findFirstAction(
+      activityIds: [
+        'diaphragmatic_breathing',
+        'log_rolling',
+      ],
+      categories: ['BASIC'],
+      names: [
+        '膈式呼吸',
+        '圆木滚动转身',
+        '站立姿势重置',
+        '仰卧放松',
+        '一脚垫高放松站姿',
+      ],
+    );
+    if (action == null) {
+      return null;
+    }
     return _repository.addLog(
       action: action,
       amount: '3',
@@ -68,8 +94,19 @@ class PostureReminderRehabLink {
     );
   }
 
-  Future<RehabAction> _findFirstActionByNames(List<String> names) async {
+  Future<RehabAction?> _findFirstAction({
+    required List<String> activityIds,
+    required List<String> categories,
+    required List<String> names,
+  }) async {
     final actions = await _repository.loadActions();
+    for (final activityId in activityIds) {
+      for (final action in actions) {
+        if (action.activityId == activityId) {
+          return action;
+        }
+      }
+    }
     for (final name in names) {
       for (final action in actions) {
         if (action.name == name) {
@@ -77,6 +114,13 @@ class PostureReminderRehabLink {
         }
       }
     }
-    throw StateError('Required rehab action template is missing.');
+    for (final category in categories) {
+      for (final action in actions) {
+        if (action.category == category) {
+          return action;
+        }
+      }
+    }
+    return null;
   }
 }

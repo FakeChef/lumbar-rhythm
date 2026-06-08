@@ -8,7 +8,7 @@ import 'package:lumbar_rhythm/features/recovery/domain/recovery_profile.dart';
 
 void main() {
   final day = DateTime(2026, 6, 7);
-  const actions = actionLibrary;
+  final actions = actionLibrary;
 
   test('daily recovery note counts as a record without adding status dot', () {
     final status = CalendarDayStatus(
