@@ -35,8 +35,9 @@ void main() {
         .readAsStringSync();
     expect(reports, contains('回顾你的康复动作记录和阶段活动'));
     expect(reports, contains('今日康复动作记录'));
-    expect(reports, contains('最近 7 天康复活动趋势'));
-    expect(reports, contains('最近 30 天康复活动趋势'));
+    expect(reports, contains('最近 7 天按活动趋势'));
+    expect(reports, contains('最近 30 天按活动趋势'));
+    expect(reports, contains('左右滑动查看 30 天趋势'));
     expect(reports, contains('按实际记录过的康复活动查看趋势'));
     expect(reports, isNot(contains('最近 7 天康复汇总')));
     expect(reports, isNot(contains('最近 30 天康复柱状图')));

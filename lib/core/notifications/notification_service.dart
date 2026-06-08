@@ -288,17 +288,39 @@ class NotificationService {
     await refreshPendingScheduledNotifications();
   }
 
+  Future<void> cancelScheduledReminderForPosture(PostureType posture) async {
+    final id = switch (posture) {
+      PostureType.sitting => _sittingReminderId,
+      PostureType.standing => _standingReminderId,
+      PostureType.walking => _walkingReminderId,
+      PostureType.resting => null,
+    };
+    if (id == null) {
+      return;
+    }
+    await _plugin.cancel(id);
+    await refreshPendingScheduledNotifications();
+  }
+
   Future<bool> showPostureDueReminder({
     required PostureType posture,
     ReminderMode reminderMode = ReminderMode.soft,
   }) async {
-    final isWalking = posture == PostureType.walking;
-    return showReminderNow(
-      mode: reminderMode,
-      title: isWalking ? '走动时间到了' : '该起身活动一下了',
-      body: isWalking ? '这一段走动已经完成，可以坐下休息一下。' : '已经到久坐提醒时间，建议起身走一走。',
-      id: isWalking ? _walkingReminderId : _sittingReminderId,
-    );
+    return switch (posture) {
+      PostureType.sitting => showReminderNow(
+          mode: reminderMode,
+          title: '该起身活动一下了',
+          body: '已经到久坐提醒时间，建议起身走一走。',
+          id: _sittingReminderId,
+        ),
+      PostureType.walking => showReminderNow(
+          mode: reminderMode,
+          title: '走动时间到了',
+          body: '这一段走动已经完成，可以坐下休息一下。',
+          id: _walkingReminderId,
+        ),
+      PostureType.standing || PostureType.resting => false,
+    };
   }
 
   Future<bool> showTestReminder({

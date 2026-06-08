@@ -6,6 +6,7 @@ import 'package:lumbar_rhythm/features/actions/data/rehab_repository.dart';
 import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
 import 'package:lumbar_rhythm/features/home/domain/stage_encouragement_messages.dart';
 import 'package:lumbar_rhythm/features/home/presentation/home_page.dart';
+import 'package:lumbar_rhythm/features/posture/application/posture_session_controller.dart';
 import 'package:lumbar_rhythm/features/posture/data/posture_session_repository.dart';
 import 'package:lumbar_rhythm/features/posture/domain/posture_session.dart';
 import 'package:lumbar_rhythm/features/recovery/data/recovery_repository.dart';
@@ -169,6 +170,37 @@ void main() {
         notificationService.scheduledPostures, contains(PostureType.walking));
     expect(postureRepository.openSession?.type, PostureType.walking);
     expect(rehabRepository.addedLogs.single.source, 'posture_session');
+  });
+
+  test('restored overdue sitting and walking sessions fire foreground reminder',
+      () async {
+    for (final posture in [PostureType.sitting, PostureType.walking]) {
+      final postureRepository = _FakePostureRepository(
+        openSession: _session(posture, minutesAgo: 60),
+      );
+      final notificationService = _FakeNotification();
+      final container = ProviderContainer(
+        overrides: [
+          postureSessionRepositoryProvider.overrideWithValue(postureRepository),
+          reminderSettingsRepositoryProvider.overrideWithValue(
+            _FakeReminderSettingsRepository(),
+          ),
+          notificationServiceProvider.overrideWithValue(notificationService),
+        ],
+      );
+
+      final restored =
+          await container.read(postureSessionControllerProvider.future);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(restored?.type, posture);
+      expect(notificationService.duePostures, [posture]);
+      expect(notificationService.cancelledPostures, [posture]);
+      expect(notificationService.scheduledPostures, [posture]);
+      expect(container.read(postureReminderStatusProvider), isNotNull);
+      container.dispose();
+    }
   });
 
   testWidgets('hides recovery overview quick entries and threshold row',
@@ -398,6 +430,9 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 
 class _FakeNotification extends NotificationService {
   final scheduledPostures = <PostureType?>[];
+  final duePostures = <PostureType>[];
+  final dueModes = <ReminderMode>[];
+  final cancelledPostures = <PostureType>[];
 
   @override
   Future<void> scheduleNextReminders({
@@ -409,6 +444,21 @@ class _FakeNotification extends NotificationService {
     PostureType? currentPosture,
   }) async {
     scheduledPostures.add(currentPosture);
+  }
+
+  @override
+  Future<bool> showPostureDueReminder({
+    required PostureType posture,
+    ReminderMode reminderMode = ReminderMode.soft,
+  }) async {
+    duePostures.add(posture);
+    dueModes.add(reminderMode);
+    return true;
+  }
+
+  @override
+  Future<void> cancelScheduledReminderForPosture(PostureType posture) async {
+    cancelledPostures.add(posture);
   }
 }
 
