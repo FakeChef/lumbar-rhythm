@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
 import 'package:lumbar_rhythm/features/actions/data/rehab_repository.dart';
 import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
+import 'package:lumbar_rhythm/features/home/domain/stage_encouragement_messages.dart';
 import 'package:lumbar_rhythm/features/home/presentation/home_page.dart';
 import 'package:lumbar_rhythm/features/posture/data/posture_session_repository.dart';
 import 'package:lumbar_rhythm/features/posture/domain/posture_session.dart';
@@ -70,7 +71,7 @@ void main() {
     expect(find.textContaining('天。'), findsWidgets);
   });
 
-  test('today encouragements avoid medical boundary words', () {
+  test('stage encouragements avoid medical boundary words', () {
     const forbidden = [
       '治疗',
       '治愈',
@@ -82,10 +83,20 @@ void main() {
       '医疗建议',
     ];
 
-    expect(todayEncouragements.length, 20);
-    for (final text in todayEncouragements) {
-      for (final word in forbidden) {
-        expect(text, isNot(contains(word)));
+    expect(
+        stageEncouragementMessages.keys, containsAll(['P1', 'P2', 'P3', 'P4']));
+    expect(
+      stageEncouragementMessages.values.fold<int>(
+        0,
+        (sum, messages) => sum + messages.length,
+      ),
+      120,
+    );
+    for (final messages in stageEncouragementMessages.values) {
+      for (final text in messages) {
+        for (final word in forbidden) {
+          expect(text, isNot(contains(word)));
+        }
       }
     }
   });

@@ -6,7 +6,7 @@ import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
 import 'package:lumbar_rhythm/features/actions/presentation/actions_page.dart';
 
 void main() {
-  testWidgets('rehab log sheet uses chips steppers and collapsed note',
+  testWidgets('rehab log sheet uses compact stepper row and collapsed note',
       (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
@@ -26,12 +26,15 @@ void main() {
 
     expect(find.widgetWithText(TextField, '完成量'), findsNothing);
     expect(find.widgetWithText(TextField, '单位'), findsNothing);
-    expect(
-        find.byKey(const ValueKey('rehab-quick-amount-3-分钟')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-quick-amount-3-分钟')), findsNothing);
+    expect(find.byKey(const ValueKey('rehab-amount-decrease')), findsOneWidget);
     expect(find.byKey(const ValueKey('rehab-amount-stepper-value')),
         findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-amount-increase')), findsOneWidget);
     expect(find.byKey(const ValueKey('rehab-unit-options')), findsOneWidget);
     expect(find.text('分钟'), findsWidgets);
+    await tester.tap(find.byKey(const ValueKey('rehab-unit-options')));
+    await tester.pumpAndSettle();
     expect(find.text('次/天'), findsWidgets);
     expect(find.byKey(const ValueKey('optional-note-toggle')), findsOneWidget);
     expect(find.byKey(const ValueKey('optional-note-field')), findsNothing);
@@ -63,7 +66,8 @@ void main() {
   });
 
   test('README keeps bottom navigation order in sync', () {
-    final readme = File('README.md').readAsStringSync().replaceAll('\r\n', '\n');
+    final readme =
+        File('README.md').readAsStringSync().replaceAll('\r\n', '\n');
     const expected = '''
 当前底部导航页面包括：
 

@@ -451,10 +451,10 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
       child: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            MediaQuery.of(context).viewInsets.bottom + 20,
+            16,
+            14,
+            16,
+            MediaQuery.of(context).viewInsets.bottom + 14,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -462,11 +462,11 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
             children: [
               Text(
                 '添加康复记录',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               DropdownButtonFormField<int>(
                 key: const ValueKey('rehab-activity-dropdown'),
                 initialValue: _action.id,
@@ -475,7 +475,7 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                   for (final action in widget.actions)
                     DropdownMenuItem(
                       value: action.id,
-                      child: Text(_activityDropdownLabel(action)),
+                      child: Text(action.name),
                     ),
                 ],
                 onChanged: (id) {
@@ -483,70 +483,22 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                   if (next == null) return;
                   setState(() {
                     _action = next;
-                    final nextUnits = _unitOptionsFor(next);
-                    _unit = nextUnits.contains(_unit) ? _unit : nextUnits.first;
+                    _unit = _defaultUnitFor(next);
                   });
                 },
               ),
-              const SizedBox(height: 12),
-              _SelectedActivityInfo(action: _action),
-              const SizedBox(height: 16),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.event_outlined),
-                title: const Text('记录日期'),
-                subtitle: Text(_formatDate(_createdAt)),
-                trailing: TextButton(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _createdAt,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
-                      locale: const Locale('zh', 'CN'),
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        _createdAt = DateTime(
-                          picked.year,
-                          picked.month,
-                          picked.day,
-                          _createdAt.hour,
-                          _createdAt.minute,
-                        );
-                      });
-                    }
-                  },
-                  child: const Text('选择'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text('完成了多少？', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final quick in _quickAmountsFor(_action))
-                    ChoiceChip(
-                      key: ValueKey(
-                          'rehab-quick-amount-${quick.amount}-${quick.unit}'),
-                      label: Text(quick.label),
-                      selected: _formatAmount(_amount) == quick.amount &&
-                          _unit == quick.unit,
-                      onSelected: (_) {
-                        setState(() {
-                          _amount = double.tryParse(quick.amount) ?? _amount;
-                          _unit = quick.unit;
-                        });
-                      },
-                    ),
-                ],
+              _SelectedActivityInfo(action: _action),
+              const SizedBox(height: 10),
+              _RecordDateRow(
+                createdAt: _createdAt,
+                onPick: _pickDate,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _AmountStepper(
                 amount: _amount,
                 unit: _unit,
+                unitOptions: units,
                 onDecrease: () => setState(() {
                   _amount =
                       (_amount - _stepForUnit(_unit)).clamp(0, 999).toDouble();
@@ -555,26 +507,11 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                   _amount =
                       (_amount + _stepForUnit(_unit)).clamp(0, 999).toDouble();
                 }),
+                onUnitChanged: (unit) => setState(() => _unit = unit),
               ),
-              const SizedBox(height: 12),
-              Text('单位', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
-              Wrap(
-                key: const ValueKey('rehab-unit-options'),
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final unit in units)
-                    ChoiceChip(
-                      label: Text(unit),
-                      selected: _unit == unit,
-                      onSelected: (_) => setState(() => _unit = unit),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text('做完感觉？', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -601,9 +538,9 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text('症状标签（可选）', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -623,7 +560,7 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               _OptionalNoteField(
                 controller: _noteController,
                 isExpanded: _isNoteExpanded,
@@ -631,7 +568,7 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                   setState(() => _isNoteExpanded = !_isNoteExpanded);
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -677,6 +614,27 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
     }
     return null;
   }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _createdAt,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      locale: const Locale('zh', 'CN'),
+    );
+    if (picked != null) {
+      setState(() {
+        _createdAt = DateTime(
+          picked.year,
+          picked.month,
+          picked.day,
+          _createdAt.hour,
+          _createdAt.minute,
+        );
+      });
+    }
+  }
 }
 
 class _RehabLogEntryDraft {
@@ -700,37 +658,82 @@ class _SelectedActivityInfo extends StatelessWidget {
     if (activity == null) {
       return const SizedBox.shrink();
     }
-    final needsGuidance =
-        activity.requiresDoctorClearance || activity.riskLevel == 'high';
+    final phaseLabel = _phaseRangeLabel(activity);
+    final patientTip = activity.patientTip.trim();
+    final stopRule = activity.stopRule.trim();
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '适合阶段：${_phaseRangeLabel(activity)}',
+              '适合阶段：$phaseLabel',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
             ),
-            const SizedBox(height: 6),
-            Text('关键点：${activity.patientTip}'),
-            const SizedBox(height: 4),
-            Text('风险等级：${_riskLabel(activity.riskLevel)}'),
-            const SizedBox(height: 4),
-            Text('暂停提示：${activity.stopRule}'),
-            if (needsGuidance) ...[
-              const SizedBox(height: 8),
+            if (patientTip.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(patientTip),
+            ],
+            if (stopRule.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(stopRule),
+            ],
+            if (activity.requiresDoctorClearance) ...[
+              const SizedBox(height: 6),
               const Text('该活动更适合后期或专业指导下记录，请以医生或康复师建议为准。'),
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RecordDateRow extends StatelessWidget {
+  const _RecordDateRow({
+    required this.createdAt,
+    required this.onPick,
+  });
+
+  final DateTime createdAt;
+  final VoidCallback onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.event_outlined, size: 18),
+        const SizedBox(width: 8),
+        Text(
+          '记录日期',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            _formatDate(createdAt),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+        TextButton(
+          onPressed: onPick,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            minimumSize: const Size(0, 32),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text('选择'),
+        ),
+      ],
     );
   }
 }
@@ -761,23 +764,6 @@ String _phaseRangeLabel(RehabActivity activity) {
   final start = rehabPhaseTitle(activity.phaseStart);
   final end = rehabPhaseTitle(activity.phaseEnd);
   return start == end ? start : '$start-$end';
-}
-
-String _activityDropdownLabel(RehabAction action) {
-  final activity = activityForAction(action);
-  if (activity == null) {
-    return action.name;
-  }
-  return '${action.name} · ${_phaseRangeLabel(activity)}';
-}
-
-String _riskLabel(String riskLevel) {
-  return switch (riskLevel) {
-    'low' => '低风险',
-    'medium' => '中等风险',
-    'high' => '高风险',
-    _ => riskLevel,
-  };
 }
 
 const _rehabPhaseGuideText =
@@ -830,6 +816,11 @@ List<String> _unitOptionsFor(RehabAction action) {
   return units.isEmpty ? [action.defaultUnit] : units;
 }
 
+String _defaultUnitFor(RehabAction action) {
+  final units = _unitOptionsFor(action);
+  return units.contains(action.defaultUnit) ? action.defaultUnit : units.first;
+}
+
 String _formatTime(DateTime time) {
   final hour = time.hour.toString().padLeft(2, '0');
   final minute = time.minute.toString().padLeft(2, '0');
@@ -838,63 +829,6 @@ String _formatTime(DateTime time) {
 
 String _formatDate(DateTime date) {
   return '${date.year}年${date.month}月${date.day}日';
-}
-
-class _QuickAmount {
-  const _QuickAmount(this.amount, this.unit);
-
-  final String amount;
-  final String unit;
-
-  String get label => '$amount$unit';
-}
-
-List<_QuickAmount> _quickAmountsFor(RehabAction action) {
-  return switch (action.name) {
-    '短距离步行' || '平地步行' || '分段步行' || '连续步行耐力' => const [
-        _QuickAmount('3', '分钟'),
-        _QuickAmount('5', '分钟'),
-        _QuickAmount('10', '分钟'),
-      ],
-    '膈式呼吸' ||
-    '腹式呼吸' ||
-    '骨盆中立训练' ||
-    '固定式自行车' ||
-    '固定自行车' ||
-    '水中康复与游泳' ||
-    '轻松游泳/水中步行' ||
-    '站立姿势重置' =>
-      const [
-        _QuickAmount('3', '分钟'),
-        _QuickAmount('5', '分钟'),
-      ],
-    '久坐中断' || '久站中断' => const [
-        _QuickAmount('1', '次/天'),
-        _QuickAmount('3', '次/天'),
-      ],
-    '腹部轻收缩' || '改良侧桥' || '腘绳肌轻拉伸' || '髋屈肌拉伸' => const [
-        _QuickAmount('10', '秒'),
-        _QuickAmount('20', '秒'),
-      ],
-    '踝泵' ||
-    '足跟滑动' ||
-    '仰卧交替抬腿' ||
-    '臀桥' ||
-    '蚌式开合' ||
-    '站姿髋外展' ||
-    '站姿提踵' ||
-    '扶桌半蹲' ||
-    'Bird-dog 简化版' ||
-    '弹力带抗旋转' =>
-      const [
-        _QuickAmount('5', '次'),
-        _QuickAmount('10', '次'),
-      ],
-    _ => [
-        _QuickAmount('1', action.defaultUnit),
-        _QuickAmount('5', action.defaultUnit),
-      ],
-  };
 }
 
 class RehabLogSheet extends StatefulWidget {
@@ -971,62 +905,15 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                     ),
               ),
               const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.event_outlined),
-                title: const Text('记录日期'),
-                subtitle: Text(_formatDate(_createdAt)),
-                trailing: TextButton(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _createdAt,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
-                      locale: const Locale('zh', 'CN'),
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        _createdAt = DateTime(
-                          picked.year,
-                          picked.month,
-                          picked.day,
-                          _createdAt.hour,
-                          _createdAt.minute,
-                        );
-                      });
-                    }
-                  },
-                  child: const Text('选择'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text('完成了多少？', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final quick in _quickAmountsFor(widget.action))
-                    ChoiceChip(
-                      key: ValueKey(
-                          'rehab-quick-amount-${quick.amount}-${quick.unit}'),
-                      label: Text(quick.label),
-                      selected: _formatAmount(_amount) == quick.amount &&
-                          _unit == quick.unit,
-                      onSelected: (_) {
-                        setState(() {
-                          _amount = double.tryParse(quick.amount) ?? _amount;
-                          _unit = quick.unit;
-                        });
-                      },
-                    ),
-                ],
+              _RecordDateRow(
+                createdAt: _createdAt,
+                onPick: _pickDate,
               ),
               const SizedBox(height: 12),
               _AmountStepper(
                 amount: _amount,
                 unit: _unit,
+                unitOptions: units,
                 onDecrease: () => setState(() {
                   _amount =
                       (_amount - _stepForUnit(_unit)).clamp(0, 999).toDouble();
@@ -1035,22 +922,7 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                   _amount =
                       (_amount + _stepForUnit(_unit)).clamp(0, 999).toDouble();
                 }),
-              ),
-              const SizedBox(height: 12),
-              Text('单位', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
-              Wrap(
-                key: const ValueKey('rehab-unit-options'),
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final unit in units)
-                    ChoiceChip(
-                      label: Text(unit),
-                      selected: _unit == unit,
-                      onSelected: (_) => setState(() => _unit = unit),
-                    ),
-                ],
+                onUnitChanged: (unit) => setState(() => _unit = unit),
               ),
               const SizedBox(height: 12),
               Text('做完感觉？', style: Theme.of(context).textTheme.labelLarge),
@@ -1144,20 +1016,45 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
       ),
     );
   }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _createdAt,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      locale: const Locale('zh', 'CN'),
+    );
+    if (picked != null) {
+      setState(() {
+        _createdAt = DateTime(
+          picked.year,
+          picked.month,
+          picked.day,
+          _createdAt.hour,
+          _createdAt.minute,
+        );
+      });
+    }
+  }
 }
 
 class _AmountStepper extends StatelessWidget {
   const _AmountStepper({
     required this.amount,
     required this.unit,
+    required this.unitOptions,
     required this.onDecrease,
     required this.onIncrease,
+    required this.onUnitChanged,
   });
 
   final double amount;
   final String unit;
+  final List<String> unitOptions;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
+  final ValueChanged<String> onUnitChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1169,19 +1066,22 @@ class _AmountStepper extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(
               key: const ValueKey('rehab-amount-decrease'),
               onPressed: onDecrease,
               icon: const Icon(Icons.remove_circle_outline),
               tooltip: '减少完成量',
+              visualDensity: VisualDensity.compact,
             ),
-            Expanded(
+            SizedBox(
+              width: 72,
               child: Text(
-                '${_formatAmount(amount)} $unit',
+                _formatAmount(amount),
                 key: const ValueKey('rehab-amount-stepper-value'),
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
               ),
@@ -1191,9 +1091,60 @@ class _AmountStepper extends StatelessWidget {
               onPressed: onIncrease,
               icon: const Icon(Icons.add_circle_outline),
               tooltip: '增加完成量',
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 8),
+            _UnitSelector(
+              unit: unit,
+              unitOptions: unitOptions,
+              onChanged: onUnitChanged,
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _UnitSelector extends StatelessWidget {
+  const _UnitSelector({
+    required this.unit,
+    required this.unitOptions,
+    required this.onChanged,
+  });
+
+  final String unit;
+  final List<String> unitOptions;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (unitOptions.length <= 1) {
+      return Text(
+        unit,
+        key: const ValueKey('rehab-unit-options'),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+      );
+    }
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        key: const ValueKey('rehab-unit-options'),
+        value: unit,
+        isDense: true,
+        items: [
+          for (final option in unitOptions)
+            DropdownMenuItem(
+              value: option,
+              child: Text(option),
+            ),
+        ],
+        onChanged: (value) {
+          if (value != null) {
+            onChanged(value);
+          }
+        },
       ),
     );
   }

@@ -87,7 +87,9 @@ class PostureSummary {
   }
 
   int get stopCount {
-    return sessions.where((session) => session.endReason == 'manual_end').length;
+    return sessions
+        .where((session) => session.endReason == 'manual_end')
+        .length;
   }
 
   List<PostureDaySummary> recentDaySummaries({required int days}) {

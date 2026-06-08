@@ -154,10 +154,11 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
       return;
     }
     _foregroundReminderSessionId = session.id;
-    final shown = await ref.read(notificationServiceProvider).showPostureDueReminder(
-          posture: session.type,
-          reminderMode: settings.reminderMode,
-        );
+    final shown =
+        await ref.read(notificationServiceProvider).showPostureDueReminder(
+              posture: session.type,
+              reminderMode: settings.reminderMode,
+            );
     ref.read(postureReminderStatusProvider.notifier).state = shown
         ? (session.type == PostureType.walking
             ? '走动提醒已触发，可以坐下休息一下。'

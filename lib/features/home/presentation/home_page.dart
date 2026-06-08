@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/data/app_data_refresh.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../actions/domain/action_item.dart';
+import '../domain/stage_encouragement_messages.dart';
 import '../../posture/application/posture_session_controller.dart';
 import '../../posture/data/posture_session_repository.dart';
 import '../../posture/domain/posture_session.dart';
@@ -19,35 +20,6 @@ final _homeRecoveryProfileProvider = FutureProvider((ref) {
   ref.watch(appDataRefreshProvider);
   return ref.watch(recoveryRepositoryProvider).loadProfile();
 });
-
-final todayEncouragementProvider = Provider<String>((ref) {
-  final now = DateTime.now();
-  final index = now.microsecondsSinceEpoch % todayEncouragements.length;
-  return todayEncouragements[index];
-});
-
-const todayEncouragements = [
-  '今天不用完美，记录一点也有价值。',
-  '稳定比激进更重要。',
-  '慢一点，也是在往前走。',
-  '换个姿势，是给身体一个缓冲。',
-  '恢复不是比赛，按自己的节奏来。',
-  '小小的坚持，也值得被看见。',
-  '今天照顾好自己，就已经很好。',
-  '每一次记录，都是更了解自己的方式。',
-  '温和一点，身体也会更安心。',
-  '按下开始，就算完成了一个小行动。',
-  '给自己一点耐心，节奏会慢慢稳定。',
-  '先做好当下这一小步。',
-  '身体的反馈，值得被认真听见。',
-  '不急着比较，专注自己的节奏。',
-  '短暂起身，也是在照顾今天的状态。',
-  '能记录下来，就是很好的开始。',
-  '今天的目标可以很小，也可以很踏实。',
-  '给腰背一点缓冲，也给自己一点余地。',
-  '平稳的一天，同样值得记录。',
-  '照顾自己，是一件可以慢慢做的事。',
-];
 
 final _homeTodayOverviewProvider = FutureProvider<_HomeTodayOverview>(
   (ref) async {
@@ -87,7 +59,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     final postureState = ref.watch(postureSessionControllerProvider);
     final recoveryProfileState = ref.watch(_homeRecoveryProfileProvider);
     final overviewState = ref.watch(_homeTodayOverviewProvider);
-    final encouragement = ref.watch(todayEncouragementProvider);
     final reminderStatus = ref.watch(postureReminderStatusProvider);
     final postureNow =
         ref.watch(postureClockProvider).valueOrNull ?? DateTime.now();
@@ -115,7 +86,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                 children: [
                   _PostureStatusCard(
                     profile: recoveryProfileState.valueOrNull,
-                    encouragement: encouragement,
                     session: session,
                     now: postureNow,
                     settings: settings,
@@ -346,7 +316,6 @@ class _HomeTodayOverview {
 class _PostureStatusCard extends StatelessWidget {
   const _PostureStatusCard({
     required this.profile,
-    required this.encouragement,
     required this.session,
     required this.now,
     required this.settings,
@@ -356,7 +325,6 @@ class _PostureStatusCard extends StatelessWidget {
   });
 
   final RecoveryProfile? profile;
-  final String encouragement;
   final PostureSession? session;
   final DateTime now;
   final ReminderSettings settings;
@@ -374,8 +342,8 @@ class _PostureStatusCard extends StatelessWidget {
             : selectedPosture;
     final duration = current?.durationAt(now) ?? Duration.zero;
     final durationText = current == null ? '00:00' : _formatDuration(duration);
-    final encouragementText =
-        _phaseEncouragement(profile, now) ?? encouragement;
+    final greetingText = _recoveryGreeting(profile, now);
+    final encouragementText = _phaseEncouragement(profile, now);
     final timerState = current == null
         ? null
         : SittingStandingTimerState.calculate(
@@ -398,19 +366,22 @@ class _PostureStatusCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _recoveryGreeting(profile, now),
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+              if (greetingText.isNotEmpty) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        greetingText,
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 3),
+                  ],
+                ),
+                const SizedBox(height: 3),
+              ],
               Text(
                 encouragementText,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -522,29 +493,25 @@ class _PostureStatusCard extends StatelessWidget {
 
   String _recoveryGreeting(RecoveryProfile? profile, DateTime now) {
     final day = profile?.postSurgeryDay(now);
-    if (day == null) {
-      return '可在设置中添加手术日期。';
-    }
     final nickname = profile?.nickname?.trim();
-    if (nickname != null && nickname.isNotEmpty) {
+    if (day != null && nickname != null && nickname.isNotEmpty) {
       return '$nickname，今天是术后第 $day 天。';
     }
-    return '今天是术后第 $day 天。';
+    if (day != null) {
+      return '今天是术后第 $day 天。';
+    }
+    if (nickname != null && nickname.isNotEmpty) {
+      return nickname;
+    }
+    return '';
   }
 
-  String? _phaseEncouragement(RecoveryProfile? profile, DateTime now) {
+  String _phaseEncouragement(RecoveryProfile? profile, DateTime now) {
     final day = profile?.postSurgeryDay(now);
     if (day == null) {
-      return '可以先用今天的小记录照顾自己；如果愿意，也可以在设置里补充手术日期，让鼓励语更贴合当前阶段。';
+      return stageEncouragementFallback;
     }
-    final phase = rehabPhaseForPostSurgeryDay(day);
-    return switch (phase) {
-      'P1' => '先把轻柔、稳定的活动记录下来，今天能按舒适节奏完成一点就很好。',
-      'P2' => '关注动作控制和身体反馈，记录每次活动后的感受，帮助自己稳稳找到节奏。',
-      'P3' => '按可承受的节奏记录活动量，留意身体反馈，让日常能力一点点接回来。',
-      'P4' => '可以继续记录较高负荷活动的感受，遇到不确定的内容仍以医生或康复师建议为准。',
-      _ => null,
-    };
+    return stageEncouragementFor(postSurgeryDay: day, now: now);
   }
 }
 

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
+import 'package:lumbar_rhythm/features/home/domain/stage_encouragement_messages.dart';
 
 void main() {
   test('v0.4.4 rehab content and report direction stay focused', () {
@@ -17,9 +18,18 @@ void main() {
 
     final home = File('lib/features/home/presentation/home_page.dart')
         .readAsStringSync();
-    expect(home, contains('todayEncouragements'));
-    expect(home, contains('恢复不是比赛，按自己的节奏来。'));
+    expect(stageEncouragementMessages['P1']?.length, 30);
+    expect(stageEncouragementMessages['P2']?.length, 30);
+    expect(stageEncouragementMessages['P3']?.length, 30);
+    expect(stageEncouragementMessages['P4']?.length, 30);
+    expect(home, contains('stageEncouragementFor'));
+    expect(home, contains('stageEncouragementFallback'));
     expect(home, isNot(contains('当前记录阶段')));
+    expect(home, isNot(contains('阶段一')));
+    expect(home, isNot(contains('阶段二')));
+    expect(home, isNot(contains('阶段三')));
+    expect(home, isNot(contains('阶段四')));
+    expect(home, isNot(contains('当前阶段')));
 
     final reports = File('lib/features/reports/presentation/reports_page.dart')
         .readAsStringSync();

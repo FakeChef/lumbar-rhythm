@@ -177,8 +177,7 @@ class SettingsPage extends ConsumerWidget {
                         },
                       );
                   if (!context.mounted) return;
-                  final message =
-                      scheduled ? '已安排 10 秒前台测试' : '10 秒前台测试没有安排成功';
+                  final message = scheduled ? '已安排 10 秒前台测试' : '10 秒前台测试没有安排成功';
                   messenger.showSnackBar(SnackBar(content: Text(message)));
                   ref
                       .read(_settingsTestReminderFeedbackProvider.notifier)
@@ -553,9 +552,10 @@ class SettingsPage extends ConsumerWidget {
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           '请先选择手术日期。',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
                         ),
                       ),
                   ],
@@ -810,7 +810,8 @@ class _ReminderSettingsSection extends StatelessWidget {
           onChanged: onDaytimeLoopEnabledChanged,
           secondary: const Icon(Icons.wb_sunny_outlined),
           title: const Text('白天节奏'),
-          subtitle: const Text('白天节奏会在指定时间段内循环提醒：坐一段时间后走动，走动一段时间后坐下休息。你可以随时停止。'),
+          subtitle:
+              const Text('白天节奏会在指定时间段内循环提醒：坐一段时间后走动，走动一段时间后坐下休息。你可以随时停止。'),
         ),
         _ClockMinuteTile(
           icon: Icons.play_circle_outline,
@@ -882,7 +883,8 @@ class _ReminderSettingsSection extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.timer_10_outlined),
           title: const Text('10 秒前台测试'),
-          subtitle: Text('验证 App 打开时的主提醒路径：10 秒后由前台计时器发送一条${settings.reminderMode.label}。'),
+          subtitle: Text(
+              '验证 App 打开时的主提醒路径：10 秒后由前台计时器发送一条${settings.reminderMode.label}。'),
           trailing: IconButton(
             tooltip: '10 秒前台测试',
             icon: const Icon(Icons.play_arrow_outlined),

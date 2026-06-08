@@ -108,7 +108,8 @@ class _PostureCard extends StatelessWidget {
           value: _formatDuration(summary.longestSitting),
         ),
         _MetricLine(label: '久坐中断次数', value: '${summary.sittingBreakCount} 次'),
-        _MetricLine(label: '久坐超时次数', value: '${summary.sittingOverThresholdCount} 次'),
+        _MetricLine(
+            label: '久坐超时次数', value: '${summary.sittingOverThresholdCount} 次'),
         _MetricLine(
           label: '坐姿累计',
           value: _formatDuration(summary.sittingTotal),

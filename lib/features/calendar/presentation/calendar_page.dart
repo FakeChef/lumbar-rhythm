@@ -132,9 +132,9 @@ class CalendarPage extends ConsumerWidget {
   void _moveMonth(WidgetRef ref, int delta) {
     final current = ref.read(calendarMonthProvider);
     ref.read(calendarMonthProvider.notifier).state = DateTime(
-          current.year,
-          current.month + delta,
-        );
+      current.year,
+      current.month + delta,
+    );
   }
 }
 

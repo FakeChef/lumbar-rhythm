@@ -698,7 +698,8 @@ class LocalDatabase {
       }
     }
     if (values.isEmpty) return;
-    await db.insert(table, values, conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(table, values,
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<Set<String>> _tableColumns(DatabaseExecutor db, String table) async {
