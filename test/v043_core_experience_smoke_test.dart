@@ -27,8 +27,11 @@ void main() {
     final actions = File('lib/features/actions/presentation/actions_page.dart')
         .readAsStringSync();
 
-    expect(actions, contains("ValueKey('rehab-add-log')"));
-    expect(actions, contains('+ 添加康复记录'));
+    expect(actions, contains("ValueKey('rehab-add-entry-button')"));
+    expect(actions, contains("ValueKey('rehab-activity-dropdown')"));
+    expect(actions, contains('添加康复记录'));
+    expect(actions, isNot(contains("ValueKey('rehab-category-dropdown')")));
+    expect(actions, isNot(contains("ValueKey('rehab-add-log')")));
   });
 
   test('v0.4.3 exposes daytime rhythm settings', () {
@@ -52,9 +55,12 @@ void main() {
 
     expect(reports, contains('保存当前报告到相册'));
     expect(reports, contains('lumbar-rhythm-report-\${period.name}-'));
-    expect(reports, contains("ValueKey('report-rehab-trend-chart')"));
-    expect(reports, contains('最近 7 天康复柱状图'));
-    expect(reports, contains('最近 30 天康复柱状图'));
+    expect(reports, contains("ValueKey('rehab-activity-trend-chart-"));
+    expect(reports, contains('最近 7 天康复活动趋势'));
+    expect(reports, contains('最近 30 天康复活动趋势'));
+    expect(reports, isNot(contains("ValueKey('report-rehab-trend-chart')")));
+    expect(reports, isNot(contains('最近 7 天康复柱状图')));
+    expect(reports, isNot(contains('最近 30 天康复柱状图')));
     expect(reportImage, contains('useCurrentRange'));
     expect(reportImage, contains('rangeLabel'));
     expect(reportImage, contains('本报告仅用于个人康复记录回顾'));
