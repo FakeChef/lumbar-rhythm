@@ -290,26 +290,47 @@ class _ActivityTrendCard extends StatelessWidget {
               label: '总完成量',
               value: '${_formatNumber(trend.totalAmount)} ${trend.unit}',
             ),
-            SizedBox(
+            KeyedSubtree(
               key: ValueKey('rehab-activity-trend-chart-${trend.action.id}'),
-              height: 168,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final day in trend.days)
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: days == 7 ? 2 : 1,
+              child: SizedBox(
+                height: 176,
+                child: days == 30
+                    ? SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            for (final day in trend.days)
+                              SizedBox(
+                                width: 34,
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 2),
+                                  child: _ActivityTrendBar(
+                                    day: day,
+                                    maxValue: maxValue,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        child: _ActivityTrendBar(
-                          day: day,
-                          maxValue: maxValue,
-                          showLabel: days == 7 || day.day.day == 1,
-                        ),
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          for (final day in trend.days)
+                            Expanded(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 2),
+                                child: _ActivityTrendBar(
+                                  day: day,
+                                  maxValue: maxValue,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                ],
               ),
             ),
           ],
@@ -323,12 +344,10 @@ class _ActivityTrendBar extends StatelessWidget {
   const _ActivityTrendBar({
     required this.day,
     required this.maxValue,
-    required this.showLabel,
   });
 
   final _ActivityTrendDay day;
   final double maxValue;
-  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -358,9 +377,12 @@ class _ActivityTrendBar extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         SizedBox(
-          height: 18,
+          height: 22,
           child: Text(
-            showLabel ? '${day.day.month}/${day.day.day}' : '',
+            _formatDateLabel(day.day),
+            key: ValueKey(
+              'rehab-trend-date-${day.day.year}-${day.day.month}-${day.day.day}',
+            ),
             maxLines: 1,
             overflow: TextOverflow.clip,
             style: Theme.of(context).textTheme.labelSmall,
@@ -633,16 +655,21 @@ _ActivityTrend _activityTrendForAction({
   required int days,
 }) {
   final unit = logs.isEmpty ? action.defaultUnit : logs.first.unit;
+  final useAmountValue = _usesAmountValue(unit);
+  final trendUnit = useAmountValue ? unit : '次';
   return _ActivityTrend(
     action: action,
-    unit: unit,
+    unit: trendUnit,
     totalCount: logs.length,
-    totalAmount: logs.fold(0.0, (sum, log) => sum + log.amountValue),
+    totalAmount: useAmountValue
+        ? logs.fold(0.0, (sum, log) => sum + log.amountValue)
+        : logs.length.toDouble(),
     days: [
       for (var index = 0; index < days; index++)
         _activityTrendDayFor(
           day: start.add(Duration(days: index)),
           logs: logs,
+          useAmountValue: useAmountValue,
         ),
     ],
   );
@@ -651,6 +678,7 @@ _ActivityTrend _activityTrendForAction({
 _ActivityTrendDay _activityTrendDayFor({
   required DateTime day,
   required List<RehabLog> logs,
+  required bool useAmountValue,
 }) {
   final nextDay = day.add(const Duration(days: 1));
   final dayLogs = logs.where((log) {
@@ -658,8 +686,17 @@ _ActivityTrendDay _activityTrendDayFor({
   }).toList();
   return _ActivityTrendDay(
     day: day,
-    value: dayLogs.fold(0.0, (sum, log) => sum + log.amountValue),
+    value: useAmountValue
+        ? dayLogs.fold(0.0, (sum, log) => sum + log.amountValue)
+        : dayLogs.length.toDouble(),
   );
+}
+
+bool _usesAmountValue(String unit) {
+  return switch (unit) {
+    '分钟' || '次' || '秒' || '秒保持' || '次/天' || '组' => true,
+    _ => false,
+  };
 }
 
 String _actionNameFor(DailyReport report, int actionId) {
@@ -673,6 +710,10 @@ String _actionNameFor(DailyReport report, int actionId) {
 
 String _formatNumber(double value) {
   return value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(1);
+}
+
+String _formatDateLabel(DateTime value) {
+  return '${value.month}/${value.day}';
 }
 
 String _formatClock(DateTime value) {

@@ -119,12 +119,12 @@ class ReminderDebugState {
   }) {
     return ReminderDebugState(
       lastImmediateTestAt: lastImmediateTestAt ?? this.lastImmediateTestAt,
-      lastForegroundTimerScheduledAt: lastForegroundTimerScheduledAt ??
-          this.lastForegroundTimerScheduledAt,
+      lastForegroundTimerScheduledAt:
+          lastForegroundTimerScheduledAt ?? this.lastForegroundTimerScheduledAt,
       lastForegroundTimerDueAt:
           lastForegroundTimerDueAt ?? this.lastForegroundTimerDueAt,
-      lastLocalScheduleRequestedAt: lastLocalScheduleRequestedAt ??
-          this.lastLocalScheduleRequestedAt,
+      lastLocalScheduleRequestedAt:
+          lastLocalScheduleRequestedAt ?? this.lastLocalScheduleRequestedAt,
       lastLocalScheduleDueAt:
           lastLocalScheduleDueAt ?? this.lastLocalScheduleDueAt,
       lastNotificationId: lastNotificationId ?? this.lastNotificationId,
@@ -137,13 +137,15 @@ class ReminderDebugState {
           pendingNotificationIds ?? this.pendingNotificationIds,
       scheduledPendingBefore:
           scheduledPendingBefore ?? this.scheduledPendingBefore,
-      scheduledPendingAfter: scheduledPendingAfter ?? this.scheduledPendingAfter,
+      scheduledPendingAfter:
+          scheduledPendingAfter ?? this.scheduledPendingAfter,
       lastForegroundTimerFiredAt:
           lastForegroundTimerFiredAt ?? this.lastForegroundTimerFiredAt,
       lastImmediateShownAt: lastImmediateShownAt ?? this.lastImmediateShownAt,
       lastScheduledModeUsed:
           lastScheduledModeUsed ?? this.lastScheduledModeUsed,
-      lastScheduleModeResult: lastScheduleModeResult ?? this.lastScheduleModeResult,
+      lastScheduleModeResult:
+          lastScheduleModeResult ?? this.lastScheduleModeResult,
     );
   }
 }
@@ -160,7 +162,8 @@ extension ReminderScheduleDiagnosticModeLabel
     return switch (this) {
       ReminderScheduleDiagnosticMode.inexactAllowWhileIdle =>
         'inexactAllowWhileIdle',
-      ReminderScheduleDiagnosticMode.exactAllowWhileIdle => 'exactAllowWhileIdle',
+      ReminderScheduleDiagnosticMode.exactAllowWhileIdle =>
+        'exactAllowWhileIdle',
       ReminderScheduleDiagnosticMode.alarmClock => 'alarmClock',
     };
   }
@@ -171,7 +174,8 @@ extension ReminderScheduleDiagnosticModeLabel
         AndroidScheduleMode.inexactAllowWhileIdle,
       ReminderScheduleDiagnosticMode.exactAllowWhileIdle =>
         AndroidScheduleMode.exactAllowWhileIdle,
-      ReminderScheduleDiagnosticMode.alarmClock => AndroidScheduleMode.alarmClock,
+      ReminderScheduleDiagnosticMode.alarmClock =>
+        AndroidScheduleMode.alarmClock,
     };
   }
 }
@@ -199,8 +203,7 @@ class NotificationService {
 
   NotificationService({
     void Function(ReminderDebugState state)? onDebugStateChanged,
-  })
-      : _onDebugStateChanged = onDebugStateChanged;
+  }) : _onDebugStateChanged = onDebugStateChanged;
 
   ReminderDebugState get debugState => _debugState;
 
@@ -437,16 +440,16 @@ class NotificationService {
         scheduleModeLabel: diagnosticMode.label,
       );
       final pendingAfter = await _readPendingNotificationIds();
-      final containsTestId = pendingAfter.contains(_oneMinuteSittingTestReminderId);
+      final containsTestId =
+          pendingAfter.contains(_oneMinuteSittingTestReminderId);
       _updateDebug(
         _debugState.copyWith(
           pendingNotificationCount: pendingAfter.length,
           pendingNotificationIds: pendingAfter,
           scheduledPendingBefore: pendingBefore.length,
           scheduledPendingAfter: pendingAfter.length,
-          lastScheduleModeResult: containsTestId
-              ? '已安排，等待系统触发。'
-              : '已请求安排，但 pending 列表未确认该提醒。',
+          lastScheduleModeResult:
+              containsTestId ? '已安排，等待系统触发。' : '已请求安排，但 pending 列表未确认该提醒。',
           lastErrorMessage: null,
         ),
       );

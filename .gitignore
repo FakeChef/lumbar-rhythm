@@ -33,3 +33,5 @@ ios/Runner.xcworkspace/
 Thumbs.db
 
 *.apk
+.venv/
+lumbar-hotspot-monitor/

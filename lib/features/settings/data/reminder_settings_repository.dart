@@ -55,9 +55,8 @@ class SqfliteReminderSettingsRepository implements ReminderSettingsRepository {
       standingIntervalMinutes: int.tryParse(standingInterval ?? ''),
       walkingIntervalMinutes: int.tryParse(walkingInterval ?? ''),
       reminderMode: ReminderSettings.parseMode(reminderMode),
-      daytimeLoopEnabled: daytimeLoopEnabled == null
-          ? null
-          : daytimeLoopEnabled == 'true',
+      daytimeLoopEnabled:
+          daytimeLoopEnabled == null ? null : daytimeLoopEnabled == 'true',
       daytimeStartMinutes: int.tryParse(daytimeStartMinutes ?? ''),
       daytimeEndMinutes: int.tryParse(daytimeEndMinutes ?? ''),
       daytimeSittingMinutes: int.tryParse(daytimeSittingMinutes ?? ''),

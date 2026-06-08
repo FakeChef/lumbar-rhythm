@@ -264,6 +264,15 @@ void main() {
       find.byKey(ValueKey('rehab-activity-trend-chart-${walking.id}')),
       findsOneWidget,
     );
+    for (var index = 0; index < 7; index++) {
+      final day = today.subtract(Duration(days: 6 - index));
+      expect(
+        find.byKey(
+          ValueKey('rehab-trend-date-${day.year}-${day.month}-${day.day}'),
+        ),
+        findsWidgets,
+      );
+    }
     expect(find.text('今日康复动作记录'), findsNothing);
     expect(find.text('这段时间还没有康复活动记录。'), findsNothing);
     expect(find.text('记录天数'), findsNothing);
@@ -287,6 +296,15 @@ void main() {
       find.byKey(ValueKey('rehab-activity-trend-chart-${breathing.id}')),
       findsOneWidget,
     );
+    for (var index = 0; index < 30; index++) {
+      final day = today.subtract(Duration(days: 29 - index));
+      expect(
+        find.byKey(
+          ValueKey('rehab-trend-date-${day.year}-${day.month}-${day.day}'),
+        ),
+        findsWidgets,
+      );
+    }
     expect(find.text('今日康复动作记录'), findsNothing);
     expect(find.text('康复记录总次数'), findsNothing);
   });
@@ -577,7 +595,11 @@ void main() {
     expect(find.byKey(const ValueKey('rehab-category-dropdown')), findsNothing);
     expect(
         find.byKey(const ValueKey('rehab-activity-dropdown')), findsOneWidget);
-    expect(find.text('完成了多少？'), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-amount-decrease')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-amount-stepper-value')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-amount-increase')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-unit-options')), findsOneWidget);
     expect(find.byKey(const ValueKey('rehab-log-save-button')), findsOneWidget);
   });
 
@@ -630,9 +652,13 @@ void main() {
         find.byKey(const ValueKey('rehab-activity-dropdown')), findsOneWidget);
     expect(find.text('添加康复记录'), findsOneWidget);
     expect(find.text('选择康复活动'), findsOneWidget);
+    expect(find.text('圆木滚动转身'), findsOneWidget);
+    expect(find.text('适合阶段：阶段一'), findsOneWidget);
     expect(find.text('短距离步行活动'), findsNothing);
     expect(find.text('默认目标：20 分钟'), findsNothing);
     expect(find.text('室内慢走'), findsNothing);
+    expect(find.text('风险等级'), findsNothing);
+    expect(find.textContaining('风险等级'), findsNothing);
 
     await tester.ensureVisible(
       find.byKey(const ValueKey('rehab-activity-dropdown')),
@@ -640,16 +666,28 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('rehab-activity-dropdown')));
     await tester.pumpAndSettle();
+    expect(find.text('膈式呼吸'), findsWidgets);
+    expect(find.textContaining('膈式呼吸 ·'), findsNothing);
     await tester.tap(find.textContaining('膈式呼吸').last);
     await tester.pumpAndSettle();
     expect(find.textContaining('膈式呼吸'), findsWidgets);
     expect(find.text('膈式呼吸活动'), findsNothing);
+    expect(find.text('选择舒适姿势，放慢呼吸并记录时间。'), findsOneWidget);
+    expect(find.text('如果头晕或不舒服，恢复自然呼吸。'), findsOneWidget);
+    expect(find.textContaining('风险等级'), findsNothing);
     expect(find.byKey(const ValueKey('rehab-add-log')), findsNothing);
-    expect(find.text('3分钟'), findsOneWidget);
-    expect(find.text('5分钟'), findsOneWidget);
+    expect(find.text('3分钟'), findsNothing);
+    expect(find.text('5分钟'), findsNothing);
+    expect(find.byKey(const ValueKey('rehab-amount-decrease')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-amount-stepper-value')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-amount-increase')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-unit-options')), findsOneWidget);
 
-    await tester.tap(find.text('5分钟'));
-    await tester.pumpAndSettle();
+    for (var index = 0; index < 4; index++) {
+      await tester.tap(find.byKey(const ValueKey('rehab-amount-increase')));
+      await tester.pumpAndSettle();
+    }
     await tester.ensureVisible(find.text('腰酸'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('腰酸'));

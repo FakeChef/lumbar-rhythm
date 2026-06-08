@@ -100,8 +100,8 @@ void main() {
     expect(postureRows.single.containsKey('threshold_seconds'), isTrue);
     expect(postureRows.single.containsKey('end_reason'), isTrue);
     expect(postureRows.single['source'], 'manual');
-    final profileColumns =
-        await (await database.instance).rawQuery('PRAGMA table_info(recovery_profile)');
+    final profileColumns = await (await database.instance)
+        .rawQuery('PRAGMA table_info(recovery_profile)');
     expect(profileColumns.any((row) => row['name'] == 'nickname'), isTrue);
 
     await database.close();
@@ -242,8 +242,8 @@ void main() {
     final rehabRows = await database.readAllRehabLogs();
     final profile = await database.readRecoveryProfile();
     final notes = await database.readAllDailyRecoveryNotes();
-    final profileColumns =
-        await (await database.instance).rawQuery('PRAGMA table_info(recovery_profile)');
+    final profileColumns = await (await database.instance)
+        .rawQuery('PRAGMA table_info(recovery_profile)');
 
     expect(postureRows.single['type'], 'standing');
     expect(rehabRows.single['action_id'], 1);
@@ -257,7 +257,8 @@ void main() {
   });
 
   test('migration code does not drop core user tables', () {
-    final source = File('lib/core/database/local_database.dart').readAsStringSync();
+    final source =
+        File('lib/core/database/local_database.dart').readAsStringSync();
     const coreTables = [
       'posture_sessions',
       'rehab_logs',

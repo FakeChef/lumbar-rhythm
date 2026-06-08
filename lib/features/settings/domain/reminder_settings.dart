@@ -76,18 +76,18 @@ class ReminderSettings {
           sittingIntervalMinutes ?? this.sittingIntervalMinutes),
       standingIntervalMinutes: _normalizeInterval(
           standingIntervalMinutes ?? this.standingIntervalMinutes),
-      walkingIntervalMinutes:
-          _normalizeSmallInterval(walkingIntervalMinutes ?? this.walkingIntervalMinutes),
+      walkingIntervalMinutes: _normalizeSmallInterval(
+          walkingIntervalMinutes ?? this.walkingIntervalMinutes),
       reminderMode: reminderMode ?? this.reminderMode,
       daytimeLoopEnabled: daytimeLoopEnabled ?? this.daytimeLoopEnabled,
-      daytimeStartMinutes:
-          _normalizeClockMinutes(daytimeStartMinutes ?? this.daytimeStartMinutes),
+      daytimeStartMinutes: _normalizeClockMinutes(
+          daytimeStartMinutes ?? this.daytimeStartMinutes),
       daytimeEndMinutes:
           _normalizeClockMinutes(daytimeEndMinutes ?? this.daytimeEndMinutes),
-      daytimeSittingMinutes:
-          _normalizeSmallInterval(daytimeSittingMinutes ?? this.daytimeSittingMinutes),
-      daytimeWalkingMinutes:
-          _normalizeSmallInterval(daytimeWalkingMinutes ?? this.daytimeWalkingMinutes),
+      daytimeSittingMinutes: _normalizeSmallInterval(
+          daytimeSittingMinutes ?? this.daytimeSittingMinutes),
+      daytimeWalkingMinutes: _normalizeSmallInterval(
+          daytimeWalkingMinutes ?? this.daytimeWalkingMinutes),
     );
   }
 
