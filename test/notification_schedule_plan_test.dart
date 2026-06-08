@@ -71,6 +71,59 @@ void main() {
     expect(source, isNot(contains('IOSFlutterLocalNotificationsPlugin')));
   });
 
+  test('Android manifest declares local notification permissions and receivers',
+      () {
+    final manifest =
+        File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+
+    expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
+    expect(manifest, contains('android.permission.VIBRATE'));
+    expect(
+      manifest,
+      contains(
+        'com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver',
+      ),
+    );
+    if (manifest.contains('android.permission.RECEIVE_BOOT_COMPLETED')) {
+      expect(
+        manifest,
+        contains(
+          'com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver',
+        ),
+      );
+      expect(manifest, contains('android.intent.action.BOOT_COMPLETED'));
+      expect(manifest, contains('android.intent.action.MY_PACKAGE_REPLACED'));
+    }
+    expect(manifest, isNot(contains('android.permission.USE_EXACT_ALARM')));
+    expect(
+        manifest, isNot(contains('android.permission.SCHEDULE_EXACT_ALARM')));
+  });
+
+  test('scheduled reminders initialize timezone database before scheduling',
+      () {
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+    final scheduleStart = service.indexOf('Future<void> _scheduleReminder');
+    final scheduleEnd = service.indexOf('Future<List<int>> _readPending');
+    final scheduleReminder = service.substring(scheduleStart, scheduleEnd);
+
+    expect(
+      scheduleReminder.indexOf('_ensureTimeZonesInitialized();'),
+      lessThan(scheduleReminder.indexOf('_plugin.zonedSchedule')),
+    );
+    expect(service, contains('tz_data.initializeTimeZones();'));
+  });
+
+  test('notification service does not reference Android raw sound resources',
+      () {
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+    final rawSoundDirectory = Directory('android/app/src/main/res/raw');
+
+    expect(service, isNot(contains('RawResourceAndroidNotificationSound')));
+    expect(rawSoundDirectory.existsSync(), isFalse);
+  });
+
   test('vibration reminder does not play sound', () {
     final details = buildReminderNotificationDetails(
       reminderMode: ReminderMode.vibration,
@@ -248,12 +301,50 @@ void main() {
     expect(service, contains('return showReminderNow'));
   });
 
+  test('posture due reminders only show direct sitting and walking ids',
+      () async {
+    final service = _CapturingNotificationService();
+
+    expect(
+      await service.showPostureDueReminder(
+        posture: PostureType.sitting,
+        reminderMode: ReminderMode.vibration,
+      ),
+      isTrue,
+    );
+    expect(
+      await service.showPostureDueReminder(
+        posture: PostureType.walking,
+        reminderMode: ReminderMode.alarm,
+      ),
+      isTrue,
+    );
+    expect(
+      await service.showPostureDueReminder(posture: PostureType.standing),
+      isFalse,
+    );
+    expect(
+      await service.showPostureDueReminder(posture: PostureType.resting),
+      isFalse,
+    );
+
+    expect(service.shownIds, [101, 103]);
+    expect(service.shownModes, [ReminderMode.vibration, ReminderMode.alarm]);
+  });
+
   test('does not request exact alarm permission by default', () {
     final androidManifest =
         File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+    final settings =
+        File('lib/features/settings/presentation/settings_page.dart')
+            .readAsStringSync();
 
     expect(androidManifest, isNot(contains('SCHEDULE_EXACT_ALARM')));
     expect(androidManifest, isNot(contains('USE_EXACT_ALARM')));
+    expect(service, contains('AndroidScheduleMode.inexactAllowWhileIdle'));
+    expect(settings, contains('主提醒路径'));
   });
 
   test('reminder diagnostics do not add medical judgment copy', () {
@@ -273,4 +364,22 @@ void main() {
       expect(source, isNot(contains(word)));
     }
   });
+}
+
+class _CapturingNotificationService extends NotificationService {
+  final shownIds = <int>[];
+  final shownModes = <ReminderMode>[];
+
+  @override
+  Future<bool> showReminderNow({
+    required ReminderMode mode,
+    required String title,
+    required String body,
+    int id = 199,
+    bool markAsImmediateTest = false,
+  }) async {
+    shownIds.add(id);
+    shownModes.add(mode);
+    return true;
+  }
 }

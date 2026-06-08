@@ -124,7 +124,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     _foregroundTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       unawaited(_checkForegroundReminder());
     });
-    unawaited(_checkForegroundReminder());
+    unawaited(_checkForegroundReminder(session));
   }
 
   void _stopForegroundMonitor() {
@@ -133,8 +133,8 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     _foregroundReminderSessionId = null;
   }
 
-  Future<void> _checkForegroundReminder() async {
-    final session = state.valueOrNull;
+  Future<void> _checkForegroundReminder([PostureSession? currentSession]) async {
+    final session = currentSession ?? state.valueOrNull;
     if (session == null ||
         session.id == _foregroundReminderSessionId ||
         (session.type != PostureType.sitting &&
@@ -159,6 +159,11 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
               posture: session.type,
               reminderMode: settings.reminderMode,
             );
+    if (shown) {
+      await ref
+          .read(notificationServiceProvider)
+          .cancelScheduledReminderForPosture(session.type);
+    }
     ref.read(postureReminderStatusProvider.notifier).state = shown
         ? (session.type == PostureType.walking
             ? '走动提醒已触发，可以坐下休息一下。'

@@ -227,7 +227,7 @@ class _ActivityTrendReportSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final trends = _activityTrends(report, days);
-    final title = days == 7 ? '最近 7 天康复活动趋势' : '最近 30 天康复活动趋势';
+    final title = days == 7 ? '最近 7 天按活动趋势' : '最近 30 天按活动趋势';
 
     return KeyedSubtree(
       key: ValueKey(period == ReportPeriod.week
@@ -238,7 +238,10 @@ class _ActivityTrendReportSection extends StatelessWidget {
         title: title,
         subtitle: '按实际记录过的康复活动查看趋势',
         child: trends.isEmpty
-            ? const _EmptyHint(text: '这段时间还没有康复活动记录。')
+            ? const _EmptyHint(
+                text:
+                    '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+              )
             : Column(
                 children: [
                   for (final trend in trends) ...[
@@ -256,7 +259,6 @@ class _RehabActivityTrendSection extends StatelessWidget {
   const _RehabActivityTrendSection({
     required this.trend,
     required this.days,
-    super.key,
   });
 
   final _ActivityTrend trend;
@@ -293,10 +295,25 @@ class _RehabActivityTrendSection extends StatelessWidget {
             ),
             KeyedSubtree(
               key: ValueKey('rehab-activity-trend-chart-${trend.action.id}'),
-              child: _RehabActivityBarChart(
-                days: trend.days,
-                maxValue: maxValue,
-                scrollHorizontally: days == 30,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (days == 30) ...[
+                    Text(
+                      '左右滑动查看 30 天趋势',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  _RehabActivityBarChart(
+                    days: trend.days,
+                    maxValue: maxValue,
+                    scrollHorizontally: days == 30,
+                  ),
+                ],
               ),
             ),
           ],
@@ -311,7 +328,6 @@ class _RehabActivityBarChart extends StatelessWidget {
     required this.days,
     required this.maxValue,
     required this.scrollHorizontally,
-    super.key,
   });
 
   final List<_ActivityTrendDay> days;

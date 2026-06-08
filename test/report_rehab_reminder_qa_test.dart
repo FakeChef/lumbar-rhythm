@@ -274,7 +274,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('rehab-report-week-section')),
         findsOneWidget);
-    expect(find.text('最近 7 天康复活动趋势'), findsOneWidget);
+    expect(find.text('最近 7 天按活动趋势'), findsOneWidget);
     expect(find.text('最近 7 天康复汇总'), findsNothing);
     expect(find.text('最近 7 天康复柱状图'), findsNothing);
     expect(find.text('按实际记录过的康复活动查看趋势'), findsOneWidget);
@@ -320,7 +320,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('rehab-report-month-section')),
         findsOneWidget);
-    expect(find.text('最近 30 天康复活动趋势'), findsOneWidget);
+    expect(find.text('最近 30 天按活动趋势'), findsOneWidget);
+    expect(find.text('左右滑动查看 30 天趋势'), findsWidgets);
     expect(find.text('最近 30 天康复汇总'), findsNothing);
     expect(find.text('最近 30 天康复柱状图'), findsNothing);
     expect(find.text('短距离步行'), findsOneWidget);
@@ -352,6 +353,77 @@ void main() {
     expect(find.text('站立'), findsNothing);
     expect(find.text('步行'), findsNothing);
     expect(find.text('休息'), findsNothing);
+  });
+
+  testWidgets('week and month reports show clear empty rehab trend state',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _reportOverrides(
+          postureSessions: [
+            PostureSession(
+              id: 1,
+              type: PostureType.sitting,
+              startedAt: DateTime.now().subtract(const Duration(hours: 2)),
+              endedAt: DateTime.now().subtract(const Duration(hours: 1)),
+              durationSeconds: 3600,
+            ),
+            PostureSession(
+              id: 2,
+              type: PostureType.walking,
+              startedAt: DateTime.now().subtract(const Duration(hours: 1)),
+              endedAt: DateTime.now().subtract(const Duration(minutes: 50)),
+              durationSeconds: 600,
+            ),
+            PostureSession(
+              id: 3,
+              type: PostureType.standing,
+              startedAt: DateTime.now().subtract(const Duration(minutes: 45)),
+              endedAt: DateTime.now().subtract(const Duration(minutes: 35)),
+              durationSeconds: 600,
+            ),
+            PostureSession(
+              id: 4,
+              type: PostureType.resting,
+              startedAt: DateTime.now().subtract(const Duration(minutes: 30)),
+              endedAt: DateTime.now().subtract(const Duration(minutes: 20)),
+              durationSeconds: 600,
+            ),
+          ],
+          rehabLogs: const [],
+        ),
+        child: const MaterialApp(home: Scaffold(body: ReportsPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('周'));
+    await tester.pumpAndSettle();
+    expect(find.text('最近 7 天按活动趋势'), findsOneWidget);
+    expect(
+      find.text(
+        '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('rehab-activity-trend-chart-1')),
+        findsNothing);
+    expect(find.text('坐姿'), findsNothing);
+    expect(find.text('站立'), findsNothing);
+    expect(find.text('步行'), findsNothing);
+    expect(find.text('休息'), findsNothing);
+
+    await tester.tap(find.text('月'));
+    await tester.pumpAndSettle();
+    expect(find.text('最近 30 天按活动趋势'), findsOneWidget);
+    expect(
+      find.text(
+        '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('rehab-activity-trend-chart-1')),
+        findsNothing);
   });
 
   testWidgets('saving current report uses gallery image saver', (tester) async {
