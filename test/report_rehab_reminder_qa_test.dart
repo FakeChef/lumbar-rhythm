@@ -194,41 +194,49 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('康复报告'), findsOneWidget);
-    expect(find.text('回顾你的坐姿节奏和康复记录'), findsOneWidget);
-    expect(find.text('今日康复报告'), findsOneWidget);
-    expect(find.text('今日坐姿状态'), findsOneWidget);
-    expect(find.text('最近 7 天趋势'), findsNothing);
-    expect(find.text('康复动作报告'), findsOneWidget);
+    expect(find.text('回顾你的康复动作记录和阶段活动'), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-report-daily-section')),
+        findsOneWidget);
+    expect(find.text('今日康复动作记录'), findsOneWidget);
+    expect(find.text('最近 7 天康复柱状图'), findsNothing);
     expect(find.text('分享报告入口'), findsNothing);
     expect(find.text('分享报告'), findsNothing);
     expect(find.text('保存当前报告到相册'), findsWidgets);
     expect(find.text('免责声明'), findsNothing);
-    expect(find.text('久坐超过提醒间隔'), findsOneWidget);
-    expect(find.text('久坐中断次数'), findsOneWidget);
+    expect(find.text('今日坐姿状态'), findsNothing);
+    expect(find.text('久坐超过提醒间隔'), findsNothing);
+    expect(find.text('久坐中断次数'), findsNothing);
     expect(find.text(reportDisclaimerText), findsOneWidget);
 
     await tester.tap(find.text('周'));
     await tester.pumpAndSettle();
-    expect(find.text('最近 7 天汇总'), findsOneWidget);
-    expect(find.text('最近 7 天趋势'), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-report-week-section')),
+        findsOneWidget);
+    expect(find.text('最近 7 天康复汇总'), findsOneWidget);
+    expect(find.text('最近 7 天康复柱状图'), findsOneWidget);
     expect(find.byKey(const ValueKey('report-posture-trend-chart')),
         findsOneWidget);
-    expect(find.text('今日康复报告'), findsNothing);
-    expect(find.text('康复动作报告'), findsNothing);
-    expect(find.text('记录天数'), findsOneWidget);
-    expect(find.text('久坐中断总次数'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('rehab-report-week-chart')), findsOneWidget);
+    expect(find.text('今日康复动作记录'), findsNothing);
+    expect(find.text('最近 7 天康复汇总 还没有足够记录。'), findsOneWidget);
+    expect(find.text('记录天数'), findsNothing);
+    expect(find.text('久坐中断总次数'), findsNothing);
 
     await tester.tap(find.text('月'));
     await tester.pumpAndSettle();
-    expect(find.text('最近 30 天汇总'), findsOneWidget);
-    expect(find.text('最近 30 天趋势'), findsOneWidget);
-    expect(find.text('今日康复报告'), findsNothing);
-    expect(find.text('康复动作报告'), findsNothing);
-    expect(find.text('康复记录总次数'), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-report-month-section')),
+        findsOneWidget);
+    expect(find.text('最近 30 天康复汇总'), findsOneWidget);
+    expect(find.text('最近 30 天康复柱状图'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('rehab-report-month-chart')), findsOneWidget);
+    expect(find.text('今日康复动作记录'), findsNothing);
+    expect(find.text('最近 30 天康复汇总 还没有足够记录。'), findsOneWidget);
+    expect(find.text('康复记录总次数'), findsNothing);
   });
 
-  testWidgets('saving current report uses gallery image saver',
-      (tester) async {
+  testWidgets('saving current report uses gallery image saver', (tester) async {
     final saver = _FakeGalleryImageSaver();
     await tester.binding.setSurfaceSize(const Size(800, 1800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -253,7 +261,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(saver.savedFileNames, hasLength(1));
-    expect(saver.savedFileNames.single, startsWith('lumbar-rhythm-report-day-'));
+    expect(
+        saver.savedFileNames.single, startsWith('lumbar-rhythm-report-day-'));
     expect(saver.savedBytes.single, isNotEmpty);
   });
 
@@ -427,7 +436,8 @@ void main() {
     await tester.tap(find.byTooltip('1 分钟定时测试：inexactAllowWhileIdle'));
     await tester.pumpAndSettle();
 
-    expect(notificationService.oneMinuteTestReminderModes, [ReminderMode.alarm]);
+    expect(
+        notificationService.oneMinuteTestReminderModes, [ReminderMode.alarm]);
   });
 
   testWidgets('rehab log sheet accepts an initial past record date',
@@ -510,18 +520,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('今日小结暂时无法读取，可稍后重试。'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('rehab-add-entry-button')));
+    await tester.pumpAndSettle();
     expect(
         find.byKey(const ValueKey('rehab-category-dropdown')), findsOneWidget);
-    expect(find.byKey(const ValueKey('rehab-action-dropdown')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('rehab-activity-dropdown')), findsOneWidget);
   });
 
   test('RehabSummary uses amountValue for walking totals', () {
+    final walking = actionLibrary.firstWhere(
+      (action) => action.activityId == 'short_walking_program',
+    );
     final summary = RehabSummary(
       actions: actionLibrary,
       logs: [
         RehabLog(
           id: 1,
-          actionId: 1,
+          actionId: walking.id,
           amount: '旧文本',
           amountValue: 3,
           unit: '分钟',
@@ -541,21 +557,28 @@ void main() {
       ProviderScope(
         overrides: [
           rehabRepositoryProvider.overrideWithValue(repository),
+          recoveryRepositoryProvider
+              .overrideWithValue(_FakeRecoveryRepository()),
         ],
         child: const MaterialApp(home: Scaffold(body: ActionsPage())),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('今日康复记录'), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-today-records-section')),
+        findsOneWidget);
     expect(find.text('记录今天做了什么、做了多少、做后感觉如何。'), findsOneWidget);
+    expect(find.text('今天还没有康复记录，记录一点也有价值。'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('rehab-add-entry-button')));
+    await tester.pumpAndSettle();
     expect(
         find.byKey(const ValueKey('rehab-category-dropdown')), findsOneWidget);
-    expect(find.byKey(const ValueKey('rehab-action-dropdown')), findsOneWidget);
-    expect(find.text('步行与有氧'), findsOneWidget);
-    expect(find.text('平地步行'), findsOneWidget);
-    expect(find.text('平地步行活动'), findsNothing);
-    expect(find.text('今天还没有康复记录，记录一点也有价值。'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('rehab-activity-dropdown')), findsOneWidget);
+    expect(find.text('步行与有氧'), findsWidgets);
+    expect(find.text('短距离步行'), findsWidgets);
+    expect(find.text('短距离步行活动'), findsNothing);
     expect(find.text('默认目标：20 分钟'), findsNothing);
     expect(find.text('室内慢走'), findsNothing);
 
@@ -563,23 +586,22 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('早期基础').last);
     await tester.pumpAndSettle();
-    expect(find.text('踝泵'), findsOneWidget);
-    expect(find.text('平地步行'), findsNothing);
+    expect(find.text('踝泵运动'), findsWidgets);
 
     await tester.ensureVisible(
-      find.byKey(const ValueKey('rehab-action-dropdown')),
+      find.byKey(const ValueKey('rehab-activity-dropdown')),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('rehab-action-dropdown')));
+    await tester.tap(find.byKey(const ValueKey('rehab-activity-dropdown')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('腹式呼吸').last);
+    await tester.tap(find.text('膈式呼吸').last);
     await tester.pumpAndSettle();
-    expect(find.text('腹式呼吸'), findsOneWidget);
-    expect(find.text('腹式呼吸活动'), findsNothing);
+    expect(find.text('膈式呼吸'), findsWidgets);
+    expect(find.text('膈式呼吸活动'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('rehab-add-log')));
     await tester.pumpAndSettle();
-    expect(find.text('记录 腹式呼吸'), findsOneWidget);
+    expect(find.text('记录 膈式呼吸'), findsOneWidget);
     expect(find.text('3分钟'), findsOneWidget);
     expect(find.text('5分钟'), findsOneWidget);
 
@@ -600,13 +622,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.addedLogs, hasLength(1));
-    expect(repository.addedLogs.single.actionId, actionLibrary[8].id);
+    expect(repository.addedLogs.single.actionId, actionLibrary[2].id);
     expect(repository.addedLogs.single.amountValue, 5);
     expect(repository.addedLogs.single.unit, '分钟');
     expect(repository.addedLogs.single.reaction, RehabReaction.muchWorse);
     expect(repository.addedLogs.single.symptomTags, containsAll(['腰酸', '腿麻']));
     expect(repository.addedLogs.single.source, 'manual');
-    expect(find.text('腹式呼吸'), findsWidgets);
+    expect(find.text('膈式呼吸'), findsWidgets);
     expect(find.text('5 分钟 · 明显加重'), findsOneWidget);
   });
 
@@ -618,13 +640,30 @@ void main() {
     final rest = await link.recordRelaxationRest(
       createdAt: DateTime(2026, 6, 7, 1),
     );
+    final walkLog = walk!;
+    final restLog = rest!;
 
-    expect(walk.source, 'posture_reminder');
-    expect(walk.amountValue, 3);
-    expect(walk.unit, '分钟');
-    expect(repository.actionNameFor(walk.actionId), '平地步行');
-    expect(rest.source, 'posture_reminder');
-    expect(repository.actionNameFor(rest.actionId), '站立姿势重置');
+    expect(walkLog.source, 'posture_reminder');
+    expect(walkLog.amountValue, 3);
+    expect(walkLog.unit, '分钟');
+    expect(repository.actionNameFor(walkLog.actionId), '短距离步行');
+    expect(restLog.source, 'posture_reminder');
+    expect(repository.actionNameFor(restLog.actionId), '膈式呼吸');
+  });
+
+  test('posture reminder link skips gently when templates are unavailable',
+      () async {
+    final repository = _FakeRehabRepository(actions: const []);
+    final link = PostureReminderRehabLink(repository);
+
+    final walk = await link.recordShortWalk(createdAt: DateTime(2026, 6, 7));
+    final rest = await link.recordRelaxationRest(
+      createdAt: DateTime(2026, 6, 7, 1),
+    );
+
+    expect(walk, isNull);
+    expect(rest, isNull);
+    expect(repository.addedLogs, isEmpty);
   });
 
   test('app copy avoids unsupported medical promise wording', () {
@@ -696,9 +735,13 @@ List<Override> _reportOverrides({
 }
 
 class _FakeRehabRepository implements RehabRepository {
-  _FakeRehabRepository({List<RehabLog> initialLogs = const []})
-      : addedLogs = [...initialLogs];
+  _FakeRehabRepository({
+    List<RehabLog> initialLogs = const [],
+    List<RehabAction>? actions,
+  })  : _actions = actions ?? actionLibrary,
+        addedLogs = [...initialLogs];
 
+  final List<RehabAction> _actions;
   final List<RehabLog> addedLogs;
   int loadAllLogsCalls = 0;
   int loadLogsBetweenCalls = 0;
@@ -738,7 +781,7 @@ class _FakeRehabRepository implements RehabRepository {
   }
 
   @override
-  Future<List<RehabAction>> loadActions() async => actionLibrary;
+  Future<List<RehabAction>> loadActions() async => _actions;
 
   @override
   Future<List<RehabLog>> loadAllLogs() async {
@@ -777,7 +820,7 @@ class _FakeRehabRepository implements RehabRepository {
   }
 
   String actionNameFor(int actionId) {
-    return actionLibrary.firstWhere((action) => action.id == actionId).name;
+    return _actions.firstWhere((action) => action.id == actionId).name;
   }
 }
 

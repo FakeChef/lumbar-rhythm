@@ -5,6 +5,7 @@ import '../../../core/data/app_data_refresh.dart';
 import '../../reports/application/daily_report_controller.dart';
 import '../../recovery/data/recovery_repository.dart';
 import '../../recovery/domain/daily_recovery_note.dart';
+import '../../recovery/domain/recovery_profile.dart';
 import '../data/rehab_repository.dart';
 import '../domain/action_item.dart';
 
@@ -16,8 +17,7 @@ class ActionsPage extends ConsumerStatefulWidget {
 }
 
 class _ActionsPageState extends ConsumerState<ActionsPage> {
-  String? _selectedCategory;
-  int? _selectedActionId;
+  String? _selectedPhase;
 
   @override
   Widget build(BuildContext context) {
@@ -26,8 +26,6 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const _RehabHeaderCard(),
-        const SizedBox(height: 20),
         pageState.when(
           loading: () => const Card(
             child: ListTile(
@@ -48,6 +46,10 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
           data: (data) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _RehabHeaderCard(
+                onAdd: () => _showAddLogPicker(context, ref, data),
+              ),
+              const SizedBox(height: 20),
               _DailyRecoveryNoteCard(
                 noteState: data.dailyNoteState,
                 onEdit: () => _showDailyRecoveryNoteDialog(
@@ -59,53 +61,11 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
               const SizedBox(height: 20),
               _TodayRehabLogListCard(data: data),
               const SizedBox(height: 20),
-              Builder(
-                builder: (context) {
-                  final categories = _availableCategories(data.actions);
-                  final selectedCategory =
-                      categories.contains(_selectedCategory)
-                          ? _selectedCategory!
-                          : categories.firstOrNull;
-                  final categoryActions = data.actions
-                      .where(
-                        (action) =>
-                            _categoryForAction(action) == selectedCategory,
-                      )
-                      .toList();
-                  final selectedActionId = categoryActions.any(
-                    (action) => action.id == _selectedActionId,
-                  )
-                      ? _selectedActionId
-                      : categoryActions.firstOrNull?.id;
-
-                  return _RehabActionPickerCard(
-                    categories: categories,
-                    actions: categoryActions,
-                    selectedCategory: selectedCategory,
-                    selectedActionId: selectedActionId,
-                    onCategoryChanged: (value) {
-                      if (value == null) return;
-                      final firstAction = data.actions
-                          .where(
-                            (action) => _categoryForAction(action) == value,
-                          )
-                          .toList()
-                          .firstOrNull;
-                      setState(() {
-                        _selectedCategory = value;
-                        _selectedActionId = firstAction?.id;
-                      });
-                    },
-                    onActionChanged: (value) {
-                      setState(() => _selectedActionId = value);
-                    },
-                    onRecord: () {
-                      final selectedAction = data.actionById(selectedActionId);
-                      if (selectedAction != null) {
-                        _showLogDialog(context, ref, selectedAction);
-                      }
-                    },
-                  );
+              _PhaseActivitySection(
+                data: data,
+                selectedPhase: _selectedPhase ?? data.currentPhase,
+                onPhaseChanged: (phase) {
+                  setState(() => _selectedPhase = phase);
                 },
               ),
             ],
@@ -163,6 +123,78 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
 
     _showRehabLogSavedFeedback(context, action, result);
   }
+
+  Future<void> _showAddLogPicker(
+    BuildContext context,
+    WidgetRef ref,
+    _RehabPageData data,
+  ) async {
+    final actions = data.recordableActions;
+    if (actions.isEmpty) {
+      return;
+    }
+    String? selectedCategory = _availableCategories(actions).firstOrNull;
+    int? selectedActionId = actions.firstOrNull?.id;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final categories = _availableCategories(actions);
+            selectedCategory = categories.contains(selectedCategory)
+                ? selectedCategory
+                : categories.firstOrNull;
+            final categoryActions = actions
+                .where(
+                    (action) => _categoryForAction(action) == selectedCategory)
+                .toList();
+            selectedActionId =
+                categoryActions.any((action) => action.id == selectedActionId)
+                    ? selectedActionId
+                    : categoryActions.firstOrNull?.id;
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: _RehabActionPickerCard(
+                  categories: categories,
+                  actions: categoryActions,
+                  selectedCategory: selectedCategory,
+                  selectedActionId: selectedActionId,
+                  onCategoryChanged: (value) {
+                    final firstAction = actions
+                        .where((action) => _categoryForAction(action) == value)
+                        .toList()
+                        .firstOrNull;
+                    setSheetState(() {
+                      selectedCategory = value;
+                      selectedActionId = firstAction?.id;
+                    });
+                  },
+                  onActionChanged: (value) {
+                    setSheetState(() => selectedActionId = value);
+                  },
+                  onRecord: () async {
+                    final selectedAction = data.actionById(selectedActionId);
+                    if (selectedAction == null) {
+                      return;
+                    }
+                    Navigator.of(sheetContext).pop();
+                    await _showLogDialog(context, ref, selectedAction);
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 Future<RehabLogDraft?> showRehabLogSheet({
@@ -186,14 +218,14 @@ Future<void> saveRehabLogDraft(
   required RehabLogDraft draft,
 }) async {
   await ref.read(rehabRepositoryProvider).addLog(
-    action: action,
-    amount: draft.amount,
-    unit: draft.unit,
-    reaction: draft.reaction,
-    symptomTags: draft.symptomTags,
-    note: draft.note,
-    createdAt: draft.createdAt,
-  );
+        action: action,
+        amount: draft.amount,
+        unit: draft.unit,
+        reaction: draft.reaction,
+        symptomTags: draft.symptomTags,
+        note: draft.note,
+        createdAt: draft.createdAt,
+      );
 }
 
 void refreshRehabRecordProviders(WidgetRef ref) {
@@ -225,7 +257,9 @@ void _showRehabLogSavedFeedback(
 }
 
 class _RehabHeaderCard extends StatelessWidget {
-  const _RehabHeaderCard();
+  const _RehabHeaderCard({required this.onAdd});
+
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -269,6 +303,12 @@ class _RehabHeaderCard extends StatelessWidget {
                 ],
               ),
             ),
+            IconButton(
+              key: const ValueKey('rehab-add-entry-button'),
+              tooltip: '添加康复记录',
+              onPressed: onAdd,
+              icon: const Icon(Icons.add),
+            ),
           ],
         ),
       ),
@@ -282,6 +322,7 @@ final _rehabPageDataProvider = FutureProvider<_RehabPageData>((ref) async {
   final recoveryRepository = ref.watch(recoveryRepositoryProvider);
   final actions = await repository.loadActions();
   final todayLogs = await repository.loadToday();
+  final profile = await recoveryRepository.loadProfile();
   _DailyRecoveryNoteLoadState dailyNoteState;
   try {
     dailyNoteState = _DailyRecoveryNoteLoadState.loaded(
@@ -293,6 +334,7 @@ final _rehabPageDataProvider = FutureProvider<_RehabPageData>((ref) async {
   return _RehabPageData(
     actions: actions,
     todayLogs: todayLogs,
+    profile: profile,
     dailyNoteState: dailyNoteState,
   );
 });
@@ -301,12 +343,44 @@ class _RehabPageData {
   const _RehabPageData({
     required this.actions,
     required this.todayLogs,
+    required this.profile,
     required this.dailyNoteState,
   });
 
   final List<RehabAction> actions;
   final List<RehabLog> todayLogs;
+  final RecoveryProfile? profile;
   final _DailyRecoveryNoteLoadState dailyNoteState;
+
+  String get currentPhase {
+    return rehabPhaseForPostSurgeryDay(profile?.postSurgeryDay(DateTime.now()));
+  }
+
+  List<RehabAction> get recordableActions {
+    return actions.where((action) {
+      final activity = activityForAction(action);
+      return activity == null ||
+          activity.isDefaultVisible ||
+          activity.riskLevel != 'high';
+    }).toList();
+  }
+
+  List<RehabAction> visibleActionsForPhase(String phase) {
+    return actions.where((action) {
+      final activity = activityForAction(action);
+      return activity != null &&
+          activity.isDefaultVisible &&
+          rehabActivityIsInPhase(activity, phase);
+    }).toList();
+  }
+
+  List<RehabActivity> conditionalActivitiesForPhase(String phase) {
+    return activityMasterV1.where((activity) {
+      return !activity.isDefaultVisible &&
+          activity.riskLevel != 'high' &&
+          rehabActivityIsInPhase(activity, phase);
+    }).toList();
+  }
 
   RehabAction? actionById(int? actionId) {
     if (actionId == null) {
@@ -398,6 +472,61 @@ class _TodayRehabLogListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return KeyedSubtree(
+      key: const ValueKey('rehab-today-records-section'),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '今天已记录',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              if (data.todayLogs.isEmpty)
+                Text(
+                  '今天还没有康复记录，记录一点也有价值。',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                )
+              else
+                for (final log in data.todayLogs) ...[
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(data.actionNameFor(log.actionId)),
+                    subtitle: Text(
+                      '${_formatNumber(log.amountValue)} ${log.unit} · ${log.reaction.label}',
+                    ),
+                    trailing: Text(_formatTime(log.createdAt)),
+                  ),
+                  if (log != data.todayLogs.last) const SizedBox(height: 8),
+                ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PhaseActivitySection extends StatelessWidget {
+  const _PhaseActivitySection({
+    required this.data,
+    required this.selectedPhase,
+    required this.onPhaseChanged,
+  });
+
+  final _RehabPageData data;
+  final String selectedPhase;
+  final ValueChanged<String> onPhaseChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = data.visibleActionsForPhase(selectedPhase);
+    final moreActivities = data.conditionalActivitiesForPhase(selectedPhase);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -405,32 +534,81 @@ class _TodayRehabLogListCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '今天已记录',
+              '${rehabPhaseTitle(selectedPhase)}活动',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
             ),
-            const SizedBox(height: 12),
-            if (data.todayLogs.isEmpty)
-              Text(
-                '今天还没有康复记录，记录一点也有价值。',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              for (final log in data.todayLogs) ...[
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(data.actionNameFor(log.actionId)),
-                  subtitle: Text(
-                    '${_formatNumber(log.amountValue)} ${log.unit} · ${log.reaction.label}',
+            const SizedBox(height: 4),
+            Text(
+              rehabPhaseDescription(selectedPhase),
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '根据你的手术日期，当前默认显示本阶段活动；你也可以切换其他阶段，仅用于记录。',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  trailing: Text(_formatTime(log.createdAt)),
-                ),
-                if (log != data.todayLogs.last) const SizedBox(height: 8),
+            ),
+            const SizedBox(height: 12),
+            SegmentedButton<String>(
+              segments: [
+                for (final phase in rehabPhases)
+                  ButtonSegment(
+                    value: phase,
+                    label: Text(phase),
+                  ),
               ],
+              selected: {selectedPhase},
+              onSelectionChanged: (values) => onPhaseChanged(values.single),
+            ),
+            const SizedBox(height: 12),
+            if (actions.isEmpty)
+              const Text('这个阶段暂无默认显示活动，可以先记录今天已经完成的内容。')
+            else
+              for (final action in actions) ...[
+                _PhaseActivityTile(action: action),
+                if (action != actions.last) const Divider(height: 16),
+              ],
+            if (moreActivities.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                title: const Text('更多活动'),
+                subtitle: const Text('条件显示动作，记录前请以自身舒适度为准。'),
+                children: [
+                  for (final activity in moreActivities)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(activity.nameCn),
+                      subtitle: Text(activity.patientTip),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PhaseActivityTile extends StatelessWidget {
+  const _PhaseActivityTile({required this.action});
+
+  final RehabAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    final activity = activityForAction(action);
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(_categoryIcon(_categoryForAction(action))),
+      title: Text(action.name),
+      subtitle: Text(activity?.patientTip ?? action.guidance),
+      trailing: Text(_categoryLabel(_categoryForAction(action))),
     );
   }
 }
@@ -477,7 +655,7 @@ class _RehabActionPickerCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              key: const ValueKey('rehab-action-dropdown'),
+              key: const ValueKey('rehab-activity-dropdown'),
               initialValue: selectedActionId,
               decoration: const InputDecoration(labelText: '选择活动'),
               items: [
@@ -529,6 +707,8 @@ const _categoryOrder = [
   'HIP_LEG',
   'MOBILITY',
   'AEROBIC',
+  'SPORT',
+  'FUNCTION',
 ];
 
 List<String> _availableCategories(List<RehabAction> actions) {
@@ -561,7 +741,23 @@ String _categoryLabel(String category) {
     'HIP_LEG' => '臀腿力量',
     'MOBILITY' => '灵活性活动',
     'AEROBIC' => '低冲击有氧',
+    'SPORT' => '运动能力',
+    'FUNCTION' => '功能活动',
     _ => category,
+  };
+}
+
+IconData _categoryIcon(String category) {
+  return switch (category) {
+    'WALK' => Icons.directions_walk_outlined,
+    'BASIC' => Icons.spa_outlined,
+    'CORE' => Icons.accessibility_new_outlined,
+    'HIP_LEG' => Icons.airline_seat_legroom_extra_outlined,
+    'MOBILITY' => Icons.self_improvement_outlined,
+    'AEROBIC' => Icons.directions_bike_outlined,
+    'SPORT' => Icons.sports_handball_outlined,
+    'FUNCTION' => Icons.work_outline,
+    _ => Icons.radio_button_checked,
   };
 }
 
@@ -633,12 +829,20 @@ class _QuickAmount {
 
 List<_QuickAmount> _quickAmountsFor(RehabAction action) {
   return switch (action.name) {
-    '平地步行' || '分段步行' || '连续步行耐力' => const [
+    '短距离步行' || '平地步行' || '分段步行' || '连续步行耐力' => const [
         _QuickAmount('3', '分钟'),
         _QuickAmount('5', '分钟'),
         _QuickAmount('10', '分钟'),
       ],
-    '腹式呼吸' || '骨盆中立训练' || '固定自行车' || '轻松游泳/水中步行' || '站立姿势重置' => const [
+    '膈式呼吸' ||
+    '腹式呼吸' ||
+    '骨盆中立训练' ||
+    '固定式自行车' ||
+    '固定自行车' ||
+    '水中康复与游泳' ||
+    '轻松游泳/水中步行' ||
+    '站立姿势重置' =>
+      const [
         _QuickAmount('3', '分钟'),
         _QuickAmount('5', '分钟'),
       ],

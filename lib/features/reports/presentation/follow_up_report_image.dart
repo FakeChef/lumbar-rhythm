@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import '../../actions/domain/action_item.dart';
 import '../domain/daily_report.dart';
 
-const followUpReportDisclaimer =
-    '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
+const followUpReportDisclaimer = '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
 
 class FollowUpReportImage extends StatelessWidget {
   const FollowUpReportImage({
@@ -22,29 +21,18 @@ class FollowUpReportImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final posture =
-        useCurrentRange ? report.postureSummary : report.recentPostureSummary;
     final rehab =
         useCurrentRange ? report.rehabSummary : report.recentRehabSummary;
     final logs = useCurrentRange ? report.rehabLogs : report.recentRehabLogs;
-    final notes = useCurrentRange ? report.dailyNotes : report.recentDailyNotes;
     final nickname = report.profile?.nickname?.trim();
     final postSurgeryDay = report.postSurgeryDay(generatedAt);
     final recordedDays = {
       for (final log in logs) _dateKey(log.createdAt),
     }.length;
-    final maxBackPain = _maxScore(notes.map((note) => note.backPainScore));
-    final maxLegSymptom =
-        _maxScore(notes.map((note) => note.legSymptomScore));
-    final maxFatigue = _maxScore(notes.map((note) => note.fatigueScore));
-    final commonTags = _commonSymptomTags(
-      logs,
-      notes.expand((note) => note.tags),
-    );
-    final noteSummaries = notes
-        .where((note) => note.note?.trim().isNotEmpty ?? false)
-        .toList()
-      ..sort((left, right) => right.date.compareTo(left.date));
+    final aerobicMinutes = _aerobicMinutes(logs, report.rehabActions);
+    final topAction = rehab.mostCompletedAction()?.name ?? '暂无';
+    final sortedLogs = [...logs]
+      ..sort((left, right) => left.createdAt.compareTo(right.createdAt));
 
     return Material(
       color: Colors.white,
@@ -61,7 +49,7 @@ class FollowUpReportImage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                '腰椎节奏复诊记录摘要',
+                '腰椎节奏康复活动报告',
                 style: TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w800,
@@ -70,7 +58,7 @@ class FollowUpReportImage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                '本地记录摘要',
+                '本地康复记录',
                 style: TextStyle(
                   fontSize: 18,
                   color: Color(0xFF52616D),
@@ -99,80 +87,41 @@ class FollowUpReportImage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               _FollowUpSection(
-                title: '坐走节奏',
-                child: _MetricGrid(
-                  items: [
-                    _MetricData(
-                      label: '最长连续坐姿',
-                      value: _formatDuration(posture.longestSitting),
-                    ),
-                    _MetricData(
-                      label: '最长连续走动',
-                      value: _formatDuration(posture.longestWalking),
-                    ),
-                    _MetricData(
-                      label: '坐走提醒次数',
-                      value: '${posture.rhythmReminderCount} 次',
-                    ),
-                    _MetricData(
-                      label: '停止记录次数',
-                      value: '${posture.stopCount} 次',
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              _FollowUpSection(
-                title: '康复活动',
+                title: '康复动作汇总',
                 child: _MetricGrid(
                   items: [
                     _MetricData(label: '记录天数', value: '$recordedDays 天'),
                     _MetricData(
-                      label: '步行总分钟数',
-                      value:
-                          '${_formatNumber(rehab.totalAmountForActionNamed('平地步行'))} 分钟',
+                      label: '步行/有氧分钟数',
+                      value: '${_formatNumber(aerobicMinutes)} 分钟',
                     ),
                     _MetricData(
-                      label: '康复活动记录次数',
+                      label: '动作记录次数',
                       value: '${rehab.totalCount} 次',
                     ),
                     _MetricData(
-                      label: '明显加重记录次数',
-                      value:
-                          '${rehab.reactionCount(RehabReaction.muchWorse)} 次',
+                      label: '记录最多的动作',
+                      value: topAction,
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 18),
               _FollowUpSection(
-                title: '身体状态',
-                child: Column(
-                  children: [
-                    _ScoreLine(label: '腰部不适最高分', value: maxBackPain),
-                    _ScoreLine(label: '腿部症状最高分', value: maxLegSymptom),
-                    _ScoreLine(label: '疲劳最高分', value: maxFatigue),
-                    const SizedBox(height: 10),
-                    _InfoRow(
-                      label: '常见症状标签',
-                      value: commonTags.isEmpty ? '暂无症状标签记录' : commonTags,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              _FollowUpSection(
-                title: '备注摘要',
-                child: noteSummaries.isEmpty
-                    ? const _EmptyText('暂无备注记录')
+                title: '动作记录',
+                child: sortedLogs.isEmpty
+                    ? const _EmptyText('暂无康复动作记录')
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          for (final note in noteSummaries.take(5))
+                          for (final log in sortedLogs.take(10))
                             Padding(
                               padding: const EdgeInsets.only(bottom: 10),
                               child: Text(
-                                '${_formatDate(note.date)}  ${note.note!.trim()}',
+                                '${_formatDate(log.createdAt)}  '
+                                '${_actionNameFor(report, log.actionId)}  '
+                                '${_formatNumber(log.amountValue)} ${log.unit}  '
+                                '${log.reaction.label}',
                               ),
                             ),
                         ],
@@ -332,21 +281,6 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _ScoreLine extends StatelessWidget {
-  const _ScoreLine({required this.label, required this.value});
-
-  final String label;
-  final int? value;
-
-  @override
-  Widget build(BuildContext context) {
-    return _InfoRow(
-      label: label,
-      value: value == null ? '暂无记录' : '$value / 10',
-    );
-  }
-}
-
 class _EmptyText extends StatelessWidget {
   const _EmptyText(this.text);
 
@@ -361,41 +295,6 @@ class _EmptyText extends StatelessWidget {
   }
 }
 
-int? _maxScore(Iterable<int> values) {
-  if (values.isEmpty) return null;
-  return values.reduce((left, right) => left > right ? left : right);
-}
-
-String _commonSymptomTags(
-  List<RehabLog> logs,
-  Iterable<String> dailyNoteTags,
-) {
-  final counts = <String, int>{};
-  for (final log in logs) {
-    final tags = log.symptomTags.isNotEmpty
-        ? log.symptomTags
-        : [if (log.symptomTag?.trim().isNotEmpty ?? false) log.symptomTag!];
-    for (final tag in tags) {
-      final cleaned = tag.trim();
-      if (cleaned.isNotEmpty) {
-        counts[cleaned] = (counts[cleaned] ?? 0) + 1;
-      }
-    }
-  }
-  for (final tag in dailyNoteTags) {
-    final cleaned = tag.trim();
-    if (cleaned.isNotEmpty) {
-      counts[cleaned] = (counts[cleaned] ?? 0) + 1;
-    }
-  }
-  final entries = counts.entries.toList()
-    ..sort((left, right) {
-      final countOrder = right.value.compareTo(left.value);
-      return countOrder != 0 ? countOrder : left.key.compareTo(right.key);
-    });
-  return entries.take(5).map((entry) => entry.key).join('、');
-}
-
 String _dateKey(DateTime value) {
   return '${value.year}-${value.month}-${value.day}';
 }
@@ -406,14 +305,27 @@ String _formatDate(DateTime value) {
   return '${value.year}-$month-$day';
 }
 
-String _formatDuration(Duration duration) {
-  final hours = duration.inHours;
-  final minutes = duration.inMinutes.remainder(60);
-  if (hours > 0 && minutes > 0) return '$hours 小时 $minutes 分';
-  if (hours > 0) return '$hours 小时';
-  return '$minutes 分钟';
-}
-
 String _formatNumber(double value) {
   return value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(1);
+}
+
+double _aerobicMinutes(List<RehabLog> logs, List<RehabAction> actions) {
+  final actionsById = {
+    for (final action in actions) action.id: action,
+  };
+  return logs.where((log) {
+    final category = actionsById[log.actionId]?.category;
+    return category == 'WALK' || category == 'AEROBIC';
+  }).fold(0.0, (sum, log) {
+    return log.unit == '分钟' ? sum + log.amountValue : sum;
+  });
+}
+
+String _actionNameFor(DailyReport report, int actionId) {
+  for (final action in report.rehabActions) {
+    if (action.id == actionId) {
+      return action.name;
+    }
+  }
+  return legacyActionNameForId(actionId) ?? '未知活动';
 }

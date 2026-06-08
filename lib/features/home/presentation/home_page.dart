@@ -190,7 +190,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     ref.invalidate(reminderSettingsControllerProvider);
     ref.invalidate(_homeTodayOverviewProvider);
   }
-
 }
 
 class _TodayPostureSummaryCard extends StatelessWidget {
@@ -375,6 +374,8 @@ class _PostureStatusCard extends StatelessWidget {
             : selectedPosture;
     final duration = current?.durationAt(now) ?? Duration.zero;
     final durationText = current == null ? '00:00' : _formatDuration(duration);
+    final encouragementText =
+        _phaseEncouragement(profile, now) ?? encouragement;
     final timerState = current == null
         ? null
         : SittingStandingTimerState.calculate(
@@ -411,7 +412,7 @@ class _PostureStatusCard extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                encouragement,
+                encouragementText,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -530,6 +531,21 @@ class _PostureStatusCard extends StatelessWidget {
       return '$nickname，今天是术后第 $day 天。';
     }
     return '今天是术后第 $day 天。';
+  }
+
+  String? _phaseEncouragement(RecoveryProfile? profile, DateTime now) {
+    final day = profile?.postSurgeryDay(now);
+    if (day == null) {
+      return null;
+    }
+    final phase = rehabPhaseForPostSurgeryDay(day);
+    return switch (phase) {
+      'P1' => '当前记录阶段：阶段一，先把轻柔、稳定的动作记下来。',
+      'P2' => '当前记录阶段：阶段二，关注动作控制和身体反馈。',
+      'P3' => '当前记录阶段：阶段三，按可承受的节奏记录活动量。',
+      'P4' => '当前记录阶段：阶段四，较高负荷活动仍以线下确认和舒适度为准。',
+      _ => null,
+    };
   }
 }
 

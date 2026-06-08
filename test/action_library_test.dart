@@ -2,13 +2,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
 
 void main() {
-  test('provides activity master v1 with 24 core activities', () {
-    expect(activityMasterV1.length, 24);
-    expect(actionLibrary.length, 24);
-    expect(activityMasterV1.map((item) => item.id).toSet(), hasLength(24));
-    expect(activityMasterV1.every((item) => item.patientTip.isNotEmpty), isTrue);
+  test('provides activity master v1 with 25 core activities', () {
+    expect(activityMasterV1.length, 25);
+    expect(actionLibrary.length, 25);
+    expect(activityMasterV1.map((item) => item.id).toSet(), hasLength(25));
+    expect(
+        activityMasterV1.every((item) => item.patientTip.isNotEmpty), isTrue);
     expect(activityMasterV1.every((item) => item.stopRule.isNotEmpty), isTrue);
-    expect(activityMasterV1.every((item) => item.optionalUnits.isNotEmpty), isTrue);
+    expect(activityMasterV1.every((item) => item.optionalUnits.isNotEmpty),
+        isTrue);
     expect(activityMasterV1.every((item) => item.riskLevel.isNotEmpty), isTrue);
   });
 
@@ -35,9 +37,9 @@ void main() {
   });
 
   test('maps legacy int action ids to new activity names', () {
-    expect(legacyActionNameForId(1), '平地步行');
-    expect(legacyActionNameForId(3), '腹式呼吸');
-    expect(legacyActionNameForId(8), 'Bird-dog 简化版');
-    expect(legacyActionNameForId(10), '站立姿势重置');
+    expect(legacyActionNameForId(1), '短距离步行');
+    expect(legacyActionNameForId(3), '膈式呼吸');
+    expect(legacyActionNameForId(8), '四足位对侧抬起');
+    expect(legacyActionNameForId(10), '圆木滚动转身');
   });
 }
