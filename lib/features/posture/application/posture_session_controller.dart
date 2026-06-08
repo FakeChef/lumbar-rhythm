@@ -31,8 +31,8 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     ref.onDispose(() => _foregroundTimer?.cancel());
     final session =
         await ref.watch(postureSessionRepositoryProvider).loadOpenSession();
-    await _scheduleFor(session?.type);
     _startForegroundMonitor(session);
+    unawaited(_scheduleFor(session?.type));
     return session;
   }
 
@@ -74,8 +74,8 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     ref.read(postureReminderStatusProvider.notifier).state = null;
     ref.invalidate(dailyReportControllerProvider);
     notifyAppDataChanged(ref);
-    await _scheduleFor(session.type);
     _startForegroundMonitor(session);
+    unawaited(_scheduleFor(session.type));
   }
 
   Future<void> endCurrent() async {
@@ -88,8 +88,8 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     state = const AsyncData(null);
     ref.read(postureReminderStatusProvider.notifier).state = null;
     notifyAppDataChanged(ref);
-    await _scheduleFor(null);
     _stopForegroundMonitor();
+    unawaited(_scheduleFor(null));
   }
 
   Future<void> rescheduleForCurrent() async {
