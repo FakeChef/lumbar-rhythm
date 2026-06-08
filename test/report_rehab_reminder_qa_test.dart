@@ -321,7 +321,7 @@ void main() {
     expect(find.byKey(const ValueKey('rehab-report-month-section')),
         findsOneWidget);
     expect(find.text('最近 30 天按活动趋势'), findsOneWidget);
-    expect(find.text('左右滑动查看 30 天趋势'), findsWidgets);
+    expect(find.text('左右滑动查看 30 天趋势'), findsNothing);
     expect(find.text('最近 30 天康复汇总'), findsNothing);
     expect(find.text('最近 30 天康复柱状图'), findsNothing);
     expect(find.text('短距离步行'), findsOneWidget);

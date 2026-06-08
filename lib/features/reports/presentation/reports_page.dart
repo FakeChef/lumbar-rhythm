@@ -298,20 +298,9 @@ class _RehabActivityTrendSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (days == 30) ...[
-                    Text(
-                      '左右滑动查看 30 天趋势',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    const SizedBox(height: 6),
-                  ],
                   _RehabActivityBarChart(
                     days: trend.days,
                     maxValue: maxValue,
-                    scrollHorizontally: days == 30,
                   ),
                 ],
               ),
@@ -327,53 +316,30 @@ class _RehabActivityBarChart extends StatelessWidget {
   const _RehabActivityBarChart({
     required this.days,
     required this.maxValue,
-    required this.scrollHorizontally,
   });
 
   final List<_ActivityTrendDay> days;
   final double maxValue;
-  final bool scrollHorizontally;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 176,
-      child: scrollHorizontally
-          ? SingleChildScrollView(
-              reverse: true,
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final day in days)
-                    SizedBox(
-                      width: 34,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child: _RehabActivityBar(
-                          day: day,
-                          maxValue: maxValue,
-                        ),
-                      ),
-                    ),
-                ],
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (final day in days)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: _RehabActivityBar(
+                  day: day,
+                  maxValue: maxValue,
+                ),
               ),
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final day in days)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: _RehabActivityBar(
-                        day: day,
-                        maxValue: maxValue,
-                      ),
-                    ),
-                  ),
-              ],
             ),
+        ],
+      ),
     );
   }
 }
