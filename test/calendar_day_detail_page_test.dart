@@ -14,6 +14,9 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final day = DateTime(2026, 6, 7);
+    final walkingAction = actionLibrary.firstWhere(
+      (action) => action.activityId == 'short_walking_program',
+    );
     final status = CalendarDayStatus(
       date: day,
       actions: actionLibrary,
@@ -55,7 +58,7 @@ void main() {
       rehabLogs: [
         RehabLog(
           id: 1,
-          actionId: 1,
+          actionId: walkingAction.id,
           amount: '12',
           amountValue: 12,
           unit: '分钟',
@@ -82,7 +85,7 @@ void main() {
     expect(find.text('走动累计'), findsNothing);
     expect(find.text('休息累计'), findsNothing);
     expect(find.text('站立累计'), findsNothing);
-    expect(find.text('平地步行'), findsOneWidget);
+    expect(find.text('短距离步行'), findsOneWidget);
     expect(find.text('12 分钟 · 明显加重'), findsOneWidget);
     expect(find.text('症状标签：腰酸'), findsOneWidget);
     expect(

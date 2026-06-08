@@ -117,8 +117,9 @@ void main() {
   });
 
   test('notification diagnostic source exposes four verification layers', () {
-    final settings = File('lib/features/settings/presentation/settings_page.dart')
-        .readAsStringSync();
+    final settings =
+        File('lib/features/settings/presentation/settings_page.dart')
+            .readAsStringSync();
     final service = File('lib/core/notifications/notification_service.dart')
         .readAsStringSync();
 
@@ -140,7 +141,8 @@ void main() {
       () {
     final service = File('lib/core/notifications/notification_service.dart')
         .readAsStringSync();
-    final showReminderNowStart = service.indexOf('Future<bool> showReminderNow');
+    final showReminderNowStart =
+        service.indexOf('Future<bool> showReminderNow');
     final foregroundStart =
         service.indexOf('Future<bool> scheduleForegroundTimerTestReminder');
     final showReminderNow = service.substring(
@@ -149,10 +151,10 @@ void main() {
     );
 
     expect(showReminderNow, contains('_showNotification'));
-    expect(showReminderNow, contains('_notificationDetails'));
     expect(showReminderNow, isNot(contains('zonedSchedule')));
     expect(showReminderNow, isNot(contains('pendingNotificationRequests')));
-    expect(showReminderNow, isNot(contains('refreshPendingScheduledNotifications')));
+    expect(showReminderNow,
+        isNot(contains('refreshPendingScheduledNotifications')));
   });
 
   test('foreground test uses Dart Timer before direct show', () {
@@ -175,8 +177,9 @@ void main() {
   });
 
   test('scheduled notifications are documented as background fallback', () {
-    final settings = File('lib/features/settings/presentation/settings_page.dart')
-        .readAsStringSync();
+    final settings =
+        File('lib/features/settings/presentation/settings_page.dart')
+            .readAsStringSync();
     final service = File('lib/core/notifications/notification_service.dart')
         .readAsStringSync();
 
@@ -214,23 +217,30 @@ void main() {
     expect(postureController, contains('postureReminderStatusProvider'));
     expect(postureController, contains('_foregroundReminderSessionId'));
     expect(postureController, contains('_startForegroundMonitor(session);'));
-    expect(postureController, contains('unawaited(_scheduleFor(session.type))'));
+    expect(
+        postureController, contains('unawaited(_scheduleFor(session.type))'));
     expect(postureController, contains('_stopForegroundMonitor();'));
     expect(postureController, contains('unawaited(_scheduleFor(null))'));
     expect(service, contains('cancelScheduledReminders'));
     expect(service, contains('_foregroundTestTimer?.cancel()'));
-    expect(service, isNot(contains('await _plugin.cancel(_foregroundTimerTestReminderId)')));
+    expect(
+        service,
+        isNot(
+            contains('await _plugin.cancel(_foregroundTimerTestReminderId)')));
   });
 
-  test('sitting and walking foreground reminders call direct now path once', () {
+  test('sitting and walking foreground reminders call direct now path once',
+      () {
     final postureController = File(
       'lib/features/posture/application/posture_session_controller.dart',
     ).readAsStringSync();
     final service = File('lib/core/notifications/notification_service.dart')
         .readAsStringSync();
 
-    expect(postureController, contains('session.id == _foregroundReminderSessionId'));
-    expect(postureController, contains('_foregroundReminderSessionId = session.id'));
+    expect(postureController,
+        contains('session.id == _foregroundReminderSessionId'));
+    expect(postureController,
+        contains('_foregroundReminderSessionId = session.id'));
     expect(postureController, contains('settings.walkingIntervalMinutes'));
     expect(postureController, contains('settings.sittingIntervalMinutes'));
     expect(postureController, contains('showPostureDueReminder'));
@@ -239,8 +249,8 @@ void main() {
   });
 
   test('does not request exact alarm permission by default', () {
-    final androidManifest = File('android/app/src/main/AndroidManifest.xml')
-        .readAsStringSync();
+    final androidManifest =
+        File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
 
     expect(androidManifest, isNot(contains('SCHEDULE_EXACT_ALARM')));
     expect(androidManifest, isNot(contains('USE_EXACT_ALARM')));

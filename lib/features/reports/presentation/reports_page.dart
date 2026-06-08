@@ -6,21 +6,19 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/media/gallery_image_saver.dart';
+import '../../../core/widgets/header_action_button.dart';
 import '../../actions/domain/action_item.dart';
 import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
-import 'follow_up_report_image.dart';
 
 const reportDisclaimerText = '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
 
-typedef FollowUpReportPngCapture = Future<Uint8List> Function(
-  BuildContext context,
-  DailyReport report,
-  ReportPeriod period,
+typedef ReportPngCapture = Future<Uint8List> Function(
+  GlobalKey repaintBoundaryKey,
 );
 
-final followUpReportPngCaptureProvider = Provider<FollowUpReportPngCapture>(
-  (ref) => captureFollowUpReportPng,
+final reportPngCaptureProvider = Provider<ReportPngCapture>(
+  (ref) => captureReportPng,
 );
 
 class ReportsPage extends ConsumerStatefulWidget {
@@ -31,10 +29,13 @@ class ReportsPage extends ConsumerStatefulWidget {
 }
 
 class _ReportsPageState extends ConsumerState<ReportsPage> {
+  final _reportBoundaryKey = GlobalKey();
+
   @override
   Widget build(BuildContext context) {
     final reportState = ref.watch(dailyReportControllerProvider);
     final period = ref.watch(reportPeriodProvider);
+    final canSaveReport = reportState.asData != null;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
@@ -59,6 +60,13 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                 ],
               ),
             ),
+            HeaderActionButton(
+              key: const ValueKey('report-save-button'),
+              icon: Icons.save_alt_outlined,
+              tooltip: '保存当前报告到相册',
+              onPressed:
+                  canSaveReport ? () => _saveReportToGallery(period) : null,
+            ),
           ],
         ),
         const SizedBox(height: 20),
@@ -81,21 +89,19 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           data: (report) => _ReportContent(
             report: report,
             period: period,
-            onSaveToGallery: () => _saveReportToGallery(report, period),
+            repaintBoundaryKey: _reportBoundaryKey,
           ),
         ),
       ],
     );
   }
 
-  Future<void> _saveReportToGallery(
-    DailyReport report,
-    ReportPeriod period,
-  ) async {
+  Future<void> _saveReportToGallery(ReportPeriod period) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final bytes = await ref.read(followUpReportPngCaptureProvider)(
-          context, report, period);
+      final bytes = await ref.read(reportPngCaptureProvider)(
+        _reportBoundaryKey,
+      );
       final result = await ref.read(galleryImageSaverProvider).savePng(
             bytes: bytes,
             fileName:
@@ -120,92 +126,56 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   }
 }
 
-Future<Uint8List> captureFollowUpReportPng(
-  BuildContext context,
-  DailyReport report,
-  ReportPeriod period,
-) async {
-  final boundaryKey = GlobalKey();
-  final overlay = Overlay.of(context);
-  final generatedAt = DateTime.now();
-  late final OverlayEntry entry;
-  entry = OverlayEntry(
-    builder: (context) {
-      return Positioned.fill(
-        child: Material(
-          color: Colors.white,
-          child: SingleChildScrollView(
-            child: RepaintBoundary(
-              key: boundaryKey,
-              child: FollowUpReportImage(
-                report: report,
-                generatedAt: generatedAt,
-                rangeLabel: _periodTitle(period),
-                useCurrentRange: true,
-              ),
-            ),
-          ),
-        ),
-      );
-    },
-  );
-  overlay.insert(entry);
-  try {
-    await WidgetsBinding.instance.endOfFrame;
-    final boundary = boundaryKey.currentContext?.findRenderObject()
-        as RenderRepaintBoundary?;
-    if (boundary == null) {
-      throw StateError('Follow-up report image is not ready.');
-    }
-    final image = await boundary.toImage(pixelRatio: 3);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (byteData == null) {
-      throw StateError('Failed to encode follow-up report image.');
-    }
-    return byteData.buffer.asUint8List();
-  } finally {
-    entry.remove();
+Future<Uint8List> captureReportPng(GlobalKey repaintBoundaryKey) async {
+  await WidgetsBinding.instance.endOfFrame;
+  final boundary = repaintBoundaryKey.currentContext?.findRenderObject()
+      as RenderRepaintBoundary?;
+  if (boundary == null) {
+    throw StateError('Report image is not ready.');
   }
+  final image = await boundary.toImage(pixelRatio: 3);
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  if (byteData == null) {
+    throw StateError('Failed to encode report image.');
+  }
+  return byteData.buffer.asUint8List();
 }
 
 class _ReportContent extends StatelessWidget {
   const _ReportContent({
     required this.report,
     required this.period,
-    required this.onSaveToGallery,
+    required this.repaintBoundaryKey,
   });
 
   final DailyReport report;
   final ReportPeriod period;
-  final VoidCallback onSaveToGallery;
+  final GlobalKey repaintBoundaryKey;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        ColoredBox(
-          color: Theme.of(context).colorScheme.surface,
-          child: Column(
-            children: [
-              if (period == ReportPeriod.day) ...[
-                _DailyRehabLogSection(report: report),
-                const SizedBox(height: 20),
-              ] else ...[
-                _RehabRangeSummarySection(report: report, period: period),
-                const SizedBox(height: 20),
-                _RehabLogTrendSection(
-                  report: report,
-                  days: period == ReportPeriod.week ? 7 : 30,
-                ),
-                const SizedBox(height: 20),
-              ],
-              const _ShortDisclaimerText(),
+    return RepaintBoundary(
+      key: repaintBoundaryKey,
+      child: ColoredBox(
+        color: Theme.of(context).colorScheme.surface,
+        child: Column(
+          children: [
+            if (period == ReportPeriod.day) ...[
+              _DailyRehabLogSection(report: report),
+              const SizedBox(height: 20),
+            ] else ...[
+              _RehabRangeSummarySection(report: report, period: period),
+              const SizedBox(height: 20),
+              _RehabLogTrendSection(
+                report: report,
+                days: period == ReportPeriod.week ? 7 : 30,
+              ),
+              const SizedBox(height: 20),
             ],
-          ),
+            const _ShortDisclaimerText(),
+          ],
         ),
-        const SizedBox(height: 20),
-        _SaveReportSection(onSaveToGallery: onSaveToGallery),
-      ],
+      ),
     );
   }
 }
@@ -302,29 +272,6 @@ class _RehabRangeSummarySection extends StatelessWidget {
   }
 }
 
-class _SaveReportSection extends StatelessWidget {
-  const _SaveReportSection({required this.onSaveToGallery});
-
-  final VoidCallback onSaveToGallery;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ReportSection(
-      icon: Icons.photo_library_outlined,
-      title: '保存当前报告到相册',
-      subtitle: '保存为本地 PNG 图片，不上传数据',
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: FilledButton.icon(
-          onPressed: onSaveToGallery,
-          icon: const Icon(Icons.save_alt_outlined),
-          label: const Text('保存当前报告到相册'),
-        ),
-      ),
-    );
-  }
-}
-
 class _RehabLogTrendSection extends StatelessWidget {
   const _RehabLogTrendSection({
     required this.report,
@@ -346,7 +293,7 @@ class _RehabLogTrendSection extends StatelessWidget {
       title: days == 7 ? '最近 7 天康复柱状图' : '最近 30 天康复柱状图',
       subtitle: '按天查看康复记录次数和步行/有氧分钟数',
       child: KeyedSubtree(
-        key: const ValueKey('report-posture-trend-chart'),
+        key: const ValueKey('report-rehab-trend-chart'),
         child: SizedBox(
           key: ValueKey(days == 7
               ? 'rehab-report-week-chart'
@@ -654,14 +601,6 @@ class _ReportError extends StatelessWidget {
       ),
     );
   }
-}
-
-String _periodTitle(ReportPeriod period) {
-  return switch (period) {
-    ReportPeriod.day => '今日',
-    ReportPeriod.week => '最近 7 天',
-    ReportPeriod.month => '最近 30 天',
-  };
 }
 
 int _rehabRecordedDayCount(DailyReport report) {

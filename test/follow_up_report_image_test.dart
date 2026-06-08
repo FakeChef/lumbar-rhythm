@@ -89,12 +89,12 @@ void main() {
 
     await _pumpReportImage(tester, report, generatedAt);
 
-    expect(find.text('腰椎节奏复诊记录摘要'), findsOneWidget);
-    expect(find.text('坐走节奏'), findsOneWidget);
-    expect(find.text('康复活动'), findsOneWidget);
-    expect(find.text('身体状态'), findsOneWidget);
-    expect(find.text('备注摘要'), findsOneWidget);
-    expect(find.text('腰酸、腿麻'), findsOneWidget);
+    expect(find.text('腰椎节奏康复活动报告'), findsOneWidget);
+    expect(find.text('本地康复记录'), findsOneWidget);
+    expect(find.text('基础信息'), findsOneWidget);
+    expect(find.text('康复动作汇总'), findsOneWidget);
+    expect(find.text('动作记录'), findsOneWidget);
+    expect(find.text('动作记录次数'), findsOneWidget);
     expect(find.text(followUpReportDisclaimer), findsOneWidget);
   });
 
@@ -108,9 +108,9 @@ void main() {
 
     await _pumpReportImage(tester, report, generatedAt);
 
-    expect(find.text('暂无记录'), findsNWidgets(3));
-    expect(find.text('暂无症状标签记录'), findsOneWidget);
-    expect(find.text('暂无备注记录'), findsOneWidget);
+    expect(find.text('暂无康复动作记录'), findsOneWidget);
+    expect(find.text('0 天'), findsOneWidget);
+    expect(find.text('0 次'), findsOneWidget);
   });
 
   test('follow-up report copy avoids unsupported medical wording', () {

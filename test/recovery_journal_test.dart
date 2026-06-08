@@ -102,9 +102,12 @@ void main() {
       () async {
     final repository = SqfliteRehabRepository(database);
     final actions = await repository.loadActions();
+    final walkingAction = actions.firstWhere(
+      (action) => action.activityId == 'short_walking_program',
+    );
 
     final log = await repository.addLog(
-      action: actions.first,
+      action: walkingAction,
       amount: '12.5',
       unit: '分钟',
       reaction: RehabReaction.noChange,

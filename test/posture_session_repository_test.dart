@@ -67,7 +67,8 @@ void main() {
     expect(all.single.source, 'manual');
   });
 
-  test('walking session does not calculate exceeded seconds', () async {
+  test('walking session calculates exceeded seconds with walking threshold',
+      () async {
     final startedAt = DateTime(2026, 6, 6, 9);
     final endedAt = DateTime(2026, 6, 6, 11);
 
@@ -81,8 +82,8 @@ void main() {
     final walking = all.last;
 
     expect(walking.type, PostureType.walking);
-    expect(walking.thresholdSeconds, isNull);
-    expect(walking.exceededSeconds, 0);
+    expect(walking.thresholdSeconds, 600);
+    expect(walking.exceededSeconds, 6600);
     expect(walking.endReason, 'user_switch');
   });
 }

@@ -201,7 +201,7 @@ void main() {
     expect(find.text('最近 7 天康复柱状图'), findsNothing);
     expect(find.text('分享报告入口'), findsNothing);
     expect(find.text('分享报告'), findsNothing);
-    expect(find.text('保存当前报告到相册'), findsWidgets);
+    expect(find.byTooltip('保存当前报告到相册'), findsOneWidget);
     expect(find.text('免责声明'), findsNothing);
     expect(find.text('今日坐姿状态'), findsNothing);
     expect(find.text('久坐超过提醒间隔'), findsNothing);
@@ -214,8 +214,8 @@ void main() {
         findsOneWidget);
     expect(find.text('最近 7 天康复汇总'), findsOneWidget);
     expect(find.text('最近 7 天康复柱状图'), findsOneWidget);
-    expect(find.byKey(const ValueKey('report-posture-trend-chart')),
-        findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('report-rehab-trend-chart')), findsOneWidget);
     expect(
         find.byKey(const ValueKey('rehab-report-week-chart')), findsOneWidget);
     expect(find.text('今日康复动作记录'), findsNothing);
@@ -245,9 +245,8 @@ void main() {
         overrides: [
           ..._reportOverrides(),
           galleryImageSaverProvider.overrideWithValue(saver),
-          followUpReportPngCaptureProvider.overrideWithValue(
-            (context, report, period) async =>
-                Uint8List.fromList([137, 80, 78, 71]),
+          reportPngCaptureProvider.overrideWithValue(
+            (repaintBoundaryKey) async => Uint8List.fromList([137, 80, 78, 71]),
           ),
         ],
         child: const MaterialApp(home: Scaffold(body: ReportsPage())),
@@ -255,9 +254,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final saveButton = find.widgetWithText(FilledButton, '保存当前报告到相册');
-    await tester.scrollUntilVisible(saveButton, 500);
-    await tester.tap(saveButton);
+    await tester.tap(find.byTooltip('保存当前报告到相册'));
     await tester.pumpAndSettle();
 
     expect(saver.savedFileNames, hasLength(1));
