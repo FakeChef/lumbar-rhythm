@@ -226,6 +226,7 @@ class LocalDatabase {
     required DateTime endedAt,
     required int sittingThresholdSeconds,
     required int standingThresholdSeconds,
+    int? walkingThresholdSeconds,
     String endReason = 'manual_end',
     String source = 'manual',
     String? note,
@@ -243,6 +244,7 @@ class LocalDatabase {
       final thresholdSeconds = switch (type) {
         'sitting' => sittingThresholdSeconds,
         'standing' => standingThresholdSeconds,
+        'walking' => walkingThresholdSeconds,
         _ => null,
       };
       final exceededSeconds = thresholdSeconds == null

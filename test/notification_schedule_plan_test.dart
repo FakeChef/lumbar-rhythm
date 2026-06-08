@@ -27,7 +27,7 @@ void main() {
         enabled: true,
         currentPosture: PostureType.walking,
       ).kinds,
-      isEmpty,
+      [ReminderKind.walking],
     );
   });
 

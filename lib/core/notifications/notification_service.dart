@@ -15,6 +15,7 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 enum ReminderKind {
   sitting,
   standing,
+  walking,
 }
 
 class ReminderSchedulePlan {
@@ -40,7 +41,10 @@ ReminderSchedulePlan buildReminderSchedulePlan({
     PostureType.standing => const ReminderSchedulePlan(
         kinds: [ReminderKind.standing],
       ),
-    PostureType.walking || PostureType.resting => const ReminderSchedulePlan(
+    PostureType.walking => const ReminderSchedulePlan(
+        kinds: [ReminderKind.walking],
+      ),
+    PostureType.resting => const ReminderSchedulePlan(
         kinds: [],
       ),
   };
@@ -49,6 +53,7 @@ ReminderSchedulePlan buildReminderSchedulePlan({
 class NotificationService {
   static const _sittingReminderId = 101;
   static const _standingReminderId = 102;
+  static const _walkingReminderId = 103;
   static const _testReminderId = 199;
   static const softChannelId = 'lumbar_rhythm_soft_reminders_v2';
   static const vibrationChannelId = 'lumbar_rhythm_vibration_reminders_v2';
@@ -88,6 +93,7 @@ class NotificationService {
     required bool enabled,
     required int sittingIntervalMinutes,
     required int standingIntervalMinutes,
+    int walkingIntervalMinutes = 10,
     ReminderMode reminderMode = ReminderMode.soft,
     PostureType? currentPosture,
   }) async {
@@ -126,6 +132,14 @@ class NotificationService {
             minutesFromNow: standingIntervalMinutes,
             reminderMode: reminderMode,
           );
+        case ReminderKind.walking:
+          await _scheduleReminder(
+            id: _walkingReminderId,
+            title: '走动时间到了',
+            body: '这一段走动已经完成，可以坐下休息一下。',
+            minutesFromNow: walkingIntervalMinutes,
+            reminderMode: reminderMode,
+          );
       }
     }
   }
@@ -133,6 +147,30 @@ class NotificationService {
   Future<void> cancelScheduledReminders() async {
     await _plugin.cancel(_sittingReminderId);
     await _plugin.cancel(_standingReminderId);
+    await _plugin.cancel(_walkingReminderId);
+  }
+
+  Future<bool> showPostureDueReminder({
+    required PostureType posture,
+    ReminderMode reminderMode = ReminderMode.soft,
+  }) async {
+    try {
+      await initialize();
+      final permissionGranted = await requestPermissions();
+      if (!permissionGranted) {
+        return false;
+      }
+      final isWalking = posture == PostureType.walking;
+      await _plugin.show(
+        isWalking ? _walkingReminderId : _sittingReminderId,
+        isWalking ? '走动时间到了' : '该起身活动一下了',
+        isWalking ? '这一段走动已经完成，可以坐下休息一下。' : '已经到久坐提醒时间，建议起身走一走。',
+        _notificationDetails(reminderMode),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> showTestReminder({

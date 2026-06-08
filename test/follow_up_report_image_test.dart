@@ -90,7 +90,7 @@ void main() {
     await _pumpReportImage(tester, report, generatedAt);
 
     expect(find.text('腰椎节奏复诊记录摘要'), findsOneWidget);
-    expect(find.text('坐站节奏'), findsOneWidget);
+    expect(find.text('坐走节奏'), findsOneWidget);
     expect(find.text('康复活动'), findsOneWidget);
     expect(find.text('身体状态'), findsOneWidget);
     expect(find.text('备注摘要'), findsOneWidget);

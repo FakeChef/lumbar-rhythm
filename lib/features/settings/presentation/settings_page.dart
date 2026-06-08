@@ -20,6 +20,8 @@ class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   static const _intervalOptions = [15, 30, 45, 60, 90, 120];
+  static const _walkingIntervalOptions = [3, 5, 10, 15, 20, 30];
+  static const _daytimePhaseOptions = [3, 5, 10, 15, 20, 30, 45, 60];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -69,6 +71,8 @@ class SettingsPage extends ConsumerWidget {
               _ReminderSettingsSection(
                 settings: settings,
                 intervalOptions: _intervalOptions,
+                walkingIntervalOptions: _walkingIntervalOptions,
+                daytimePhaseOptions: _daytimePhaseOptions,
                 testReminderFeedback: testReminderFeedback,
                 testReminderSending: testReminderSending,
                 onRemindersEnabledChanged: (value) {
@@ -82,11 +86,40 @@ class SettingsPage extends ConsumerWidget {
                       .read(reminderSettingsControllerProvider.notifier)
                       .setSittingIntervalMinutes(value);
                 },
-                onStandingIntervalChanged: (value) {
+                onWalkingIntervalChanged: (value) {
                   if (value == null) return;
                   ref
                       .read(reminderSettingsControllerProvider.notifier)
-                      .setStandingIntervalMinutes(value);
+                      .setWalkingIntervalMinutes(value);
+                },
+                onDaytimeLoopEnabledChanged: (value) {
+                  ref
+                      .read(reminderSettingsControllerProvider.notifier)
+                      .setDaytimeLoopEnabled(value);
+                },
+                onDaytimeStartChanged: (value) {
+                  if (value == null) return;
+                  ref
+                      .read(reminderSettingsControllerProvider.notifier)
+                      .setDaytimeStartMinutes(value);
+                },
+                onDaytimeEndChanged: (value) {
+                  if (value == null) return;
+                  ref
+                      .read(reminderSettingsControllerProvider.notifier)
+                      .setDaytimeEndMinutes(value);
+                },
+                onDaytimeSittingChanged: (value) {
+                  if (value == null) return;
+                  ref
+                      .read(reminderSettingsControllerProvider.notifier)
+                      .setDaytimeSittingMinutes(value);
+                },
+                onDaytimeWalkingChanged: (value) {
+                  if (value == null) return;
+                  ref
+                      .read(reminderSettingsControllerProvider.notifier)
+                      .setDaytimeWalkingMinutes(value);
                 },
                 onReminderModeChanged: (value) {
                   if (value == null) return;
@@ -134,12 +167,6 @@ class SettingsPage extends ConsumerWidget {
                       .read(_settingsTestReminderFeedbackProvider.notifier)
                       .state = message;
                 },
-              ),
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.nightlight_round_outlined),
-                title: Text('夜间勿扰'),
-                subtitle: Text('当前版本暂未启用，后续会用于减少夜间提醒打扰。'),
               ),
               const ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -650,11 +677,18 @@ class _ReminderSettingsSection extends StatelessWidget {
   const _ReminderSettingsSection({
     required this.settings,
     required this.intervalOptions,
+    required this.walkingIntervalOptions,
+    required this.daytimePhaseOptions,
     required this.testReminderFeedback,
     required this.testReminderSending,
     required this.onRemindersEnabledChanged,
     required this.onSittingIntervalChanged,
-    required this.onStandingIntervalChanged,
+    required this.onWalkingIntervalChanged,
+    required this.onDaytimeLoopEnabledChanged,
+    required this.onDaytimeStartChanged,
+    required this.onDaytimeEndChanged,
+    required this.onDaytimeSittingChanged,
+    required this.onDaytimeWalkingChanged,
     required this.onReminderModeChanged,
     required this.onTestReminderPressed,
     required this.onOneMinuteTestPressed,
@@ -662,11 +696,18 @@ class _ReminderSettingsSection extends StatelessWidget {
 
   final ReminderSettings settings;
   final List<int> intervalOptions;
+  final List<int> walkingIntervalOptions;
+  final List<int> daytimePhaseOptions;
   final String? testReminderFeedback;
   final bool testReminderSending;
   final ValueChanged<bool> onRemindersEnabledChanged;
   final ValueChanged<int?> onSittingIntervalChanged;
-  final ValueChanged<int?> onStandingIntervalChanged;
+  final ValueChanged<int?> onWalkingIntervalChanged;
+  final ValueChanged<bool> onDaytimeLoopEnabledChanged;
+  final ValueChanged<int?> onDaytimeStartChanged;
+  final ValueChanged<int?> onDaytimeEndChanged;
+  final ValueChanged<int?> onDaytimeSittingChanged;
+  final ValueChanged<int?> onDaytimeWalkingChanged;
   final ValueChanged<ReminderMode?> onReminderModeChanged;
   final VoidCallback onTestReminderPressed;
   final VoidCallback onOneMinuteTestPressed;
@@ -693,11 +734,49 @@ class _ReminderSettingsSection extends StatelessWidget {
         ),
         _IntervalTile(
           icon: Icons.accessibility_new_outlined,
-          title: '久站提醒间隔',
-          value: settings.standingIntervalMinutes,
-          options: intervalOptions,
+          title: '走动提醒间隔',
+          value: settings.walkingIntervalMinutes,
+          options: walkingIntervalOptions,
           onChanged:
-              settings.remindersEnabled ? onStandingIntervalChanged : null,
+              settings.remindersEnabled ? onWalkingIntervalChanged : null,
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: settings.daytimeLoopEnabled,
+          onChanged: onDaytimeLoopEnabledChanged,
+          secondary: const Icon(Icons.wb_sunny_outlined),
+          title: const Text('白天节奏'),
+          subtitle: const Text('白天节奏会在指定时间段内循环提醒：坐一段时间后走动，走动一段时间后坐下休息。你可以随时停止。'),
+        ),
+        _ClockMinuteTile(
+          icon: Icons.play_circle_outline,
+          title: '开始时间',
+          value: settings.daytimeStartMinutes,
+          options: const [8 * 60, 9 * 60, 10 * 60],
+          onChanged: settings.daytimeLoopEnabled ? onDaytimeStartChanged : null,
+        ),
+        _ClockMinuteTile(
+          icon: Icons.stop_circle_outlined,
+          title: '结束时间',
+          value: settings.daytimeEndMinutes,
+          options: const [17 * 60, 18 * 60, 19 * 60],
+          onChanged: settings.daytimeLoopEnabled ? onDaytimeEndChanged : null,
+        ),
+        _IntervalTile(
+          icon: Icons.event_seat_outlined,
+          title: '坐姿阶段',
+          value: settings.daytimeSittingMinutes,
+          options: daytimePhaseOptions,
+          onChanged:
+              settings.daytimeLoopEnabled ? onDaytimeSittingChanged : null,
+        ),
+        _IntervalTile(
+          icon: Icons.directions_walk_outlined,
+          title: '走动阶段',
+          value: settings.daytimeWalkingMinutes,
+          options: daytimePhaseOptions,
+          onChanged:
+              settings.daytimeLoopEnabled ? onDaytimeWalkingChanged : null,
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
@@ -802,6 +881,49 @@ class _IntervalTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ClockMinuteTile extends StatelessWidget {
+  const _ClockMinuteTile({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final int value;
+  final List<int> options;
+  final ValueChanged<int?>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text('当前为 ${_formatClockMinute(value)}'),
+      trailing: DropdownButton<int>(
+        value: value,
+        onChanged: onChanged,
+        items: [
+          for (final option in options)
+            DropdownMenuItem(
+              value: option,
+              child: Text(_formatClockMinute(option)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatClockMinute(int value) {
+  final hour = value ~/ 60;
+  final minute = value.remainder(60);
+  return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 }
 
 class _InfoDialog extends StatelessWidget {

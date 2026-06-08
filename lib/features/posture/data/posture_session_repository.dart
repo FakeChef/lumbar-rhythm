@@ -16,6 +16,7 @@ abstract class PostureSessionRepository {
     DateTime? now,
     int? sittingThresholdMinutes,
     int? standingThresholdMinutes,
+    int? walkingThresholdMinutes,
     String endReason = 'user_switch',
     String source = 'manual',
     String? note,
@@ -25,6 +26,7 @@ abstract class PostureSessionRepository {
     DateTime? now,
     int? sittingThresholdMinutes,
     int? standingThresholdMinutes,
+    int? walkingThresholdMinutes,
     String endReason = 'manual_end',
     String source = 'manual',
     String? note,
@@ -62,6 +64,7 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
     DateTime? now,
     int? sittingThresholdMinutes,
     int? standingThresholdMinutes,
+    int? walkingThresholdMinutes,
     String endReason = 'user_switch',
     String source = 'manual',
     String? note,
@@ -81,6 +84,10 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
       standingThresholdSeconds: _thresholdSeconds(
         standingThresholdMinutes,
         ReminderSettings.defaults.standingIntervalMinutes,
+      ),
+      walkingThresholdSeconds: _thresholdSeconds(
+        walkingThresholdMinutes,
+        ReminderSettings.defaults.walkingIntervalMinutes,
       ),
       endReason: endReason,
       source: source,
@@ -103,6 +110,7 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
     DateTime? now,
     int? sittingThresholdMinutes,
     int? standingThresholdMinutes,
+    int? walkingThresholdMinutes,
     String endReason = 'manual_end',
     String source = 'manual',
     String? note,
@@ -116,6 +124,10 @@ class SqflitePostureSessionRepository implements PostureSessionRepository {
       standingThresholdSeconds: _thresholdSeconds(
         standingThresholdMinutes,
         ReminderSettings.defaults.standingIntervalMinutes,
+      ),
+      walkingThresholdSeconds: _thresholdSeconds(
+        walkingThresholdMinutes,
+        ReminderSettings.defaults.walkingIntervalMinutes,
       ),
       endReason: endReason,
       source: source,

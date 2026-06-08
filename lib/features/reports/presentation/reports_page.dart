@@ -13,11 +13,12 @@ import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
 import 'follow_up_report_image.dart';
 
-const reportDisclaimerText = '本报告仅用于个人记录回顾，不作为医疗依据。';
+const reportDisclaimerText = '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
 
 typedef FollowUpReportPngCapture = Future<Uint8List> Function(
   BuildContext context,
   DailyReport report,
+  ReportPeriod period,
 );
 
 final followUpReportPngCaptureProvider = Provider<FollowUpReportPngCapture>(
@@ -82,37 +83,40 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           data: (report) => _ReportContent(
             report: report,
             period: period,
-            onSaveToGallery: () => _saveReportToGallery(report),
+            onSaveToGallery: () => _saveReportToGallery(report, period),
           ),
         ),
       ],
     );
   }
 
-  Future<void> _saveReportToGallery(DailyReport report) async {
+  Future<void> _saveReportToGallery(
+    DailyReport report,
+    ReportPeriod period,
+  ) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final bytes =
-          await ref.read(followUpReportPngCaptureProvider)(context, report);
+      final bytes = await ref
+          .read(followUpReportPngCaptureProvider)(context, report, period);
       final result = await ref.read(galleryImageSaverProvider).savePng(
             bytes: bytes,
             fileName:
-                'lumbar-rhythm-follow-up-${DateTime.now().millisecondsSinceEpoch}.png',
+                'lumbar-rhythm-report-${period.name}-${DateTime.now().millisecondsSinceEpoch}.png',
           );
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
           content: Text(
             result.saved
-                ? '已保存复诊报告到相册：Pictures/Lumbar Rhythm'
-                : '保存复诊报告失败，请稍后重试。',
+                ? '已保存当前报告到相册：Pictures/Lumbar Rhythm'
+                : '保存当前报告失败，请稍后重试。',
           ),
         ),
       );
     } catch (_) {
       if (!mounted) return;
       messenger.showSnackBar(
-        const SnackBar(content: Text('保存复诊报告失败，请稍后重试。')),
+        const SnackBar(content: Text('保存当前报告失败，请稍后重试。')),
       );
     }
   }
@@ -122,6 +126,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 Future<Uint8List> captureFollowUpReportPng(
   BuildContext context,
   DailyReport report,
+  ReportPeriod period,
 ) async {
   final boundaryKey = GlobalKey();
   final overlay = Overlay.of(context);
@@ -138,6 +143,8 @@ Future<Uint8List> captureFollowUpReportPng(
               child: FollowUpReportImage(
                 report: report,
                 generatedAt: generatedAt,
+                rangeLabel: _periodTitle(period),
+                useCurrentRange: true,
               ),
             ),
           ),
@@ -192,6 +199,11 @@ class _ReportContent extends StatelessWidget {
                 const SizedBox(height: 20),
               ] else ...[
                 _RangeSummarySection(report: report, period: period),
+                const SizedBox(height: 20),
+                _PostureTrendSection(
+                  report: report,
+                  days: period == ReportPeriod.week ? 7 : 30,
+                ),
                 const SizedBox(height: 20),
               ],
               const _ShortDisclaimerText(),
@@ -372,16 +384,130 @@ class _SaveReportSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return _ReportSection(
       icon: Icons.photo_library_outlined,
-      title: '保存复诊报告到相册',
+      title: '保存当前报告到相册',
       subtitle: '保存为本地 PNG 图片，不上传数据',
       child: Align(
         alignment: Alignment.centerLeft,
         child: FilledButton.icon(
           onPressed: onSaveToGallery,
           icon: const Icon(Icons.save_alt_outlined),
-          label: const Text('保存复诊报告到相册'),
+          label: const Text('保存当前报告到相册'),
         ),
       ),
+    );
+  }
+}
+
+class _PostureTrendSection extends StatelessWidget {
+  const _PostureTrendSection({
+    required this.report,
+    required this.days,
+  });
+
+  final DailyReport report;
+  final int days;
+
+  @override
+  Widget build(BuildContext context) {
+    final summaries = report.postureSummary.recentDaySummaries(days: days);
+    final maxMinutes = summaries
+        .map((day) => day.sitting.inMinutes + day.walking.inMinutes)
+        .fold<int>(0, (max, value) => value > max ? value : max);
+
+    return _ReportSection(
+      icon: Icons.bar_chart_outlined,
+      title: days == 7 ? '最近 7 天趋势' : '最近 30 天趋势',
+      subtitle: '按天查看坐姿和走动记录',
+      child: SizedBox(
+        key: const ValueKey('report-posture-trend-chart'),
+        height: 168,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (final day in summaries)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: _TrendBar(
+                    day: day,
+                    maxMinutes: maxMinutes,
+                    showLabel: days == 7 || day.day.day == 1,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TrendBar extends StatelessWidget {
+  const _TrendBar({
+    required this.day,
+    required this.maxMinutes,
+    required this.showLabel,
+  });
+
+  final PostureDaySummary day;
+  final int maxMinutes;
+  final bool showLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final sittingFlex = day.sitting.inMinutes;
+    final walkingFlex = day.walking.inMinutes;
+    final total = sittingFlex + walkingFlex;
+    final heightFactor = maxMinutes == 0
+        ? 0.04
+        : (total / maxMinutes).clamp(0.04, 1.0).toDouble();
+    final scheme = Theme.of(context).colorScheme;
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: FractionallySizedBox(
+              heightFactor: heightFactor,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Column(
+                  children: [
+                    if (walkingFlex > 0)
+                      Expanded(
+                        flex: walkingFlex,
+                        child: ColoredBox(color: scheme.tertiary),
+                      ),
+                    if (sittingFlex > 0)
+                      Expanded(
+                        flex: sittingFlex,
+                        child: ColoredBox(color: scheme.primary),
+                      ),
+                    if (total == 0)
+                      Expanded(
+                        child: ColoredBox(
+                          color: scheme.outlineVariant.withValues(alpha: 0.7),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 18,
+          child: Text(
+            showLabel ? '${day.day.month}/${day.day.day}' : '',
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ),
+      ],
     );
   }
 }

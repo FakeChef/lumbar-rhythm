@@ -24,6 +24,7 @@ class SittingStandingTimerState {
     required this.elapsed,
     required this.sittingThreshold,
     required this.standingThreshold,
+    required this.walkingThreshold,
     required this.status,
     required this.tone,
     required this.message,
@@ -37,6 +38,7 @@ class SittingStandingTimerState {
   final Duration elapsed;
   final Duration sittingThreshold;
   final Duration standingThreshold;
+  final Duration walkingThreshold;
   final Duration? threshold;
   final Duration? remaining;
   final Duration? overdueBy;
@@ -51,7 +53,7 @@ class SittingStandingTimerState {
       SittingStandingTimerStatus.nearReminder => '接近提醒',
       SittingStandingTimerStatus.overdue => '已超过建议时间',
       SittingStandingTimerStatus.overdueWithDiscomfort => '建议降低负荷',
-      SittingStandingTimerStatus.walking => '正在走动 / 休息中',
+      SittingStandingTimerStatus.walking => '走动中',
       SittingStandingTimerStatus.resting => '正在走动 / 休息中',
     };
   }
@@ -69,31 +71,40 @@ class SittingStandingTimerState {
     final standingThreshold = Duration(
       minutes: effectiveSettings.standingIntervalMinutes,
     );
+    final walkingThreshold = Duration(
+      minutes: effectiveSettings.walkingIntervalMinutes,
+    );
 
-    if (posture == PostureType.walking || posture == PostureType.resting) {
+    if (posture == PostureType.resting) {
       return SittingStandingTimerState(
         posture: posture,
         elapsed: elapsed,
         sittingThreshold: sittingThreshold,
         standingThreshold: standingThreshold,
+        walkingThreshold: walkingThreshold,
         threshold: null,
         remaining: null,
         overdueBy: null,
-        status: posture == PostureType.walking
-            ? SittingStandingTimerStatus.walking
-            : SittingStandingTimerStatus.resting,
+        status: SittingStandingTimerStatus.resting,
         tone: SittingStandingTimerTone.green,
-        message: posture == PostureType.walking ? '正在走动' : '正在休息',
-        suggestion: posture == PostureType.walking
-            ? '正在走动，继续按自己的节奏来。'
-            : '正在休息，给身体一点缓冲。',
+        message: '正在休息',
+        suggestion: '正在休息，给身体一点缓冲。',
       );
     }
 
-    final threshold =
-        posture == PostureType.sitting ? sittingThreshold : standingThreshold;
+    final threshold = switch (posture) {
+      PostureType.sitting => sittingThreshold,
+      PostureType.walking => walkingThreshold,
+      PostureType.standing => standingThreshold,
+      PostureType.resting => walkingThreshold,
+    };
     final remaining = threshold - elapsed;
-    final postureLabel = posture == PostureType.sitting ? '久坐' : '久站';
+    final postureLabel = switch (posture) {
+      PostureType.sitting => '久坐',
+      PostureType.walking => '走动',
+      PostureType.standing => '久站',
+      PostureType.resting => '休息',
+    };
 
     if (remaining.isNegative || remaining == Duration.zero) {
       final overdueBy = elapsed - threshold;
@@ -102,6 +113,7 @@ class SittingStandingTimerState {
         elapsed: elapsed,
         sittingThreshold: sittingThreshold,
         standingThreshold: standingThreshold,
+        walkingThreshold: walkingThreshold,
         threshold: threshold,
         remaining: Duration.zero,
         overdueBy: overdueBy,
@@ -113,8 +125,8 @@ class SittingStandingTimerState {
             : SittingStandingTimerTone.orange,
         message: '已超过建议时间 ${_wholeMinutes(overdueBy)} 分钟',
         suggestion: posture == PostureType.sitting
-            ? '起身走两分钟，给身体一个缓冲。'
-            : '已经站了一段时间，可以坐下休息一下。',
+            ? '起身走一走，给身体一个缓冲。'
+            : '这一段走动完成了，可以坐下休息一下。',
       );
     }
 
@@ -124,6 +136,7 @@ class SittingStandingTimerState {
         elapsed: elapsed,
         sittingThreshold: sittingThreshold,
         standingThreshold: standingThreshold,
+        walkingThreshold: walkingThreshold,
         threshold: threshold,
         remaining: remaining,
         overdueBy: null,
@@ -132,7 +145,7 @@ class SittingStandingTimerState {
         message: '距离$postureLabel提醒还有 ${_wholeMinutes(remaining)} 分钟',
         suggestion: posture == PostureType.sitting
             ? '已经坐了一段时间，换个姿势会更友好。'
-            : '已经站了一段时间，可以坐下休息一下。',
+            : '走动快完成了，留意脚下和身体反馈。',
       );
     }
 
@@ -141,6 +154,7 @@ class SittingStandingTimerState {
       elapsed: elapsed,
       sittingThreshold: sittingThreshold,
       standingThreshold: standingThreshold,
+      walkingThreshold: walkingThreshold,
       threshold: threshold,
       remaining: remaining,
       overdueBy: null,
@@ -149,7 +163,7 @@ class SittingStandingTimerState {
       message: '距离$postureLabel提醒还有 ${_wholeMinutes(remaining)} 分钟',
       suggestion: posture == PostureType.sitting
           ? '已经坐了一段时间，换个姿势会更友好。'
-          : '按当前节奏记录，感觉累了可以坐下休息。',
+          : '正在走动，继续按自己的节奏来。',
     );
   }
 
