@@ -298,20 +298,9 @@ class _RehabActivityTrendSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (days == 30) ...[
-                    Text(
-                      '左右滑动查看 30 天趋势',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    const SizedBox(height: 6),
-                  ],
                   _RehabActivityBarChart(
                     days: trend.days,
                     maxValue: maxValue,
-                    scrollHorizontally: days == 30,
                   ),
                 ],
               ),
@@ -327,52 +316,30 @@ class _RehabActivityBarChart extends StatelessWidget {
   const _RehabActivityBarChart({
     required this.days,
     required this.maxValue,
-    required this.scrollHorizontally,
   });
 
   final List<_ActivityTrendDay> days;
   final double maxValue;
-  final bool scrollHorizontally;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 176,
-      child: scrollHorizontally
-          ? SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final day in days)
-                    SizedBox(
-                      width: 34,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child: _RehabActivityBar(
-                          day: day,
-                          maxValue: maxValue,
-                        ),
-                      ),
-                    ),
-                ],
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (final day in days)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: _RehabActivityBar(
+                  day: day,
+                  maxValue: maxValue,
+                ),
               ),
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final day in days)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: _RehabActivityBar(
-                        day: day,
-                        maxValue: maxValue,
-                      ),
-                    ),
-                  ),
-              ],
             ),
+        ],
+      ),
     );
   }
 }
@@ -397,19 +364,30 @@ class _RehabActivityBar extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         Expanded(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: FractionallySizedBox(
-              heightFactor: heightFactor,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: ColoredBox(
-                  color: value == 0
-                      ? scheme.outlineVariant.withValues(alpha: 0.7)
-                      : scheme.primary,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final minimumHeight = value == 0 ? 4.0 : 18.0;
+              final height =
+                  (constraints.maxHeight * heightFactor).clamp(
+                minimumHeight,
+                constraints.maxHeight,
+              );
+              return Align(
+                alignment: Alignment.bottomCenter,
+                child: SizedBox(
+                  height: height,
+                  width: double.infinity,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: ColoredBox(
+                      color: value == 0
+                          ? scheme.outlineVariant.withValues(alpha: 0.55)
+                          : scheme.primary,
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
         const SizedBox(height: 6),

@@ -243,6 +243,22 @@ void main() {
     expect(service, contains('Android may delay inexact reminders'));
   });
 
+  test('scheduled reminder path requests runtime notification permission', () {
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+    final scheduleNextStart =
+        service.indexOf('Future<void> scheduleNextReminders');
+    final cancelStart = service.indexOf('Future<void> cancelScheduledReminders');
+    final scheduleNext = service.substring(scheduleNextStart, cancelStart);
+
+    expect(scheduleNext, contains('requestPermissions()'));
+    expect(
+      scheduleNext.indexOf('requestPermissions()'),
+      lessThan(scheduleNext.indexOf('_scheduleReminder(')),
+    );
+    expect(scheduleNext, contains('系统通知权限未开启'));
+  });
+
   test('one minute test uses a dedicated id and records pending state', () {
     final service = File('lib/core/notifications/notification_service.dart')
         .readAsStringSync();

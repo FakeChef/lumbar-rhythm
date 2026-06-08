@@ -25,6 +25,7 @@ final postureReminderStatusProvider = StateProvider<String?>((ref) => null);
 class PostureSessionController extends AsyncNotifier<PostureSession?> {
   Timer? _foregroundTimer;
   int? _foregroundReminderSessionId;
+  int? _foregroundReminderAttemptSessionId;
 
   @override
   Future<PostureSession?> build() async {
@@ -116,6 +117,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
   void _startForegroundMonitor(PostureSession? session) {
     _foregroundTimer?.cancel();
     _foregroundReminderSessionId = null;
+    _foregroundReminderAttemptSessionId = null;
     if (session == null ||
         (session.type != PostureType.sitting &&
             session.type != PostureType.walking)) {
@@ -131,12 +133,14 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     _foregroundTimer?.cancel();
     _foregroundTimer = null;
     _foregroundReminderSessionId = null;
+    _foregroundReminderAttemptSessionId = null;
   }
 
   Future<void> _checkForegroundReminder([PostureSession? currentSession]) async {
     final session = currentSession ?? state.valueOrNull;
     if (session == null ||
         session.id == _foregroundReminderSessionId ||
+        session.id == _foregroundReminderAttemptSessionId ||
         (session.type != PostureType.sitting &&
             session.type != PostureType.walking)) {
       return;
@@ -153,16 +157,24 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     if (DateTime.now().difference(session.startedAt) < threshold) {
       return;
     }
-    _foregroundReminderSessionId = session.id;
-    final shown =
-        await ref.read(notificationServiceProvider).showPostureDueReminder(
-              posture: session.type,
-              reminderMode: settings.reminderMode,
-            );
-    if (shown) {
-      await ref
-          .read(notificationServiceProvider)
-          .cancelScheduledReminderForPosture(session.type);
+    _foregroundReminderAttemptSessionId = session.id;
+    var shown = false;
+    try {
+      shown =
+          await ref.read(notificationServiceProvider).showPostureDueReminder(
+                posture: session.type,
+                reminderMode: settings.reminderMode,
+              );
+      if (shown) {
+        _foregroundReminderSessionId = session.id;
+        await ref
+            .read(notificationServiceProvider)
+            .cancelScheduledReminderForPosture(session.type);
+      }
+    } finally {
+      if (_foregroundReminderAttemptSessionId == session.id) {
+        _foregroundReminderAttemptSessionId = null;
+      }
     }
     ref.read(postureReminderStatusProvider.notifier).state = shown
         ? (session.type == PostureType.walking

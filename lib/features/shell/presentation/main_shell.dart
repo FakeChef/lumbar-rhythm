@@ -1,23 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../actions/presentation/actions_page.dart';
 import '../../calendar/presentation/calendar_page.dart';
 import '../../home/presentation/home_page.dart';
+import '../../posture/application/posture_session_controller.dart';
 import '../../reports/presentation/reports_page.dart';
 import '../../settings/presentation/settings_page.dart';
 
-class MainShell extends StatefulWidget {
+class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
   @override
-  State<MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends ConsumerState<MainShell> {
   int _index = 0;
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(postureSessionControllerProvider);
+
     final pages = [
       HomePage(onOpenTab: _selectTab),
       const ActionsPage(),

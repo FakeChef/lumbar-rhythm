@@ -203,6 +203,44 @@ void main() {
     }
   });
 
+  testWidgets('foreground reminder retries after a failed show', (tester) async {
+    final postureRepository = _FakePostureRepository(
+      openSession: _session(PostureType.sitting, minutesAgo: 60),
+    );
+    final notificationService = _FakeNotification(dueResults: [false, true]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          postureSessionRepositoryProvider.overrideWithValue(postureRepository),
+          reminderSettingsRepositoryProvider.overrideWithValue(
+            _FakeReminderSettingsRepository(),
+          ),
+          notificationServiceProvider.overrideWithValue(notificationService),
+        ],
+        child: Consumer(
+          builder: (context, ref, child) {
+            ref.watch(postureSessionControllerProvider);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+    expect(notificationService.duePostures, [PostureType.sitting]);
+    expect(notificationService.cancelledPostures, isEmpty);
+
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pump();
+    expect(
+      notificationService.duePostures,
+      [PostureType.sitting, PostureType.sitting],
+    );
+    expect(notificationService.cancelledPostures, [PostureType.sitting]);
+  });
+
   testWidgets('hides recovery overview quick entries and threshold row',
       (tester) async {
     await _pumpHome(tester);
@@ -429,6 +467,10 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 }
 
 class _FakeNotification extends NotificationService {
+  _FakeNotification({List<bool> dueResults = const []})
+      : _dueResults = [...dueResults];
+
+  final List<bool> _dueResults;
   final scheduledPostures = <PostureType?>[];
   final duePostures = <PostureType>[];
   final dueModes = <ReminderMode>[];
@@ -453,7 +495,10 @@ class _FakeNotification extends NotificationService {
   }) async {
     duePostures.add(posture);
     dueModes.add(reminderMode);
-    return true;
+    if (_dueResults.isEmpty) {
+      return true;
+    }
+    return _dueResults.removeAt(0);
   }
 
   @override

@@ -250,6 +250,14 @@ class NotificationService {
       return;
     }
 
+    final permissionGranted = await requestPermissions();
+    if (!permissionGranted) {
+      _updateDebug(
+        _debugState.copyWith(lastErrorMessage: '系统通知权限未开启。'),
+      );
+      return;
+    }
+
     for (final kind in plan.kinds) {
       switch (kind) {
         case ReminderKind.sitting:
