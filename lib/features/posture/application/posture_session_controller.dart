@@ -20,6 +20,8 @@ final postureSessionControllerProvider =
   PostureSessionController.new,
 );
 
+final postureReminderStatusProvider = StateProvider<String?>((ref) => null);
+
 class PostureSessionController extends AsyncNotifier<PostureSession?> {
   Timer? _foregroundTimer;
   int? _foregroundReminderSessionId;
@@ -69,6 +71,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
       }
     }
     state = AsyncData(session);
+    ref.read(postureReminderStatusProvider.notifier).state = null;
     ref.invalidate(dailyReportControllerProvider);
     notifyAppDataChanged(ref);
     await _scheduleFor(session.type);
@@ -83,6 +86,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
           walkingThresholdMinutes: settings.walkingIntervalMinutes,
         );
     state = const AsyncData(null);
+    ref.read(postureReminderStatusProvider.notifier).state = null;
     notifyAppDataChanged(ref);
     await _scheduleFor(null);
     _stopForegroundMonitor();
@@ -150,9 +154,14 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
       return;
     }
     _foregroundReminderSessionId = session.id;
-    await ref.read(notificationServiceProvider).showPostureDueReminder(
+    final shown = await ref.read(notificationServiceProvider).showPostureDueReminder(
           posture: session.type,
           reminderMode: settings.reminderMode,
         );
+    ref.read(postureReminderStatusProvider.notifier).state = shown
+        ? (session.type == PostureType.walking
+            ? '走动提醒已触发，可以坐下休息一下。'
+            : '久坐提醒已触发，可以起身走一走。')
+        : '提醒触发失败，请检查系统通知设置。';
   }
 }

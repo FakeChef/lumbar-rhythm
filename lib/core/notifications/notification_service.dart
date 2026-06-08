@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -9,7 +10,15 @@ import '../../features/posture/domain/posture_session.dart';
 import '../../features/settings/domain/reminder_settings.dart';
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
-  return NotificationService();
+  return NotificationService(
+    onDebugStateChanged: (state) {
+      ref.read(reminderDebugStateProvider.notifier).state = state;
+    },
+  );
+});
+
+final reminderDebugStateProvider = StateProvider<ReminderDebugState>((ref) {
+  return const ReminderDebugState();
 });
 
 enum ReminderKind {
@@ -50,11 +59,130 @@ ReminderSchedulePlan buildReminderSchedulePlan({
   };
 }
 
+class ReminderDebugState {
+  const ReminderDebugState({
+    this.lastImmediateTestAt,
+    this.lastForegroundTimerScheduledAt,
+    this.lastForegroundTimerDueAt,
+    this.lastLocalScheduleRequestedAt,
+    this.lastLocalScheduleDueAt,
+    this.lastNotificationId,
+    this.lastReminderMode,
+    this.lastChannelId,
+    this.lastErrorMessage,
+    this.pendingNotificationCount,
+    this.pendingNotificationIds = const [],
+    this.scheduledPendingBefore,
+    this.scheduledPendingAfter,
+    this.lastForegroundTimerFiredAt,
+    this.lastImmediateShownAt,
+    this.lastScheduledModeUsed,
+    this.lastScheduleModeResult,
+  });
+
+  final DateTime? lastImmediateTestAt;
+  final DateTime? lastForegroundTimerScheduledAt;
+  final DateTime? lastForegroundTimerDueAt;
+  final DateTime? lastLocalScheduleRequestedAt;
+  final DateTime? lastLocalScheduleDueAt;
+  final int? lastNotificationId;
+  final ReminderMode? lastReminderMode;
+  final String? lastChannelId;
+  final String? lastErrorMessage;
+  final int? pendingNotificationCount;
+  final List<int> pendingNotificationIds;
+  final int? scheduledPendingBefore;
+  final int? scheduledPendingAfter;
+  final DateTime? lastForegroundTimerFiredAt;
+  final DateTime? lastImmediateShownAt;
+  final String? lastScheduledModeUsed;
+  final String? lastScheduleModeResult;
+
+  ReminderDebugState copyWith({
+    DateTime? lastImmediateTestAt,
+    DateTime? lastForegroundTimerScheduledAt,
+    DateTime? lastForegroundTimerDueAt,
+    DateTime? lastLocalScheduleRequestedAt,
+    DateTime? lastLocalScheduleDueAt,
+    int? lastNotificationId,
+    ReminderMode? lastReminderMode,
+    String? lastChannelId,
+    String? lastErrorMessage,
+    int? pendingNotificationCount,
+    List<int>? pendingNotificationIds,
+    int? scheduledPendingBefore,
+    int? scheduledPendingAfter,
+    DateTime? lastForegroundTimerFiredAt,
+    DateTime? lastImmediateShownAt,
+    String? lastScheduledModeUsed,
+    String? lastScheduleModeResult,
+  }) {
+    return ReminderDebugState(
+      lastImmediateTestAt: lastImmediateTestAt ?? this.lastImmediateTestAt,
+      lastForegroundTimerScheduledAt: lastForegroundTimerScheduledAt ??
+          this.lastForegroundTimerScheduledAt,
+      lastForegroundTimerDueAt:
+          lastForegroundTimerDueAt ?? this.lastForegroundTimerDueAt,
+      lastLocalScheduleRequestedAt: lastLocalScheduleRequestedAt ??
+          this.lastLocalScheduleRequestedAt,
+      lastLocalScheduleDueAt:
+          lastLocalScheduleDueAt ?? this.lastLocalScheduleDueAt,
+      lastNotificationId: lastNotificationId ?? this.lastNotificationId,
+      lastReminderMode: lastReminderMode ?? this.lastReminderMode,
+      lastChannelId: lastChannelId ?? this.lastChannelId,
+      lastErrorMessage: lastErrorMessage,
+      pendingNotificationCount:
+          pendingNotificationCount ?? this.pendingNotificationCount,
+      pendingNotificationIds:
+          pendingNotificationIds ?? this.pendingNotificationIds,
+      scheduledPendingBefore:
+          scheduledPendingBefore ?? this.scheduledPendingBefore,
+      scheduledPendingAfter: scheduledPendingAfter ?? this.scheduledPendingAfter,
+      lastForegroundTimerFiredAt:
+          lastForegroundTimerFiredAt ?? this.lastForegroundTimerFiredAt,
+      lastImmediateShownAt: lastImmediateShownAt ?? this.lastImmediateShownAt,
+      lastScheduledModeUsed:
+          lastScheduledModeUsed ?? this.lastScheduledModeUsed,
+      lastScheduleModeResult: lastScheduleModeResult ?? this.lastScheduleModeResult,
+    );
+  }
+}
+
+enum ReminderScheduleDiagnosticMode {
+  inexactAllowWhileIdle,
+  exactAllowWhileIdle,
+  alarmClock,
+}
+
+extension ReminderScheduleDiagnosticModeLabel
+    on ReminderScheduleDiagnosticMode {
+  String get label {
+    return switch (this) {
+      ReminderScheduleDiagnosticMode.inexactAllowWhileIdle =>
+        'inexactAllowWhileIdle',
+      ReminderScheduleDiagnosticMode.exactAllowWhileIdle => 'exactAllowWhileIdle',
+      ReminderScheduleDiagnosticMode.alarmClock => 'alarmClock',
+    };
+  }
+
+  AndroidScheduleMode get androidScheduleMode {
+    return switch (this) {
+      ReminderScheduleDiagnosticMode.inexactAllowWhileIdle =>
+        AndroidScheduleMode.inexactAllowWhileIdle,
+      ReminderScheduleDiagnosticMode.exactAllowWhileIdle =>
+        AndroidScheduleMode.exactAllowWhileIdle,
+      ReminderScheduleDiagnosticMode.alarmClock => AndroidScheduleMode.alarmClock,
+    };
+  }
+}
+
 class NotificationService {
   static const _sittingReminderId = 101;
   static const _standingReminderId = 102;
   static const _walkingReminderId = 103;
   static const _testReminderId = 199;
+  static const _foregroundTimerTestReminderId = 198;
+  static const _oneMinuteSittingTestReminderId = 201;
   static const softChannelId = 'lumbar_rhythm_soft_reminders_v2';
   static const vibrationChannelId = 'lumbar_rhythm_vibration_reminders_v2';
   static const alarmChannelId = 'lumbar_rhythm_alarm_reminders_v2';
@@ -62,9 +190,19 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+  final void Function(ReminderDebugState state)? _onDebugStateChanged;
 
   bool _timeZonesInitialized = false;
   bool _notificationsInitialized = false;
+  Timer? _foregroundTestTimer;
+  ReminderDebugState _debugState = const ReminderDebugState();
+
+  NotificationService({
+    void Function(ReminderDebugState state)? onDebugStateChanged,
+  })
+      : _onDebugStateChanged = onDebugStateChanged;
+
+  ReminderDebugState get debugState => _debugState;
 
   Future<void> initialize() async {
     if (_notificationsInitialized) {
@@ -145,9 +283,14 @@ class NotificationService {
   }
 
   Future<void> cancelScheduledReminders() async {
+    _foregroundTestTimer?.cancel();
+    _foregroundTestTimer = null;
     await _plugin.cancel(_sittingReminderId);
     await _plugin.cancel(_standingReminderId);
     await _plugin.cancel(_walkingReminderId);
+    await _plugin.cancel(_foregroundTimerTestReminderId);
+    await _plugin.cancel(_oneMinuteSittingTestReminderId);
+    await refreshPendingScheduledNotifications();
   }
 
   Future<bool> showPostureDueReminder({
@@ -167,8 +310,10 @@ class NotificationService {
         isWalking ? '这一段走动已经完成，可以坐下休息一下。' : '已经到久坐提醒时间，建议起身走一走。',
         _notificationDetails(reminderMode),
       );
+      await refreshPendingScheduledNotifications();
       return true;
-    } catch (_) {
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
       return false;
     }
   }
@@ -184,20 +329,87 @@ class NotificationService {
         return false;
       }
 
-      await _plugin.show(
-        _testReminderId,
-        '腰椎节奏提醒测试',
-        '本地通知已可用。后续提醒会按你的设置安排。',
-        _notificationDetails(reminderMode),
+      await _showNotification(
+        id: _testReminderId,
+        title: '腰椎节奏提醒测试',
+        body: '本地通知已可用。后续提醒会按你的设置安排。',
+        reminderMode: reminderMode,
       );
+      _updateDebug(
+        _debugState.copyWith(
+          lastImmediateTestAt: DateTime.now(),
+          lastImmediateShownAt: DateTime.now(),
+          lastNotificationId: _testReminderId,
+          lastReminderMode: reminderMode,
+          lastChannelId: channelIdForReminderMode(reminderMode),
+          lastErrorMessage: null,
+        ),
+      );
+      await refreshPendingScheduledNotifications();
       return true;
-    } catch (_) {
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return false;
+    }
+  }
+
+  Future<bool> scheduleForegroundTimerTestReminder({
+    ReminderMode reminderMode = ReminderMode.soft,
+    Duration delay = const Duration(seconds: 10),
+  }) async {
+    try {
+      await initialize();
+      final permissionGranted = await requestPermissions();
+      if (!permissionGranted) {
+        return false;
+      }
+
+      _foregroundTestTimer?.cancel();
+      final scheduledAt = DateTime.now();
+      final dueAt = scheduledAt.add(delay);
+      _updateDebug(
+        _debugState.copyWith(
+          lastForegroundTimerScheduledAt: scheduledAt,
+          lastForegroundTimerDueAt: dueAt,
+          lastNotificationId: _foregroundTimerTestReminderId,
+          lastReminderMode: reminderMode,
+          lastChannelId: channelIdForReminderMode(reminderMode),
+          lastErrorMessage: null,
+        ),
+      );
+      _foregroundTestTimer = Timer(delay, () {
+        unawaited(
+          _showNotification(
+            id: _foregroundTimerTestReminderId,
+            title: '腰椎节奏前台测试',
+            body: '10 秒前台测试提醒已触发。',
+            reminderMode: reminderMode,
+          ).then((_) {
+            _updateDebug(
+              _debugState.copyWith(
+                lastImmediateTestAt: DateTime.now(),
+                lastImmediateShownAt: DateTime.now(),
+                lastForegroundTimerFiredAt: DateTime.now(),
+                lastNotificationId: _foregroundTimerTestReminderId,
+                lastReminderMode: reminderMode,
+                lastChannelId: channelIdForReminderMode(reminderMode),
+                lastErrorMessage: null,
+              ),
+            );
+          }),
+        );
+      });
+      return true;
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
       return false;
     }
   }
 
   Future<bool> scheduleOneMinuteSittingTestReminder({
     ReminderMode reminderMode = ReminderMode.soft,
+    ReminderScheduleDiagnosticMode diagnosticMode =
+        ReminderScheduleDiagnosticMode.inexactAllowWhileIdle,
   }) async {
     try {
       await initialize();
@@ -207,18 +419,64 @@ class NotificationService {
         return false;
       }
 
-      await _plugin.cancel(_sittingReminderId);
+      final pendingBefore = await _readPendingNotificationIds();
+      await _plugin.cancel(_oneMinuteSittingTestReminderId);
       await _scheduleReminder(
-        id: _sittingReminderId,
+        id: _oneMinuteSittingTestReminderId,
         title: '该起身活动一下了',
         body: '这是 1 分钟测试久坐提醒，用于确认定时调度是否可用。',
         minutesFromNow: 1,
         reminderMode: reminderMode,
+        androidScheduleMode: diagnosticMode.androidScheduleMode,
+        scheduleModeLabel: diagnosticMode.label,
+      );
+      final pendingAfter = await _readPendingNotificationIds();
+      final containsTestId = pendingAfter.contains(_oneMinuteSittingTestReminderId);
+      _updateDebug(
+        _debugState.copyWith(
+          pendingNotificationCount: pendingAfter.length,
+          pendingNotificationIds: pendingAfter,
+          scheduledPendingBefore: pendingBefore.length,
+          scheduledPendingAfter: pendingAfter.length,
+          lastScheduleModeResult: containsTestId
+              ? '已安排，等待系统触发。'
+              : '已请求安排，但 pending 列表未确认该提醒。',
+          lastErrorMessage: null,
+        ),
       );
       return true;
-    } catch (_) {
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
       return false;
     }
+  }
+
+  Future<ReminderDebugState> refreshPendingScheduledNotifications() async {
+    try {
+      await initialize();
+      final pending = await _plugin.pendingNotificationRequests();
+      final ids = pending.map((request) => request.id).toList()..sort();
+      final scheduledId = _debugState.lastNotificationId;
+      final dueAt = _debugState.lastLocalScheduleDueAt;
+      final systemMayHaveHandled = scheduledId != null &&
+          dueAt != null &&
+          DateTime.now().isAfter(dueAt) &&
+          !ids.contains(scheduledId);
+      _updateDebug(
+        _debugState.copyWith(
+          pendingNotificationCount: ids.length,
+          pendingNotificationIds: ids,
+          scheduledPendingAfter: ids.length,
+          lastScheduleModeResult: systemMayHaveHandled
+              ? '系统已处理该定时提醒，但本机可能未展示。建议以前台提醒为主。'
+              : _debugState.lastScheduleModeResult,
+          lastErrorMessage: null,
+        ),
+      );
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+    }
+    return _debugState;
   }
 
   Future<void> _scheduleReminder({
@@ -227,11 +485,33 @@ class NotificationService {
     required String body,
     required int minutesFromNow,
     required ReminderMode reminderMode,
+    AndroidScheduleMode androidScheduleMode =
+        AndroidScheduleMode.inexactAllowWhileIdle,
+    String scheduleModeLabel = 'inexactAllowWhileIdle',
   }) async {
     _ensureTimeZonesInitialized();
 
-    final scheduledAt = tz.TZDateTime.now(tz.local).add(
+    final requestedAt = DateTime.now();
+    var scheduledAt = tz.TZDateTime.now(tz.local).add(
       Duration(minutes: minutesFromNow),
+    );
+    final minimumDueAt = tz.TZDateTime.now(tz.local).add(
+      const Duration(seconds: 5),
+    );
+    if (!scheduledAt.isAfter(minimumDueAt)) {
+      scheduledAt = minimumDueAt;
+    }
+    _updateDebug(
+      _debugState.copyWith(
+        lastLocalScheduleRequestedAt: requestedAt,
+        lastLocalScheduleDueAt: scheduledAt,
+        lastNotificationId: id,
+        lastReminderMode: reminderMode,
+        lastChannelId: channelIdForReminderMode(reminderMode),
+        lastScheduledModeUsed: scheduleModeLabel,
+        lastScheduleModeResult: '已请求安排，等待 pending 确认。',
+        lastErrorMessage: null,
+      ),
     );
 
     // Android may delay inexact reminders to save power, especially during
@@ -243,9 +523,28 @@ class NotificationService {
       body,
       scheduledAt,
       _notificationDetails(reminderMode),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      androidScheduleMode: androidScheduleMode,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  Future<List<int>> _readPendingNotificationIds() async {
+    final pending = await _plugin.pendingNotificationRequests();
+    return pending.map((request) => request.id).toList()..sort();
+  }
+
+  Future<void> _showNotification({
+    required int id,
+    required String title,
+    required String body,
+    required ReminderMode reminderMode,
+  }) {
+    return _plugin.show(
+      id,
+      title,
+      body,
+      _notificationDetails(reminderMode),
     );
   }
 
@@ -260,6 +559,19 @@ class NotificationService {
     tz_data.initializeTimeZones();
     _timeZonesInitialized = true;
   }
+
+  void _updateDebug(ReminderDebugState next) {
+    _debugState = next;
+    _onDebugStateChanged?.call(next);
+  }
+}
+
+String channelIdForReminderMode(ReminderMode reminderMode) {
+  return switch (reminderMode) {
+    ReminderMode.soft => NotificationService.softChannelId,
+    ReminderMode.vibration => NotificationService.vibrationChannelId,
+    ReminderMode.alarm => NotificationService.alarmChannelId,
+  };
 }
 
 NotificationDetails buildReminderNotificationDetails({

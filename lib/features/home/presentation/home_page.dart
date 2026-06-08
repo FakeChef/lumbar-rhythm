@@ -88,6 +88,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final recoveryProfileState = ref.watch(_homeRecoveryProfileProvider);
     final overviewState = ref.watch(_homeTodayOverviewProvider);
     final encouragement = ref.watch(todayEncouragementProvider);
+    final reminderStatus = ref.watch(postureReminderStatusProvider);
     final postureNow =
         ref.watch(postureClockProvider).valueOrNull ?? DateTime.now();
 
@@ -121,6 +122,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     hasMarkedDiscomfort:
                         overviewState.valueOrNull?.hasMarkedDiscomfort ?? false,
                     selectedPosture: _selectedPosture,
+                    reminderStatus: reminderStatus,
                   ),
                   const SizedBox(height: 8),
                   _PostureSwitchSection(
@@ -351,6 +353,7 @@ class _PostureStatusCard extends StatelessWidget {
     required this.settings,
     required this.hasMarkedDiscomfort,
     required this.selectedPosture,
+    required this.reminderStatus,
   });
 
   final RecoveryProfile? profile;
@@ -360,6 +363,7 @@ class _PostureStatusCard extends StatelessWidget {
   final ReminderSettings settings;
   final bool hasMarkedDiscomfort;
   final PostureType selectedPosture;
+  final String? reminderStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -468,7 +472,9 @@ class _PostureStatusCard extends StatelessWidget {
               const SizedBox(height: 8),
               _TimerInfoPanel(
                 message: timerState?.message ?? '未计时',
-                suggestion: timerState?.suggestion ?? '选择坐或走，开始今天的坐走节奏。',
+                suggestion: reminderStatus ??
+                    timerState?.suggestion ??
+                    '选择坐或走，开始今天的坐走节奏。',
               ),
             ],
           ),

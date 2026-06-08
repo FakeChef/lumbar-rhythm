@@ -408,20 +408,23 @@ void main() {
     expect(find.text('提醒方式'), findsOneWidget);
     expect(find.text('响铃提醒'), findsOneWidget);
 
-    await tester.scrollUntilVisible(find.text('立即发送测试提醒'), 300.0);
+    await tester.scrollUntilVisible(find.text('立即测试提醒'), 300.0);
     await tester.pumpAndSettle();
-    expect(find.text('立即发送测试提醒'), findsOneWidget);
+    expect(find.text('立即测试提醒'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('立即发送测试提醒'));
+    await tester.tap(find.byTooltip('立即测试提醒'));
     await tester.pumpAndSettle();
 
     expect(notificationService.testReminderModes, [ReminderMode.alarm]);
 
-    await tester.scrollUntilVisible(find.text('1 分钟测试久坐提醒'), 300.0);
+    await tester.scrollUntilVisible(
+      find.text('1 分钟定时测试：inexactAllowWhileIdle'),
+      300.0,
+    );
     await tester.pumpAndSettle();
-    expect(find.text('1 分钟测试久坐提醒'), findsOneWidget);
+    expect(find.text('1 分钟定时测试：inexactAllowWhileIdle'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('1 分钟测试久坐提醒'));
+    await tester.tap(find.byTooltip('1 分钟定时测试：inexactAllowWhileIdle'));
     await tester.pumpAndSettle();
 
     expect(notificationService.oneMinuteTestReminderModes, [ReminderMode.alarm]);
@@ -949,9 +952,16 @@ class _FakeNotificationService extends NotificationService {
   @override
   Future<bool> scheduleOneMinuteSittingTestReminder({
     ReminderMode reminderMode = ReminderMode.soft,
+    ReminderScheduleDiagnosticMode diagnosticMode =
+        ReminderScheduleDiagnosticMode.inexactAllowWhileIdle,
   }) async {
     oneMinuteTestReminderModes.add(reminderMode);
     return true;
+  }
+
+  @override
+  Future<ReminderDebugState> refreshPendingScheduledNotifications() async {
+    return const ReminderDebugState(pendingNotificationCount: 0);
   }
 }
 
