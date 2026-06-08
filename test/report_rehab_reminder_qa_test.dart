@@ -192,6 +192,20 @@ void main() {
               endedAt: today.add(const Duration(hours: 9, minutes: 10)),
               durationSeconds: 600,
             ),
+            PostureSession(
+              id: 3,
+              type: PostureType.standing,
+              startedAt: today.add(const Duration(hours: 11)),
+              endedAt: today.add(const Duration(hours: 11, minutes: 20)),
+              durationSeconds: 1200,
+            ),
+            PostureSession(
+              id: 4,
+              type: PostureType.resting,
+              startedAt: today.add(const Duration(hours: 13)),
+              endedAt: today.add(const Duration(hours: 13, minutes: 10)),
+              durationSeconds: 600,
+            ),
           ],
           rehabLogs: [
             RehabLog(
@@ -219,6 +233,16 @@ void main() {
               actionId: breathing.id,
               amount: '3',
               amountValue: 3,
+              unit: '分钟',
+              reaction: RehabReaction.noChange,
+              source: 'manual',
+              createdAt: today.subtract(const Duration(days: 1)),
+            ),
+            RehabLog(
+              id: 4,
+              actionId: breathing.id,
+              amount: '4',
+              amountValue: 4,
               unit: '分钟',
               reaction: RehabReaction.noChange,
               source: 'manual',
@@ -255,13 +279,19 @@ void main() {
     expect(find.text('最近 7 天康复柱状图'), findsNothing);
     expect(find.text('按实际记录过的康复活动查看趋势'), findsOneWidget);
     expect(find.text('短距离步行'), findsOneWidget);
-    expect(find.text('膈式呼吸'), findsNothing);
-    expect(find.text('总记录次数'), findsOneWidget);
+    expect(find.text('膈式呼吸'), findsOneWidget);
+    expect(find.text('总记录次数'), findsNWidgets(2));
     expect(find.text('2 次'), findsOneWidget);
-    expect(find.text('总完成量'), findsOneWidget);
+    expect(find.text('1 次'), findsOneWidget);
+    expect(find.text('总完成量'), findsNWidgets(2));
     expect(find.text('13 分钟'), findsOneWidget);
+    expect(find.text('3 分钟'), findsOneWidget);
     expect(
       find.byKey(ValueKey('rehab-activity-trend-chart-${walking.id}')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(ValueKey('rehab-activity-trend-chart-${breathing.id}')),
       findsOneWidget,
     );
     for (var index = 0; index < 7; index++) {
@@ -278,6 +308,13 @@ void main() {
     expect(find.text('记录天数'), findsNothing);
     expect(find.text('康复记录总次数'), findsNothing);
     expect(find.text('久坐中断总次数'), findsNothing);
+    expect(find.text('今日坐姿状态'), findsNothing);
+    expect(find.text('久坐超过提醒间隔'), findsNothing);
+    expect(find.text('久坐中断次数'), findsNothing);
+    expect(find.text('坐姿'), findsNothing);
+    expect(find.text('站立'), findsNothing);
+    expect(find.text('步行'), findsNothing);
+    expect(find.text('休息'), findsNothing);
 
     await tester.tap(find.text('月'));
     await tester.pumpAndSettle();
@@ -288,6 +325,7 @@ void main() {
     expect(find.text('最近 30 天康复柱状图'), findsNothing);
     expect(find.text('短距离步行'), findsOneWidget);
     expect(find.text('膈式呼吸'), findsOneWidget);
+    expect(find.text('7 分钟'), findsOneWidget);
     expect(
       find.byKey(ValueKey('rehab-activity-trend-chart-${walking.id}')),
       findsOneWidget,
@@ -307,6 +345,13 @@ void main() {
     }
     expect(find.text('今日康复动作记录'), findsNothing);
     expect(find.text('康复记录总次数'), findsNothing);
+    expect(find.text('今日坐姿状态'), findsNothing);
+    expect(find.text('久坐超过提醒间隔'), findsNothing);
+    expect(find.text('久坐中断次数'), findsNothing);
+    expect(find.text('坐姿'), findsNothing);
+    expect(find.text('站立'), findsNothing);
+    expect(find.text('步行'), findsNothing);
+    expect(find.text('休息'), findsNothing);
   });
 
   testWidgets('saving current report uses gallery image saver', (tester) async {
