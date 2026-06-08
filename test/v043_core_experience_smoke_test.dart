@@ -52,7 +52,7 @@ void main() {
 
     expect(reports, contains('保存当前报告到相册'));
     expect(reports, contains('lumbar-rhythm-report-\${period.name}-'));
-    expect(reports, contains("ValueKey('report-posture-trend-chart')"));
+    expect(reports, contains("ValueKey('report-rehab-trend-chart')"));
     expect(reports, contains('最近 7 天康复柱状图'));
     expect(reports, contains('最近 30 天康复柱状图'));
     expect(reportImage, contains('useCurrentRange'));

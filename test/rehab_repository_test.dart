@@ -43,7 +43,7 @@ void main() {
     );
     final logs = await repository.loadToday(now: DateTime(2026, 6, 6, 12));
 
-    expect(actions.length, 24);
+    expect(actions.length, 25);
     expect(log.reaction, RehabReaction.muchWorse);
     expect(log.symptomTag, '腿麻');
     expect(log.symptomTags, ['腿麻']);

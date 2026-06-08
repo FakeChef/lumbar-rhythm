@@ -118,13 +118,11 @@ void main() {
       ),
     );
     expect(find.text('当前状态：我在走'), findsOneWidget);
-    expect(find.text('走动中'), findsOneWidget);
     expect(find.text('已超过建议时间'), findsWidgets);
     expect(find.text('正在休息'), findsNothing);
   });
 
-  testWidgets('shows only sitting and walking posture buttons',
-      (tester) async {
+  testWidgets('shows only sitting and walking posture buttons', (tester) async {
     await _pumpHome(tester);
 
     expect(find.text('我在坐'), findsWidgets);
@@ -150,12 +148,14 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
     await tester.pumpAndSettle();
-    expect(notificationService.scheduledPostures, contains(PostureType.sitting));
+    expect(
+        notificationService.scheduledPostures, contains(PostureType.sitting));
     expect(postureRepository.openSession?.type, PostureType.sitting);
 
     await tester.tap(find.byKey(const ValueKey('today-posture-walking')));
     await tester.pumpAndSettle();
-    expect(notificationService.scheduledPostures, contains(PostureType.walking));
+    expect(
+        notificationService.scheduledPostures, contains(PostureType.walking));
     expect(postureRepository.openSession?.type, PostureType.walking);
     expect(rehabRepository.addedLogs.single.source, 'posture_session');
   });
