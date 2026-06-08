@@ -247,11 +247,6 @@ class NotificationService {
       return;
     }
 
-    final permissionGranted = await requestPermissions();
-    if (!permissionGranted) {
-      return;
-    }
-
     for (final kind in plan.kinds) {
       switch (kind) {
         case ReminderKind.sitting:
@@ -283,12 +278,9 @@ class NotificationService {
   }
 
   Future<void> cancelScheduledReminders() async {
-    _foregroundTestTimer?.cancel();
-    _foregroundTestTimer = null;
     await _plugin.cancel(_sittingReminderId);
     await _plugin.cancel(_standingReminderId);
     await _plugin.cancel(_walkingReminderId);
-    await _plugin.cancel(_foregroundTimerTestReminderId);
     await _plugin.cancel(_oneMinuteSittingTestReminderId);
     await refreshPendingScheduledNotifications();
   }
@@ -297,55 +289,62 @@ class NotificationService {
     required PostureType posture,
     ReminderMode reminderMode = ReminderMode.soft,
   }) async {
-    try {
-      await initialize();
-      final permissionGranted = await requestPermissions();
-      if (!permissionGranted) {
-        return false;
-      }
-      final isWalking = posture == PostureType.walking;
-      await _plugin.show(
-        isWalking ? _walkingReminderId : _sittingReminderId,
-        isWalking ? '走动时间到了' : '该起身活动一下了',
-        isWalking ? '这一段走动已经完成，可以坐下休息一下。' : '已经到久坐提醒时间，建议起身走一走。',
-        _notificationDetails(reminderMode),
-      );
-      await refreshPendingScheduledNotifications();
-      return true;
-    } catch (error) {
-      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
-      return false;
-    }
+    final isWalking = posture == PostureType.walking;
+    return showReminderNow(
+      mode: reminderMode,
+      title: isWalking ? '走动时间到了' : '该起身活动一下了',
+      body: isWalking ? '这一段走动已经完成，可以坐下休息一下。' : '已经到久坐提醒时间，建议起身走一走。',
+      id: isWalking ? _walkingReminderId : _sittingReminderId,
+    );
   }
 
   Future<bool> showTestReminder({
     ReminderMode reminderMode = ReminderMode.soft,
+  }) async {
+    return showReminderNow(
+      mode: reminderMode,
+      title: '腰椎节奏提醒测试',
+      body: '本地通知已可用。后续提醒会按你的设置安排。',
+      id: _testReminderId,
+      markAsImmediateTest: true,
+    );
+  }
+
+  Future<bool> showReminderNow({
+    required ReminderMode mode,
+    required String title,
+    required String body,
+    int id = _testReminderId,
+    bool markAsImmediateTest = false,
   }) async {
     try {
       await initialize();
 
       final permissionGranted = await requestPermissions();
       if (!permissionGranted) {
+        _updateDebug(
+          _debugState.copyWith(lastErrorMessage: '系统通知权限未开启。'),
+        );
         return false;
       }
 
       await _showNotification(
-        id: _testReminderId,
-        title: '腰椎节奏提醒测试',
-        body: '本地通知已可用。后续提醒会按你的设置安排。',
-        reminderMode: reminderMode,
+        id: id,
+        title: title,
+        body: body,
+        reminderMode: mode,
       );
+      final now = DateTime.now();
       _updateDebug(
         _debugState.copyWith(
-          lastImmediateTestAt: DateTime.now(),
-          lastImmediateShownAt: DateTime.now(),
-          lastNotificationId: _testReminderId,
-          lastReminderMode: reminderMode,
-          lastChannelId: channelIdForReminderMode(reminderMode),
+          lastImmediateTestAt: markAsImmediateTest ? now : null,
+          lastImmediateShownAt: now,
+          lastNotificationId: id,
+          lastReminderMode: mode,
+          lastChannelId: channelIdForReminderMode(mode),
           lastErrorMessage: null,
         ),
       );
-      await refreshPendingScheduledNotifications();
       return true;
     } catch (error) {
       _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
@@ -356,6 +355,7 @@ class NotificationService {
   Future<bool> scheduleForegroundTimerTestReminder({
     ReminderMode reminderMode = ReminderMode.soft,
     Duration delay = const Duration(seconds: 10),
+    void Function(bool shown)? onFired,
   }) async {
     try {
       await initialize();
@@ -379,22 +379,28 @@ class NotificationService {
       );
       _foregroundTestTimer = Timer(delay, () {
         unawaited(
-          _showNotification(
+          showReminderNow(
+            mode: reminderMode,
             id: _foregroundTimerTestReminderId,
             title: '腰椎节奏前台测试',
             body: '10 秒前台测试提醒已触发。',
-            reminderMode: reminderMode,
-          ).then((_) {
+          ).then((shown) {
+            onFired?.call(shown);
+            if (!shown) {
+              return;
+            }
             _updateDebug(
               _debugState.copyWith(
-                lastImmediateTestAt: DateTime.now(),
-                lastImmediateShownAt: DateTime.now(),
                 lastForegroundTimerFiredAt: DateTime.now(),
                 lastNotificationId: _foregroundTimerTestReminderId,
                 lastReminderMode: reminderMode,
                 lastChannelId: channelIdForReminderMode(reminderMode),
                 lastErrorMessage: null,
               ),
+            );
+          }).catchError((Object error) {
+            _updateDebug(
+              _debugState.copyWith(lastErrorMessage: error.toString()),
             );
           }),
         );

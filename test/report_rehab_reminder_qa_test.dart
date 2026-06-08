@@ -942,6 +942,18 @@ class _FakeNotificationService extends NotificationService {
   final oneMinuteTestReminderModes = <ReminderMode>[];
 
   @override
+  Future<bool> showReminderNow({
+    required ReminderMode mode,
+    required String title,
+    required String body,
+    int id = 199,
+    bool markAsImmediateTest = false,
+  }) async {
+    testReminderModes.add(mode);
+    return true;
+  }
+
+  @override
   Future<bool> showTestReminder({
     ReminderMode reminderMode = ReminderMode.soft,
   }) async {

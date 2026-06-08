@@ -128,10 +128,50 @@ void main() {
     expect(settings, contains('1 分钟定时测试：exactAllowWhileIdle'));
     expect(settings, contains('1 分钟定时测试：alarmClock'));
     expect(settings, contains('查看待触发提醒'));
+    expect(settings, contains('showReminderNow'));
     expect(service, contains('showTestReminder'));
+    expect(service, contains('showReminderNow'));
     expect(service, contains('scheduleForegroundTimerTestReminder'));
     expect(service, contains('scheduleOneMinuteSittingTestReminder'));
     expect(service, contains('pendingNotificationRequests'));
+  });
+
+  test('immediate reminders use direct plugin show without scheduled pending',
+      () {
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+    final showReminderNowStart = service.indexOf('Future<bool> showReminderNow');
+    final foregroundStart =
+        service.indexOf('Future<bool> scheduleForegroundTimerTestReminder');
+    final showReminderNow = service.substring(
+      showReminderNowStart,
+      foregroundStart,
+    );
+
+    expect(showReminderNow, contains('_showNotification'));
+    expect(showReminderNow, contains('_notificationDetails'));
+    expect(showReminderNow, isNot(contains('zonedSchedule')));
+    expect(showReminderNow, isNot(contains('pendingNotificationRequests')));
+    expect(showReminderNow, isNot(contains('refreshPendingScheduledNotifications')));
+  });
+
+  test('foreground test uses Dart Timer before direct show', () {
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+    final foregroundStart =
+        service.indexOf('Future<bool> scheduleForegroundTimerTestReminder');
+    final oneMinuteStart =
+        service.indexOf('Future<bool> scheduleOneMinuteSittingTestReminder');
+    final foregroundTest = service.substring(
+      foregroundStart,
+      oneMinuteStart,
+    );
+
+    expect(foregroundTest, contains('Timer(delay'));
+    expect(foregroundTest, contains('showReminderNow'));
+    expect(foregroundTest, contains('lastForegroundTimerFiredAt'));
+    expect(foregroundTest, isNot(contains('zonedSchedule')));
+    expect(foregroundTest, isNot(contains('pendingNotificationRequests')));
   });
 
   test('scheduled notifications are documented as background fallback', () {
@@ -144,6 +184,7 @@ void main() {
     expect(settings, contains('Android 后台定时辅助路径'));
     expect(settings, contains('系统已处理该定时提醒，但本机可能未展示'));
     expect(service, contains('系统已处理该定时提醒，但本机可能未展示'));
+    expect(service, contains('Android may delay inexact reminders'));
   });
 
   test('one minute test uses a dedicated id and records pending state', () {
@@ -172,8 +213,29 @@ void main() {
     expect(postureController, contains('showPostureDueReminder'));
     expect(postureController, contains('postureReminderStatusProvider'));
     expect(postureController, contains('_foregroundReminderSessionId'));
+    expect(postureController, contains('_startForegroundMonitor(session);'));
+    expect(postureController, contains('unawaited(_scheduleFor(session.type))'));
+    expect(postureController, contains('_stopForegroundMonitor();'));
+    expect(postureController, contains('unawaited(_scheduleFor(null))'));
     expect(service, contains('cancelScheduledReminders'));
     expect(service, contains('_foregroundTestTimer?.cancel()'));
+    expect(service, isNot(contains('await _plugin.cancel(_foregroundTimerTestReminderId)')));
+  });
+
+  test('sitting and walking foreground reminders call direct now path once', () {
+    final postureController = File(
+      'lib/features/posture/application/posture_session_controller.dart',
+    ).readAsStringSync();
+    final service = File('lib/core/notifications/notification_service.dart')
+        .readAsStringSync();
+
+    expect(postureController, contains('session.id == _foregroundReminderSessionId'));
+    expect(postureController, contains('_foregroundReminderSessionId = session.id'));
+    expect(postureController, contains('settings.walkingIntervalMinutes'));
+    expect(postureController, contains('settings.sittingIntervalMinutes'));
+    expect(postureController, contains('showPostureDueReminder'));
+    expect(service, contains('showPostureDueReminder'));
+    expect(service, contains('return showReminderNow'));
   });
 
   test('does not request exact alarm permission by default', () {

@@ -31,3 +31,5 @@ ios/Runner.xcworkspace/
 # OS
 .DS_Store
 Thumbs.db
+
+*.apk

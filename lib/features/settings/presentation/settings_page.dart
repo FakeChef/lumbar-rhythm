@@ -139,7 +139,12 @@ class SettingsPage extends ConsumerWidget {
                   );
                   final sent = await ref
                       .read(notificationServiceProvider)
-                      .showTestReminder(reminderMode: settings.reminderMode);
+                      .showReminderNow(
+                        mode: settings.reminderMode,
+                        title: '腰椎节奏提醒测试',
+                        body: '本地通知已可用。后续提醒会按你的设置安排。',
+                        markAsImmediateTest: true,
+                      );
                   if (!context.mounted) return;
                   final message = sent ? '已立即发送测试提醒' : '立即测试提醒没有发出';
                   messenger.showSnackBar(SnackBar(content: Text(message)));
@@ -156,6 +161,20 @@ class SettingsPage extends ConsumerWidget {
                       .read(notificationServiceProvider)
                       .scheduleForegroundTimerTestReminder(
                         reminderMode: settings.reminderMode,
+                        onFired: (shown) {
+                          if (!context.mounted) return;
+                          final firedMessage = shown
+                              ? '10 秒前台测试提醒已触发'
+                              : '10 秒前台测试触发失败，请检查系统通知设置';
+                          messenger.showSnackBar(
+                            SnackBar(content: Text(firedMessage)),
+                          );
+                          ref
+                              .read(
+                                _settingsTestReminderFeedbackProvider.notifier,
+                              )
+                              .state = firedMessage;
+                        },
                       );
                   if (!context.mounted) return;
                   final message =
@@ -876,7 +895,7 @@ class _ReminderSettingsSection extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.schedule_outlined),
           title: const Text('1 分钟定时测试：inexactAllowWhileIdle'),
-          subtitle: Text('Android 后台定时辅助路径，可能受系统调度影响。'),
+          subtitle: const Text('Android 后台定时辅助路径，可能受系统调度影响。'),
           trailing: IconButton(
             tooltip: '1 分钟定时测试：inexactAllowWhileIdle',
             icon: const Icon(Icons.timer_outlined),
