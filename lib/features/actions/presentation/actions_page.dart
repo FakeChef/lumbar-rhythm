@@ -490,10 +490,29 @@ class _RehabActionPickerCard extends StatelessWidget {
               onChanged: onActionChanged,
             ),
             const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(
+                  Icons.add_circle_outline,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '+ 添加康复记录',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             FilledButton.icon(
+              key: const ValueKey('rehab-add-log'),
               onPressed: actions.isEmpty ? null : onRecord,
-              icon: const Icon(Icons.add_task_outlined),
-              label: const Text('记录一次'),
+              icon: const Icon(Icons.add),
+              label: const Text('+ 添加康复记录'),
             ),
           ],
         ),

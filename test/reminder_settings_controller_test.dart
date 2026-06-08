@@ -107,6 +107,7 @@ class _FakePostureSessionRepository implements PostureSessionRepository {
     DateTime? now,
     int? sittingThresholdMinutes,
     int? standingThresholdMinutes,
+    int? walkingThresholdMinutes,
     String endReason = 'manual_end',
     String source = 'manual',
     String? note,
@@ -153,6 +154,7 @@ class _FakePostureSessionRepository implements PostureSessionRepository {
     DateTime? now,
     int? sittingThresholdMinutes,
     int? standingThresholdMinutes,
+    int? walkingThresholdMinutes,
     String endReason = 'user_switch',
     String source = 'manual',
     String? note,
@@ -173,6 +175,7 @@ class _FakeNotificationService extends NotificationService {
     required bool enabled,
     required int sittingIntervalMinutes,
     required int standingIntervalMinutes,
+    int walkingIntervalMinutes = 10,
     ReminderMode reminderMode = ReminderMode.soft,
     PostureType? currentPosture,
   }) async {

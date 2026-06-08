@@ -35,6 +35,42 @@ class ReminderSettingsController extends AsyncNotifier<ReminderSettings> {
     });
   }
 
+  Future<void> setWalkingIntervalMinutes(int value) {
+    return _saveCurrent((settings) {
+      return settings.copyWith(walkingIntervalMinutes: value);
+    });
+  }
+
+  Future<void> setDaytimeLoopEnabled(bool value) {
+    return _saveCurrent((settings) {
+      return settings.copyWith(daytimeLoopEnabled: value);
+    });
+  }
+
+  Future<void> setDaytimeStartMinutes(int value) {
+    return _saveCurrent((settings) {
+      return settings.copyWith(daytimeStartMinutes: value);
+    });
+  }
+
+  Future<void> setDaytimeEndMinutes(int value) {
+    return _saveCurrent((settings) {
+      return settings.copyWith(daytimeEndMinutes: value);
+    });
+  }
+
+  Future<void> setDaytimeSittingMinutes(int value) {
+    return _saveCurrent((settings) {
+      return settings.copyWith(daytimeSittingMinutes: value);
+    });
+  }
+
+  Future<void> setDaytimeWalkingMinutes(int value) {
+    return _saveCurrent((settings) {
+      return settings.copyWith(daytimeWalkingMinutes: value);
+    });
+  }
+
   Future<void> setReminderMode(ReminderMode value) {
     return _saveCurrent((settings) {
       return settings.copyWith(reminderMode: value);
@@ -56,6 +92,7 @@ class ReminderSettingsController extends AsyncNotifier<ReminderSettings> {
             enabled: next.remindersEnabled,
             sittingIntervalMinutes: next.sittingIntervalMinutes,
             standingIntervalMinutes: next.standingIntervalMinutes,
+            walkingIntervalMinutes: next.walkingIntervalMinutes,
             reminderMode: next.reminderMode,
             currentPosture: openSession?.type,
           );

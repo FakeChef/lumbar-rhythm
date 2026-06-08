@@ -117,9 +117,9 @@ void main() {
         openSession: _session(PostureType.walking, minutesAgo: 60),
       ),
     );
-    expect(find.text('当前状态：我去走动了'), findsOneWidget);
-    expect(find.text('正在走动'), findsOneWidget);
-    expect(find.text('已超过建议时间'), findsNothing);
+    expect(find.text('当前状态：我在走'), findsOneWidget);
+    expect(find.text('走动中'), findsOneWidget);
+    expect(find.text('已超过建议时间'), findsWidgets);
     expect(find.text('正在休息'), findsNothing);
   });
 
@@ -128,11 +128,12 @@ void main() {
     await _pumpHome(tester);
 
     expect(find.text('我在坐'), findsWidgets);
-    expect(find.text('我去走动了'), findsWidgets);
+    expect(find.text('我在走'), findsWidgets);
     expect(find.text('我在站'), findsNothing);
-    expect(find.text('我在走'), findsNothing);
     expect(find.text('我在休息'), findsNothing);
-    expect(find.byKey(const ValueKey('today-add-rehab-log')), findsOneWidget);
+    expect(find.byKey(const ValueKey('today-add-rehab-log')), findsNothing);
+    expect(find.byKey(const ValueKey('today-daytime-cycle-start')),
+        findsOneWidget);
   });
 
   testWidgets('sitting schedules reminder and walking clears sitting reminder',
@@ -196,9 +197,9 @@ void main() {
     await _scrollDown(tester);
     expect(find.text('今日节奏'), findsOneWidget);
     expect(find.text('今日最长坐姿'), findsOneWidget);
-    expect(find.text('久坐中断'), findsOneWidget);
-    expect(find.text('超时次数'), findsOneWidget);
-    expect(find.text('今日康复记录数'), findsOneWidget);
+    expect(find.text('今日最长走动'), findsOneWidget);
+    expect(find.text('今日提醒次数'), findsOneWidget);
+    expect(find.text('今日停止次数'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('today-posture-summary')),
@@ -234,13 +235,13 @@ void main() {
     expect(find.textContaining('今天是术后第'), findsOneWidget);
     expect(find.byKey(const ValueKey('today-rhythm-timer')), findsOneWidget);
     expect(find.text('我在坐'), findsWidgets);
-    expect(find.text('我去走动了'), findsWidgets);
+    expect(find.text('我在走'), findsWidgets);
     expect(find.text('今日最长坐姿'), findsOneWidget);
-    expect(find.text('久坐中断'), findsOneWidget);
-    expect(find.text('超时次数'), findsOneWidget);
-    expect(find.text('今日康复记录数'), findsOneWidget);
+    expect(find.text('今日最长走动'), findsOneWidget);
+    expect(find.text('今日提醒次数'), findsOneWidget);
+    expect(find.text('今日停止次数'), findsOneWidget);
     expect(
-      tester.getBottomRight(find.text('今日康复记录数')).dy,
+      tester.getBottomRight(find.text('今日停止次数')).dy,
       lessThanOrEqualTo(800),
     );
   });
@@ -324,6 +325,7 @@ class _FakePostureRepository implements PostureSessionRepository {
     DateTime? now,
     int? sittingThresholdMinutes,
     int? standingThresholdMinutes,
+    int? walkingThresholdMinutes,
     String endReason = 'manual_end',
     String source = 'manual',
     String? note,
@@ -361,6 +363,7 @@ class _FakePostureRepository implements PostureSessionRepository {
     DateTime? now,
     int? sittingThresholdMinutes,
     int? standingThresholdMinutes,
+    int? walkingThresholdMinutes,
     String endReason = 'user_switch',
     String source = 'manual',
     String? note,
@@ -390,6 +393,7 @@ class _FakeNotification extends NotificationService {
     required bool enabled,
     required int sittingIntervalMinutes,
     required int standingIntervalMinutes,
+    int walkingIntervalMinutes = 10,
     ReminderMode reminderMode = ReminderMode.soft,
     PostureType? currentPosture,
   }) async {

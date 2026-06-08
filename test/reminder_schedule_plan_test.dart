@@ -21,7 +21,8 @@ void main() {
     expect(plan.kinds, [ReminderKind.standing]);
   });
 
-  test('walking and resting cancel sitting and standing reminders', () {
+  test('walking schedules only walking reminder and resting cancels reminders',
+      () {
     final walking = buildReminderSchedulePlan(
       enabled: true,
       currentPosture: PostureType.walking,
@@ -31,7 +32,7 @@ void main() {
       currentPosture: PostureType.resting,
     );
 
-    expect(walking.kinds, isEmpty);
+    expect(walking.kinds, [ReminderKind.walking]);
     expect(resting.kinds, isEmpty);
   });
 

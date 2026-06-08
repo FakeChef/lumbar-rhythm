@@ -4,35 +4,42 @@ import '../../actions/domain/action_item.dart';
 import '../domain/daily_report.dart';
 
 const followUpReportDisclaimer =
-    '本报告仅用于个人记录回顾，不作为医疗依据。';
+    '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
 
 class FollowUpReportImage extends StatelessWidget {
   const FollowUpReportImage({
     required this.report,
     required this.generatedAt,
+    this.rangeLabel = '最近 7 天',
+    this.useCurrentRange = false,
     super.key,
   });
 
   final DailyReport report;
   final DateTime generatedAt;
+  final String rangeLabel;
+  final bool useCurrentRange;
 
   @override
   Widget build(BuildContext context) {
-    final posture = report.recentPostureSummary;
-    final rehab = report.recentRehabSummary;
-    final notes = report.recentDailyNotes;
+    final posture =
+        useCurrentRange ? report.postureSummary : report.recentPostureSummary;
+    final rehab =
+        useCurrentRange ? report.rehabSummary : report.recentRehabSummary;
+    final logs = useCurrentRange ? report.rehabLogs : report.recentRehabLogs;
+    final notes = useCurrentRange ? report.dailyNotes : report.recentDailyNotes;
     final nickname = report.profile?.nickname?.trim();
     final postSurgeryDay = report.postSurgeryDay(generatedAt);
     final recordedDays = {
-      for (final log in report.recentRehabLogs) _dateKey(log.createdAt),
+      for (final log in logs) _dateKey(log.createdAt),
     }.length;
     final maxBackPain = _maxScore(notes.map((note) => note.backPainScore));
     final maxLegSymptom =
         _maxScore(notes.map((note) => note.legSymptomScore));
     final maxFatigue = _maxScore(notes.map((note) => note.fatigueScore));
     final commonTags = _commonSymptomTags(
-      report.recentRehabLogs,
-      report.recentDailyNotes.expand((note) => note.tags),
+      logs,
+      notes.expand((note) => note.tags),
     );
     final noteSummaries = notes
         .where((note) => note.note?.trim().isNotEmpty ?? false)
@@ -63,7 +70,7 @@ class FollowUpReportImage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                '最近 7 天本地记录',
+                '本地记录摘要',
                 style: TextStyle(
                   fontSize: 18,
                   color: Color(0xFF52616D),
@@ -82,7 +89,7 @@ class FollowUpReportImage extends StatelessWidget {
                         label: '术后记录',
                         value: '术后第 $postSurgeryDay 天',
                       ),
-                    const _InfoRow(label: '报告范围', value: '最近 7 天'),
+                    _InfoRow(label: '报告范围', value: rangeLabel),
                     _InfoRow(
                       label: '生成日期',
                       value: _formatDate(generatedAt),
@@ -92,7 +99,7 @@ class FollowUpReportImage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               _FollowUpSection(
-                title: '坐站节奏',
+                title: '坐走节奏',
                 child: _MetricGrid(
                   items: [
                     _MetricData(
@@ -100,17 +107,16 @@ class FollowUpReportImage extends StatelessWidget {
                       value: _formatDuration(posture.longestSitting),
                     ),
                     _MetricData(
-                      label: '最长连续站立',
-                      value: _formatDuration(posture.longestStanding),
+                      label: '最长连续走动',
+                      value: _formatDuration(posture.longestWalking),
                     ),
                     _MetricData(
-                      label: '久坐/久站超时次数',
-                      value:
-                          '${posture.sittingOverThresholdCount + posture.standingOverThresholdCount} 次',
+                      label: '坐走提醒次数',
+                      value: '${posture.rhythmReminderCount} 次',
                     ),
                     _MetricData(
-                      label: '姿势打断次数',
-                      value: '${posture.switchCount} 次',
+                      label: '停止记录次数',
+                      value: '${posture.stopCount} 次',
                     ),
                   ],
                 ),

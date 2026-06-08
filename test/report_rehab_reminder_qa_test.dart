@@ -201,7 +201,7 @@ void main() {
     expect(find.text('康复动作报告'), findsOneWidget);
     expect(find.text('分享报告入口'), findsNothing);
     expect(find.text('分享报告'), findsNothing);
-    expect(find.text('保存复诊报告到相册'), findsWidgets);
+    expect(find.text('保存当前报告到相册'), findsWidgets);
     expect(find.text('免责声明'), findsNothing);
     expect(find.text('久坐超过提醒间隔'), findsOneWidget);
     expect(find.text('久坐中断次数'), findsOneWidget);
@@ -210,6 +210,9 @@ void main() {
     await tester.tap(find.text('周'));
     await tester.pumpAndSettle();
     expect(find.text('最近 7 天汇总'), findsOneWidget);
+    expect(find.text('最近 7 天趋势'), findsOneWidget);
+    expect(find.byKey(const ValueKey('report-posture-trend-chart')),
+        findsOneWidget);
     expect(find.text('今日康复报告'), findsNothing);
     expect(find.text('康复动作报告'), findsNothing);
     expect(find.text('记录天数'), findsOneWidget);
@@ -218,12 +221,13 @@ void main() {
     await tester.tap(find.text('月'));
     await tester.pumpAndSettle();
     expect(find.text('最近 30 天汇总'), findsOneWidget);
+    expect(find.text('最近 30 天趋势'), findsOneWidget);
     expect(find.text('今日康复报告'), findsNothing);
     expect(find.text('康复动作报告'), findsNothing);
     expect(find.text('康复记录总次数'), findsOneWidget);
   });
 
-  testWidgets('saving follow-up report uses gallery image saver',
+  testWidgets('saving current report uses gallery image saver',
       (tester) async {
     final saver = _FakeGalleryImageSaver();
     await tester.binding.setSurfaceSize(const Size(800, 1800));
@@ -234,7 +238,8 @@ void main() {
           ..._reportOverrides(),
           galleryImageSaverProvider.overrideWithValue(saver),
           followUpReportPngCaptureProvider.overrideWithValue(
-            (context, report) async => Uint8List.fromList([137, 80, 78, 71]),
+            (context, report, period) async =>
+                Uint8List.fromList([137, 80, 78, 71]),
           ),
         ],
         child: const MaterialApp(home: Scaffold(body: ReportsPage())),
@@ -242,13 +247,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final saveButton = find.widgetWithText(FilledButton, '保存复诊报告到相册');
+    final saveButton = find.widgetWithText(FilledButton, '保存当前报告到相册');
     await tester.scrollUntilVisible(saveButton, 500);
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
     expect(saver.savedFileNames, hasLength(1));
-    expect(saver.savedFileNames.single, startsWith('lumbar-rhythm-follow-up-'));
+    expect(saver.savedFileNames.single, startsWith('lumbar-rhythm-report-day-'));
     expect(saver.savedBytes.single, isNotEmpty);
   });
 
@@ -342,7 +347,8 @@ void main() {
     expect(find.text('坐站提醒'), findsOneWidget);
     expect(find.text('该记录一下今天的状态了'), findsOneWidget);
     expect(find.widgetWithText(SwitchListTile, '夜间勿扰'), findsNothing);
-    expect(find.text('当前版本暂未启用，后续会用于减少夜间提醒打扰。'), findsOneWidget);
+    expect(find.text('白天节奏'), findsOneWidget);
+    expect(find.textContaining('循环提醒'), findsOneWidget);
 
     await tester.tap(find.text('昵称与手术日期'));
     await tester.pumpAndSettle();
@@ -402,13 +408,18 @@ void main() {
     expect(find.text('提醒方式'), findsOneWidget);
     expect(find.text('响铃提醒'), findsOneWidget);
 
+    await tester.scrollUntilVisible(find.text('立即发送测试提醒'), 300.0);
+    await tester.pumpAndSettle();
     expect(find.text('立即发送测试提醒'), findsOneWidget);
-    expect(find.text('1 分钟测试久坐提醒'), findsOneWidget);
 
     await tester.tap(find.byTooltip('立即发送测试提醒'));
     await tester.pumpAndSettle();
 
     expect(notificationService.testReminderModes, [ReminderMode.alarm]);
+
+    await tester.scrollUntilVisible(find.text('1 分钟测试久坐提醒'), 300.0);
+    await tester.pumpAndSettle();
+    expect(find.text('1 分钟测试久坐提醒'), findsOneWidget);
 
     await tester.tap(find.byTooltip('1 分钟测试久坐提醒'));
     await tester.pumpAndSettle();
@@ -563,7 +574,7 @@ void main() {
     expect(find.text('腹式呼吸'), findsOneWidget);
     expect(find.text('腹式呼吸活动'), findsNothing);
 
-    await tester.tap(find.text('记录一次'));
+    await tester.tap(find.byKey(const ValueKey('rehab-add-log')));
     await tester.pumpAndSettle();
     expect(find.text('记录 腹式呼吸'), findsOneWidget);
     expect(find.text('3分钟'), findsOneWidget);
@@ -779,6 +790,7 @@ class _FakePostureRepository implements PostureSessionRepository {
     DateTime? now,
     int? sittingThresholdMinutes,
     int? standingThresholdMinutes,
+    int? walkingThresholdMinutes,
     String endReason = 'manual_end',
     String source = 'manual',
     String? note,
@@ -831,6 +843,7 @@ class _FakePostureRepository implements PostureSessionRepository {
     DateTime? now,
     int? sittingThresholdMinutes,
     int? standingThresholdMinutes,
+    int? walkingThresholdMinutes,
     String endReason = 'user_switch',
     String source = 'manual',
     String? note,

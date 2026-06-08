@@ -21,15 +21,35 @@ final postureSessionControllerProvider =
 );
 
 class PostureSessionController extends AsyncNotifier<PostureSession?> {
+  Timer? _foregroundTimer;
+  int? _foregroundReminderSessionId;
+
   @override
   Future<PostureSession?> build() async {
+    ref.onDispose(() => _foregroundTimer?.cancel());
     final session =
         await ref.watch(postureSessionRepositoryProvider).loadOpenSession();
     await _scheduleFor(session?.type);
+    _startForegroundMonitor(session);
     return session;
   }
 
+  Future<void> startSitting() {
+    return switchTo(PostureType.sitting);
+  }
+
+  Future<void> startWalking() {
+    return switchTo(PostureType.walking);
+  }
+
+  Future<void> stopCurrent() {
+    return endCurrent();
+  }
+
   Future<void> switchTo(PostureType type) async {
+    if (type != PostureType.sitting && type != PostureType.walking) {
+      return;
+    }
     final settings = await ref.read(reminderSettingsRepositoryProvider).load();
     final previous =
         await ref.read(postureSessionRepositoryProvider).loadOpenSession();
@@ -37,6 +57,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
           type: type,
           sittingThresholdMinutes: settings.sittingIntervalMinutes,
           standingThresholdMinutes: settings.standingIntervalMinutes,
+          walkingThresholdMinutes: settings.walkingIntervalMinutes,
         );
     if (previous?.type == PostureType.sitting && type == PostureType.walking) {
       try {
@@ -51,6 +72,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     ref.invalidate(dailyReportControllerProvider);
     notifyAppDataChanged(ref);
     await _scheduleFor(session.type);
+    _startForegroundMonitor(session);
   }
 
   Future<void> endCurrent() async {
@@ -58,10 +80,12 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     await ref.read(postureSessionRepositoryProvider).endCurrent(
           sittingThresholdMinutes: settings.sittingIntervalMinutes,
           standingThresholdMinutes: settings.standingIntervalMinutes,
+          walkingThresholdMinutes: settings.walkingIntervalMinutes,
         );
     state = const AsyncData(null);
     notifyAppDataChanged(ref);
     await _scheduleFor(null);
+    _stopForegroundMonitor();
   }
 
   Future<void> rescheduleForCurrent() async {
@@ -76,11 +100,59 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
             enabled: settings.remindersEnabled,
             sittingIntervalMinutes: settings.sittingIntervalMinutes,
             standingIntervalMinutes: settings.standingIntervalMinutes,
+            walkingIntervalMinutes: settings.walkingIntervalMinutes,
             reminderMode: settings.reminderMode,
             currentPosture: posture,
           );
     } catch (_) {
       // Posture changes remain saved even if the platform cannot schedule.
     }
+  }
+
+  void _startForegroundMonitor(PostureSession? session) {
+    _foregroundTimer?.cancel();
+    _foregroundReminderSessionId = null;
+    if (session == null ||
+        (session.type != PostureType.sitting &&
+            session.type != PostureType.walking)) {
+      return;
+    }
+    _foregroundTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      unawaited(_checkForegroundReminder());
+    });
+    unawaited(_checkForegroundReminder());
+  }
+
+  void _stopForegroundMonitor() {
+    _foregroundTimer?.cancel();
+    _foregroundTimer = null;
+    _foregroundReminderSessionId = null;
+  }
+
+  Future<void> _checkForegroundReminder() async {
+    final session = state.valueOrNull;
+    if (session == null ||
+        session.id == _foregroundReminderSessionId ||
+        (session.type != PostureType.sitting &&
+            session.type != PostureType.walking)) {
+      return;
+    }
+    final settings = await ref.read(reminderSettingsRepositoryProvider).load();
+    if (!settings.remindersEnabled) {
+      return;
+    }
+    final threshold = Duration(
+      minutes: session.type == PostureType.walking
+          ? settings.walkingIntervalMinutes
+          : settings.sittingIntervalMinutes,
+    );
+    if (DateTime.now().difference(session.startedAt) < threshold) {
+      return;
+    }
+    _foregroundReminderSessionId = session.id;
+    await ref.read(notificationServiceProvider).showPostureDueReminder(
+          posture: session.type,
+          reminderMode: settings.reminderMode,
+        );
   }
 }

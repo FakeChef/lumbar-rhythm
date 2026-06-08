@@ -40,6 +40,8 @@ class PostureSummary {
 
   Duration get longestStanding => longestFor(PostureType.standing);
 
+  Duration get longestWalking => longestFor(PostureType.walking);
+
   int get switchCount => sessions.isEmpty ? 0 : sessions.length - 1;
 
   int get sittingBreakCount {
@@ -71,6 +73,21 @@ class PostureSummary {
             session.exceededSeconds > 0 ||
             session.durationAt(now) > standingThreshold)
         .length;
+  }
+
+  int get walkingOverThresholdCount {
+    return sessions
+        .where((session) => session.type == PostureType.walking)
+        .where((session) => session.exceededSeconds > 0)
+        .length;
+  }
+
+  int get rhythmReminderCount {
+    return sittingOverThresholdCount + walkingOverThresholdCount;
+  }
+
+  int get stopCount {
+    return sessions.where((session) => session.endReason == 'manual_end').length;
   }
 
   List<PostureDaySummary> recentDaySummaries({required int days}) {
