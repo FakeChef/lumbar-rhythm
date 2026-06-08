@@ -167,6 +167,12 @@ void main() {
   testWidgets('report page shows required report sections', (tester) async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    final walking = actionLibrary.firstWhere(
+      (action) => action.activityId == 'short_walking_program',
+    );
+    final breathing = actionLibrary.firstWhere(
+      (action) => action.activityId == 'diaphragmatic_breathing',
+    );
     await tester.pumpWidget(
       ProviderScope(
         overrides: _reportOverrides(
@@ -185,6 +191,38 @@ void main() {
               startedAt: today.add(const Duration(hours: 9)),
               endedAt: today.add(const Duration(hours: 9, minutes: 10)),
               durationSeconds: 600,
+            ),
+          ],
+          rehabLogs: [
+            RehabLog(
+              id: 1,
+              actionId: walking.id,
+              amount: '5',
+              amountValue: 5,
+              unit: '分钟',
+              reaction: RehabReaction.noChange,
+              source: 'manual',
+              createdAt: today.add(const Duration(hours: 10)),
+            ),
+            RehabLog(
+              id: 2,
+              actionId: walking.id,
+              amount: '8',
+              amountValue: 8,
+              unit: '分钟',
+              reaction: RehabReaction.moreComfortable,
+              source: 'manual',
+              createdAt: today.subtract(const Duration(days: 2)),
+            ),
+            RehabLog(
+              id: 3,
+              actionId: breathing.id,
+              amount: '3',
+              amountValue: 3,
+              unit: '分钟',
+              reaction: RehabReaction.noChange,
+              source: 'manual',
+              createdAt: today.subtract(const Duration(days: 9)),
             ),
           ],
         ),
@@ -212,27 +250,44 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('rehab-report-week-section')),
         findsOneWidget);
-    expect(find.text('最近 7 天康复汇总'), findsOneWidget);
-    expect(find.text('最近 7 天康复柱状图'), findsOneWidget);
+    expect(find.text('最近 7 天康复活动趋势'), findsOneWidget);
+    expect(find.text('最近 7 天康复汇总'), findsNothing);
+    expect(find.text('最近 7 天康复柱状图'), findsNothing);
+    expect(find.text('按实际记录过的康复活动查看趋势'), findsOneWidget);
+    expect(find.text('短距离步行'), findsOneWidget);
+    expect(find.text('膈式呼吸'), findsNothing);
+    expect(find.text('总记录次数'), findsOneWidget);
+    expect(find.text('2 次'), findsOneWidget);
+    expect(find.text('总完成量'), findsOneWidget);
+    expect(find.text('13 分钟'), findsOneWidget);
     expect(
-        find.byKey(const ValueKey('report-rehab-trend-chart')), findsOneWidget);
-    expect(
-        find.byKey(const ValueKey('rehab-report-week-chart')), findsOneWidget);
+      find.byKey(ValueKey('rehab-activity-trend-chart-${walking.id}')),
+      findsOneWidget,
+    );
     expect(find.text('今日康复动作记录'), findsNothing);
-    expect(find.text('最近 7 天康复汇总 还没有足够记录。'), findsOneWidget);
+    expect(find.text('这段时间还没有康复活动记录。'), findsNothing);
     expect(find.text('记录天数'), findsNothing);
+    expect(find.text('康复记录总次数'), findsNothing);
     expect(find.text('久坐中断总次数'), findsNothing);
 
     await tester.tap(find.text('月'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('rehab-report-month-section')),
         findsOneWidget);
-    expect(find.text('最近 30 天康复汇总'), findsOneWidget);
-    expect(find.text('最近 30 天康复柱状图'), findsOneWidget);
+    expect(find.text('最近 30 天康复活动趋势'), findsOneWidget);
+    expect(find.text('最近 30 天康复汇总'), findsNothing);
+    expect(find.text('最近 30 天康复柱状图'), findsNothing);
+    expect(find.text('短距离步行'), findsOneWidget);
+    expect(find.text('膈式呼吸'), findsOneWidget);
     expect(
-        find.byKey(const ValueKey('rehab-report-month-chart')), findsOneWidget);
+      find.byKey(ValueKey('rehab-activity-trend-chart-${walking.id}')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(ValueKey('rehab-activity-trend-chart-${breathing.id}')),
+      findsOneWidget,
+    );
     expect(find.text('今日康复动作记录'), findsNothing);
-    expect(find.text('最近 30 天康复汇总 还没有足够记录。'), findsOneWidget);
     expect(find.text('康复记录总次数'), findsNothing);
   });
 
@@ -519,10 +574,11 @@ void main() {
     expect(find.text('今日小结暂时无法读取，可稍后重试。'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('rehab-add-entry-button')));
     await tester.pumpAndSettle();
-    expect(
-        find.byKey(const ValueKey('rehab-category-dropdown')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-category-dropdown')), findsNothing);
     expect(
         find.byKey(const ValueKey('rehab-activity-dropdown')), findsOneWidget);
+    expect(find.text('完成了多少？'), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-log-save-button')), findsOneWidget);
   });
 
   test('RehabSummary uses amountValue for walking totals', () {
@@ -569,21 +625,14 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('rehab-add-entry-button')));
     await tester.pumpAndSettle();
-    expect(
-        find.byKey(const ValueKey('rehab-category-dropdown')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-category-dropdown')), findsNothing);
     expect(
         find.byKey(const ValueKey('rehab-activity-dropdown')), findsOneWidget);
-    expect(find.text('步行与有氧'), findsWidgets);
-    expect(find.text('短距离步行'), findsWidgets);
+    expect(find.text('添加康复记录'), findsOneWidget);
+    expect(find.text('选择康复活动'), findsOneWidget);
     expect(find.text('短距离步行活动'), findsNothing);
     expect(find.text('默认目标：20 分钟'), findsNothing);
     expect(find.text('室内慢走'), findsNothing);
-
-    await tester.tap(find.byKey(const ValueKey('rehab-category-dropdown')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('早期基础').last);
-    await tester.pumpAndSettle();
-    expect(find.text('踝泵运动'), findsWidgets);
 
     await tester.ensureVisible(
       find.byKey(const ValueKey('rehab-activity-dropdown')),
@@ -591,22 +640,25 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('rehab-activity-dropdown')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('膈式呼吸').last);
+    await tester.tap(find.textContaining('膈式呼吸').last);
     await tester.pumpAndSettle();
-    expect(find.text('膈式呼吸'), findsWidgets);
+    expect(find.textContaining('膈式呼吸'), findsWidgets);
     expect(find.text('膈式呼吸活动'), findsNothing);
-
-    await tester.tap(find.byKey(const ValueKey('rehab-add-log')));
-    await tester.pumpAndSettle();
-    expect(find.text('记录 膈式呼吸'), findsOneWidget);
+    expect(find.byKey(const ValueKey('rehab-add-log')), findsNothing);
     expect(find.text('3分钟'), findsOneWidget);
     expect(find.text('5分钟'), findsOneWidget);
 
     await tester.tap(find.text('5分钟'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('腰酸'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('腰酸'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('腿麻'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('腿麻'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('明显加重').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('明显加重').last);
     await tester.pumpAndSettle();

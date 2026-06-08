@@ -413,10 +413,9 @@ class _PostureStatusCard extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 encouragementText,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: const Color(0xFF4B5563),
+                      height: 1.35,
                     ),
               ),
               const SizedBox(height: 10),
@@ -536,14 +535,14 @@ class _PostureStatusCard extends StatelessWidget {
   String? _phaseEncouragement(RecoveryProfile? profile, DateTime now) {
     final day = profile?.postSurgeryDay(now);
     if (day == null) {
-      return null;
+      return '可以先用今天的小记录照顾自己；如果愿意，也可以在设置里补充手术日期，让鼓励语更贴合当前阶段。';
     }
     final phase = rehabPhaseForPostSurgeryDay(day);
     return switch (phase) {
-      'P1' => '当前记录阶段：阶段一，先把轻柔、稳定的动作记下来。',
-      'P2' => '当前记录阶段：阶段二，关注动作控制和身体反馈。',
-      'P3' => '当前记录阶段：阶段三，按可承受的节奏记录活动量。',
-      'P4' => '当前记录阶段：阶段四，较高负荷活动仍以线下确认和舒适度为准。',
+      'P1' => '先把轻柔、稳定的活动记录下来，今天能按舒适节奏完成一点就很好。',
+      'P2' => '关注动作控制和身体反馈，记录每次活动后的感受，帮助自己稳稳找到节奏。',
+      'P3' => '按可承受的节奏记录活动量，留意身体反馈，让日常能力一点点接回来。',
+      'P4' => '可以继续记录较高负荷活动的感受，遇到不确定的内容仍以医生或康复师建议为准。',
       _ => null,
     };
   }

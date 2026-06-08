@@ -17,20 +17,32 @@ void main() {
 
     final home = File('lib/features/home/presentation/home_page.dart')
         .readAsStringSync();
-    expect(home, contains('当前记录阶段'));
+    expect(home, contains('todayEncouragements'));
+    expect(home, contains('恢复不是比赛，按自己的节奏来。'));
+    expect(home, isNot(contains('当前记录阶段')));
 
     final reports = File('lib/features/reports/presentation/reports_page.dart')
         .readAsStringSync();
     expect(reports, contains('回顾你的康复动作记录和阶段活动'));
     expect(reports, contains('今日康复动作记录'));
-    expect(reports, contains('最近 7 天康复汇总'));
-    expect(reports, contains('最近 30 天康复柱状图'));
+    expect(reports, contains('最近 7 天康复活动趋势'));
+    expect(reports, contains('最近 30 天康复活动趋势'));
+    expect(reports, contains('按实际记录过的康复活动查看趋势'));
+    expect(reports, isNot(contains('最近 7 天康复汇总')));
+    expect(reports, isNot(contains('最近 30 天康复柱状图')));
     expect(reports, isNot(contains('今日坐姿状态')));
     expect(reports, isNot(contains('今日坐姿累计')));
+
+    final actions = File('lib/features/actions/presentation/actions_page.dart')
+        .readAsStringSync();
+    expect(actions, contains('ValueKey(\'rehab-activity-dropdown\')'));
+    expect(actions, isNot(contains('ValueKey(\'rehab-category-dropdown\')')));
+    expect(actions, isNot(contains('ValueKey(\'rehab-add-log\')')));
 
     final combinedText = [
       home,
       reports,
+      actions,
       File('lib/features/actions/domain/action_item.dart').readAsStringSync(),
     ].join('\n').replaceAll('本报告仅用于个人康复记录回顾，不作为专业判断依据。', '');
 

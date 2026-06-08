@@ -164,10 +164,9 @@ class _ReportContent extends StatelessWidget {
               _DailyRehabLogSection(report: report),
               const SizedBox(height: 20),
             ] else ...[
-              _RehabRangeSummarySection(report: report, period: period),
-              const SizedBox(height: 20),
-              _RehabLogTrendSection(
+              _ActivityTrendReportSection(
                 report: report,
+                period: period,
                 days: period == ReportPeriod.week ? 7 : 30,
               ),
               const SizedBox(height: 20),
@@ -214,57 +213,105 @@ class _DailyRehabLogSection extends StatelessWidget {
   }
 }
 
-class _RehabRangeSummarySection extends StatelessWidget {
-  const _RehabRangeSummarySection({
+class _ActivityTrendReportSection extends StatelessWidget {
+  const _ActivityTrendReportSection({
     required this.report,
     required this.period,
+    required this.days,
   });
 
   final DailyReport report;
   final ReportPeriod period;
+  final int days;
 
   @override
   Widget build(BuildContext context) {
-    final days = period == ReportPeriod.week ? 7 : 30;
-    final title = period == ReportPeriod.week ? '最近 7 天康复汇总' : '最近 30 天康复汇总';
-    final summary = report.rehabSummary;
-    final hasData = report.rehabLogs.isNotEmpty;
-
-    if (!hasData) {
-      return KeyedSubtree(
-        key: ValueKey(period == ReportPeriod.week
-            ? 'rehab-report-week-section'
-            : 'rehab-report-month-section'),
-        child: _ReportSection(
-          icon: Icons.summarize_outlined,
-          title: title,
-          subtitle: '本地康复动作记录汇总',
-          child: _EmptyHint(text: '$title 还没有足够记录。'),
-        ),
-      );
-    }
+    final trends = _activityTrends(report, days);
+    final title = days == 7 ? '最近 7 天康复活动趋势' : '最近 30 天康复活动趋势';
 
     return KeyedSubtree(
       key: ValueKey(period == ReportPeriod.week
           ? 'rehab-report-week-section'
           : 'rehab-report-month-section'),
       child: _ReportSection(
-        icon: Icons.summarize_outlined,
+        icon: Icons.bar_chart_outlined,
         title: title,
-        subtitle: '按最近 $days 天回顾康复动作记录',
+        subtitle: '按实际记录过的康复活动查看趋势',
+        child: trends.isEmpty
+            ? const _EmptyHint(text: '这段时间还没有康复活动记录。')
+            : Column(
+                children: [
+                  for (final trend in trends) ...[
+                    _ActivityTrendCard(trend: trend, days: days),
+                    if (trend != trends.last) const SizedBox(height: 16),
+                  ],
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _ActivityTrendCard extends StatelessWidget {
+  const _ActivityTrendCard({
+    required this.trend,
+    required this.days,
+  });
+
+  final _ActivityTrend trend;
+  final int days;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxValue = trend.days.fold<double>(
+      0,
+      (max, day) => day.value > max ? day.value : max,
+    );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _MetricRow(
-                label: '记录天数', value: '${_rehabRecordedDayCount(report)} 天'),
-            _MetricRow(label: '康复记录总次数', value: '${summary.totalCount} 次'),
-            _MetricRow(
-              label: '步行/有氧总分钟数',
-              value:
-                  '${_formatNumber(_aerobicMinutes(report.rehabLogs, report.rehabActions))} 分钟',
+            Text(
+              trend.action.name,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
             ),
+            const SizedBox(height: 8),
+            _MetricRow(label: '总记录次数', value: '${trend.totalCount} 次'),
             _MetricRow(
-                label: '记录最多的动作',
-                value: summary.mostCompletedAction()?.name ?? '暂无'),
+              label: '总完成量',
+              value: '${_formatNumber(trend.totalAmount)} ${trend.unit}',
+            ),
+            SizedBox(
+              key: ValueKey('rehab-activity-trend-chart-${trend.action.id}'),
+              height: 168,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (final day in trend.days)
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: days == 7 ? 2 : 1,
+                        ),
+                        child: _ActivityTrendBar(
+                          day: day,
+                          maxValue: maxValue,
+                          showLabel: days == 7 || day.day.day == 1,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -272,73 +319,22 @@ class _RehabRangeSummarySection extends StatelessWidget {
   }
 }
 
-class _RehabLogTrendSection extends StatelessWidget {
-  const _RehabLogTrendSection({
-    required this.report,
-    required this.days,
-  });
-
-  final DailyReport report;
-  final int days;
-
-  @override
-  Widget build(BuildContext context) {
-    final summaries = _rehabDaySummaries(report, days);
-    final maxValue = summaries
-        .map((day) => day.count + day.aerobicMinutes.round())
-        .fold<int>(0, (max, value) => value > max ? value : max);
-
-    return _ReportSection(
-      icon: Icons.bar_chart_outlined,
-      title: days == 7 ? '最近 7 天康复柱状图' : '最近 30 天康复柱状图',
-      subtitle: '按天查看康复记录次数和步行/有氧分钟数',
-      child: KeyedSubtree(
-        key: const ValueKey('report-rehab-trend-chart'),
-        child: SizedBox(
-          key: ValueKey(days == 7
-              ? 'rehab-report-week-chart'
-              : 'rehab-report-month-chart'),
-          height: 168,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (final day in summaries)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: _RehabTrendBar(
-                      day: day,
-                      maxValue: maxValue,
-                      showLabel: days == 7 || day.day.day == 1,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RehabTrendBar extends StatelessWidget {
-  const _RehabTrendBar({
+class _ActivityTrendBar extends StatelessWidget {
+  const _ActivityTrendBar({
     required this.day,
     required this.maxValue,
     required this.showLabel,
   });
 
-  final _RehabDaySummary day;
-  final int maxValue;
+  final _ActivityTrendDay day;
+  final double maxValue;
   final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
-    final countFlex = day.count;
-    final aerobicFlex = day.aerobicMinutes.round();
-    final total = countFlex + aerobicFlex;
+    final value = day.value;
     final heightFactor =
-        maxValue == 0 ? 0.04 : (total / maxValue).clamp(0.04, 1.0).toDouble();
+        maxValue == 0 ? 0.04 : (value / maxValue).clamp(0.04, 1.0).toDouble();
     final scheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -351,25 +347,10 @@ class _RehabTrendBar extends StatelessWidget {
               heightFactor: heightFactor,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: Column(
-                  children: [
-                    if (aerobicFlex > 0)
-                      Expanded(
-                        flex: aerobicFlex,
-                        child: ColoredBox(color: scheme.tertiary),
-                      ),
-                    if (countFlex > 0)
-                      Expanded(
-                        flex: countFlex,
-                        child: ColoredBox(color: scheme.primary),
-                      ),
-                    if (total == 0)
-                      Expanded(
-                        child: ColoredBox(
-                          color: scheme.outlineVariant.withValues(alpha: 0.7),
-                        ),
-                      ),
-                  ],
+                child: ColoredBox(
+                  color: value == 0
+                      ? scheme.outlineVariant.withValues(alpha: 0.7)
+                      : scheme.primary,
                 ),
               ),
             ),
@@ -603,49 +584,82 @@ class _ReportError extends StatelessWidget {
   }
 }
 
-int _rehabRecordedDayCount(DailyReport report) {
-  return {
+List<_ActivityTrend> _activityTrends(DailyReport report, int days) {
+  final actionsById = {
+    for (final action in report.rehabActions) action.id: action,
+  };
+  final actionIds = <int>[
     for (final log in report.rehabLogs)
-      DateTime(log.createdAt.year, log.createdAt.month, log.createdAt.day),
-  }.length;
-}
-
-List<_RehabDaySummary> _rehabDaySummaries(DailyReport report, int days) {
+      if (!actionIdsContainPrevious(report.rehabLogs, log)) log.actionId,
+  ];
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
   final start = today.subtract(Duration(days: days - 1));
+
   return [
-    for (var index = 0; index < days; index++)
-      _rehabSummaryForDay(
-        report,
-        start.add(Duration(days: index)),
+    for (final actionId in actionIds)
+      _activityTrendForAction(
+        action: actionsById[actionId] ??
+            RehabAction(
+              id: actionId,
+              name: legacyActionNameForId(actionId) ?? '未知活动',
+              defaultUnit: '次',
+              guidance: '',
+            ),
+        logs:
+            report.rehabLogs.where((log) => log.actionId == actionId).toList(),
+        start: start,
+        days: days,
       ),
   ];
 }
 
-_RehabDaySummary _rehabSummaryForDay(DailyReport report, DateTime day) {
-  final nextDay = day.add(const Duration(days: 1));
-  final logs = report.rehabLogs.where((log) {
-    return !log.createdAt.isBefore(day) && log.createdAt.isBefore(nextDay);
-  }).toList();
-  return _RehabDaySummary(
-    day: day,
-    count: logs.length,
-    aerobicMinutes: _aerobicMinutes(logs, report.rehabActions),
+bool actionIdsContainPrevious(List<RehabLog> logs, RehabLog current) {
+  for (final log in logs) {
+    if (log == current) {
+      return false;
+    }
+    if (log.actionId == current.actionId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+_ActivityTrend _activityTrendForAction({
+  required RehabAction action,
+  required List<RehabLog> logs,
+  required DateTime start,
+  required int days,
+}) {
+  final unit = logs.isEmpty ? action.defaultUnit : logs.first.unit;
+  return _ActivityTrend(
+    action: action,
+    unit: unit,
+    totalCount: logs.length,
+    totalAmount: logs.fold(0.0, (sum, log) => sum + log.amountValue),
+    days: [
+      for (var index = 0; index < days; index++)
+        _activityTrendDayFor(
+          day: start.add(Duration(days: index)),
+          logs: logs,
+        ),
+    ],
   );
 }
 
-double _aerobicMinutes(List<RehabLog> logs, List<RehabAction> actions) {
-  final actionsById = {
-    for (final action in actions) action.id: action,
-  };
-  return logs.where((log) {
-    final action = actionsById[log.actionId];
-    final category = action?.category;
-    return category == 'WALK' || category == 'AEROBIC';
-  }).fold(0.0, (sum, log) {
-    return log.unit == '分钟' ? sum + log.amountValue : sum;
-  });
+_ActivityTrendDay _activityTrendDayFor({
+  required DateTime day,
+  required List<RehabLog> logs,
+}) {
+  final nextDay = day.add(const Duration(days: 1));
+  final dayLogs = logs.where((log) {
+    return !log.createdAt.isBefore(day) && log.createdAt.isBefore(nextDay);
+  }).toList();
+  return _ActivityTrendDay(
+    day: day,
+    value: dayLogs.fold(0.0, (sum, log) => sum + log.amountValue),
+  );
 }
 
 String _actionNameFor(DailyReport report, int actionId) {
@@ -667,14 +681,28 @@ String _formatClock(DateTime value) {
   return '$hour:$minute';
 }
 
-class _RehabDaySummary {
-  const _RehabDaySummary({
+class _ActivityTrend {
+  const _ActivityTrend({
+    required this.action,
+    required this.unit,
+    required this.totalCount,
+    required this.totalAmount,
+    required this.days,
+  });
+
+  final RehabAction action;
+  final String unit;
+  final int totalCount;
+  final double totalAmount;
+  final List<_ActivityTrendDay> days;
+}
+
+class _ActivityTrendDay {
+  const _ActivityTrendDay({
     required this.day,
-    required this.count,
-    required this.aerobicMinutes,
+    required this.value,
   });
 
   final DateTime day;
-  final int count;
-  final double aerobicMinutes;
+  final double value;
 }

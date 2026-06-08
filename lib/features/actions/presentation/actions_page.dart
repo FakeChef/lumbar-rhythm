@@ -18,8 +18,6 @@ class ActionsPage extends ConsumerStatefulWidget {
 }
 
 class _ActionsPageState extends ConsumerState<ActionsPage> {
-  String? _selectedPhase;
-
   @override
   Widget build(BuildContext context) {
     final pageState = ref.watch(_rehabPageDataProvider);
@@ -62,14 +60,6 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
               const SizedBox(height: 20),
               _TodayRehabLogListCard(data: data),
               const SizedBox(height: 20),
-              _PhaseActivitySection(
-                data: data,
-                selectedPhase: _selectedPhase ?? data.currentPhase,
-                onPhaseChanged: (phase) {
-                  setState(() => _selectedPhase = phase);
-                },
-              ),
-              const SizedBox(height: 20),
               const _RehabPhaseGuideCard(),
             ],
           ),
@@ -106,27 +96,6 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
     ref.read(appDataRefreshProvider.notifier).state++;
   }
 
-  Future<void> _showLogDialog(
-    BuildContext context,
-    WidgetRef ref,
-    RehabAction action,
-  ) async {
-    final result = await showRehabLogSheet(context: context, action: action);
-    if (result == null) {
-      return;
-    }
-
-    await saveRehabLogDraft(ref, action: action, draft: result);
-    ref.invalidate(_rehabPageDataProvider);
-    _refreshRehabData(ref);
-
-    if (!context.mounted) {
-      return;
-    }
-
-    _showRehabLogSavedFeedback(context, action, result);
-  }
-
   Future<void> _showAddLogPicker(
     BuildContext context,
     WidgetRef ref,
@@ -136,67 +105,28 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
     if (actions.isEmpty) {
       return;
     }
-    String? selectedCategory = _availableCategories(actions).firstOrNull;
-    int? selectedActionId = actions.firstOrNull?.id;
-    await showModalBottomSheet<void>(
+    final result = await showModalBottomSheet<_RehabLogEntryDraft>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final categories = _availableCategories(actions);
-            selectedCategory = categories.contains(selectedCategory)
-                ? selectedCategory
-                : categories.firstOrNull;
-            final categoryActions = actions
-                .where(
-                    (action) => _categoryForAction(action) == selectedCategory)
-                .toList();
-            selectedActionId =
-                categoryActions.any((action) => action.id == selectedActionId)
-                    ? selectedActionId
-                    : categoryActions.firstOrNull?.id;
-            return SafeArea(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  16,
-                  16,
-                  MediaQuery.of(context).viewInsets.bottom + 16,
-                ),
-                child: _RehabActionPickerCard(
-                  categories: categories,
-                  actions: categoryActions,
-                  selectedCategory: selectedCategory,
-                  selectedActionId: selectedActionId,
-                  onCategoryChanged: (value) {
-                    final firstAction = actions
-                        .where((action) => _categoryForAction(action) == value)
-                        .toList()
-                        .firstOrNull;
-                    setSheetState(() {
-                      selectedCategory = value;
-                      selectedActionId = firstAction?.id;
-                    });
-                  },
-                  onActionChanged: (value) {
-                    setSheetState(() => selectedActionId = value);
-                  },
-                  onRecord: () async {
-                    final selectedAction = data.actionById(selectedActionId);
-                    if (selectedAction == null) {
-                      return;
-                    }
-                    Navigator.of(sheetContext).pop();
-                    await _showLogDialog(context, ref, selectedAction);
-                  },
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder: (context) => _AddRehabLogSheet(actions: actions),
     );
+    if (result == null) {
+      return;
+    }
+
+    await saveRehabLogDraft(
+      ref,
+      action: result.action,
+      draft: result.draft,
+    );
+    ref.invalidate(_rehabPageDataProvider);
+    _refreshRehabData(ref);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    _showRehabLogSavedFeedback(context, result.action, result.draft);
   }
 }
 
@@ -355,48 +285,6 @@ class _RehabPageData {
   final RecoveryProfile? profile;
   final _DailyRecoveryNoteLoadState dailyNoteState;
 
-  String get currentPhase {
-    return rehabPhaseForPostSurgeryDay(profile?.postSurgeryDay(DateTime.now()));
-  }
-
-  List<RehabAction> get recordableActions {
-    return actions.where((action) {
-      final activity = activityForAction(action);
-      return activity == null ||
-          activity.isDefaultVisible ||
-          activity.riskLevel != 'high';
-    }).toList();
-  }
-
-  List<RehabAction> visibleActionsForPhase(String phase) {
-    return actions.where((action) {
-      final activity = activityForAction(action);
-      return activity != null &&
-          activity.isDefaultVisible &&
-          rehabActivityIsInPhase(activity, phase);
-    }).toList();
-  }
-
-  List<RehabActivity> conditionalActivitiesForPhase(String phase) {
-    return activityMasterV1.where((activity) {
-      return !activity.isDefaultVisible &&
-          activity.riskLevel != 'high' &&
-          rehabActivityIsInPhase(activity, phase);
-    }).toList();
-  }
-
-  RehabAction? actionById(int? actionId) {
-    if (actionId == null) {
-      return null;
-    }
-    for (final action in actions) {
-      if (action.id == actionId) {
-        return action;
-      }
-    }
-    return null;
-  }
-
   String actionNameFor(int actionId) {
     for (final action in actions) {
       if (action.id == actionId) {
@@ -515,205 +403,290 @@ class _TodayRehabLogListCard extends StatelessWidget {
   }
 }
 
-class _PhaseActivitySection extends StatelessWidget {
-  const _PhaseActivitySection({
-    required this.data,
-    required this.selectedPhase,
-    required this.onPhaseChanged,
-  });
+class _AddRehabLogSheet extends StatefulWidget {
+  const _AddRehabLogSheet({required this.actions});
 
-  final _RehabPageData data;
-  final String selectedPhase;
-  final ValueChanged<String> onPhaseChanged;
+  final List<RehabAction> actions;
+
+  @override
+  State<_AddRehabLogSheet> createState() => _AddRehabLogSheetState();
+}
+
+class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
+  static const _symptomTagOptions = ['腰酸', '腰痛', '腿麻', '脚背刺痛', '疲劳'];
+
+  final _noteController = TextEditingController();
+  late RehabAction _action;
+  late double _amount;
+  late String _unit;
+  late DateTime _createdAt;
+  RehabReaction _reaction = RehabReaction.noChange;
+  Set<String> _symptomTags = {};
+  bool _isNoteExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _action = widget.actions.first;
+    _amount = 1;
+    _unit = _action.defaultUnit;
+    final now = DateTime.now();
+    _createdAt = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final actions = data.visibleActionsForPhase(selectedPhase);
-    final moreActivities = data.conditionalActivitiesForPhase(selectedPhase);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '${rehabPhaseTitle(selectedPhase)}活动',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              rehabPhaseDescription(selectedPhase),
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '根据你的手术日期，当前默认显示本阶段活动；你也可以切换其他阶段，仅用于记录。',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            SegmentedButton<String>(
-              segments: [
-                for (final phase in rehabPhases)
-                  ButtonSegment(
-                    value: phase,
-                    label: Text(phase),
-                  ),
-              ],
-              selected: {selectedPhase},
-              onSelectionChanged: (values) => onPhaseChanged(values.single),
-            ),
-            const SizedBox(height: 12),
-            if (actions.isEmpty)
-              const Text('这个阶段暂无默认显示活动，可以先记录今天已经完成的内容。')
-            else
-              for (final action in actions) ...[
-                _PhaseActivityTile(action: action),
-                if (action != actions.last) const Divider(height: 16),
-              ],
-            if (moreActivities.isNotEmpty) ...[
+    final units = _unitOptionsFor(_action);
+    if (!units.contains(_unit)) {
+      _unit = units.first;
+    }
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '添加康复记录',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                key: const ValueKey('rehab-activity-dropdown'),
+                initialValue: _action.id,
+                decoration: const InputDecoration(labelText: '选择康复活动'),
+                items: [
+                  for (final action in widget.actions)
+                    DropdownMenuItem(
+                      value: action.id,
+                      child: Text(_activityDropdownLabel(action)),
+                    ),
+                ],
+                onChanged: (id) {
+                  final next = _actionById(id);
+                  if (next == null) return;
+                  setState(() {
+                    _action = next;
+                    final nextUnits = _unitOptionsFor(next);
+                    _unit = nextUnits.contains(_unit) ? _unit : nextUnits.first;
+                  });
+                },
+              ),
               const SizedBox(height: 12),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: EdgeInsets.zero,
-                title: const Text('更多活动'),
-                subtitle: const Text('条件显示动作，记录前请以自身舒适度为准。'),
+              _SelectedActivityInfo(action: _action),
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_outlined),
+                title: const Text('记录日期'),
+                subtitle: Text(_formatDate(_createdAt)),
+                trailing: TextButton(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _createdAt,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
+                      locale: const Locale('zh', 'CN'),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _createdAt = DateTime(
+                          picked.year,
+                          picked.month,
+                          picked.day,
+                          _createdAt.hour,
+                          _createdAt.minute,
+                        );
+                      });
+                    }
+                  },
+                  child: const Text('选择'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('完成了多少？', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  for (final activity in moreActivities)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(activity.nameCn),
-                      subtitle: Text(activity.patientTip),
+                  for (final quick in _quickAmountsFor(_action))
+                    ChoiceChip(
+                      key: ValueKey(
+                          'rehab-quick-amount-${quick.amount}-${quick.unit}'),
+                      label: Text(quick.label),
+                      selected: _formatAmount(_amount) == quick.amount &&
+                          _unit == quick.unit,
+                      onSelected: (_) {
+                        setState(() {
+                          _amount = double.tryParse(quick.amount) ?? _amount;
+                          _unit = quick.unit;
+                        });
+                      },
                     ),
                 ],
               ),
+              const SizedBox(height: 12),
+              _AmountStepper(
+                amount: _amount,
+                unit: _unit,
+                onDecrease: () => setState(() {
+                  _amount =
+                      (_amount - _stepForUnit(_unit)).clamp(0, 999).toDouble();
+                }),
+                onIncrease: () => setState(() {
+                  _amount =
+                      (_amount + _stepForUnit(_unit)).clamp(0, 999).toDouble();
+                }),
+              ),
+              const SizedBox(height: 12),
+              Text('单位', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Wrap(
+                key: const ValueKey('rehab-unit-options'),
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final unit in units)
+                    ChoiceChip(
+                      label: Text(unit),
+                      selected: _unit == unit,
+                      onSelected: (_) => setState(() => _unit = unit),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text('做完感觉？', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final reaction in RehabReaction.values)
+                    ChoiceChip(
+                      avatar: Icon(_reactionIcon(reaction), size: 18),
+                      label: Text(reaction.label),
+                      selected: _reaction == reaction,
+                      selectedColor: _reactionColor(reaction).withValues(
+                        alpha: 0.16,
+                      ),
+                      onSelected: (_) => setState(() => _reaction = reaction),
+                    ),
+                ],
+              ),
+              if (_reaction == RehabReaction.muchWorse) ...[
+                const SizedBox(height: 10),
+                const Card(
+                  color: Color(0xFFFFF1F0),
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('建议减少量、暂停观察，必要时咨询医生或康复师。'),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Text('症状标签（可选）', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final tag in _symptomTagOptions)
+                    FilterChip(
+                      label: Text(tag),
+                      selected: _symptomTags.contains(tag),
+                      onSelected: (selected) {
+                        setState(() {
+                          _symptomTags = {..._symptomTags};
+                          selected
+                              ? _symptomTags.add(tag)
+                              : _symptomTags.remove(tag);
+                        });
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _OptionalNoteField(
+                controller: _noteController,
+                isExpanded: _isNoteExpanded,
+                onToggle: () {
+                  setState(() => _isNoteExpanded = !_isNoteExpanded);
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    key: const ValueKey('rehab-log-save-button'),
+                    onPressed: () {
+                      Navigator.of(context).pop(
+                        _RehabLogEntryDraft(
+                          action: _action,
+                          draft: _RehabLogDraft(
+                            amount: _formatAmount(_amount),
+                            unit: _unit,
+                            reaction: _reaction,
+                            symptomTags: _symptomTags.toList(),
+                            note: _noteController.text,
+                            createdAt: _createdAt,
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Text('保存'),
+                  ),
+                ],
+              ),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
-}
 
-class _PhaseActivityTile extends StatelessWidget {
-  const _PhaseActivityTile({required this.action});
-
-  final RehabAction action;
-
-  @override
-  Widget build(BuildContext context) {
-    final activity = activityForAction(action);
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(_categoryIcon(_categoryForAction(action))),
-      title: Text(action.name),
-      subtitle: Text(activity?.patientTip ?? action.guidance),
-      trailing: Text(_categoryLabel(_categoryForAction(action))),
-    );
+  RehabAction? _actionById(int? id) {
+    if (id == null) return null;
+    for (final action in widget.actions) {
+      if (action.id == id) {
+        return action;
+      }
+    }
+    return null;
   }
 }
 
-class _RehabActionPickerCard extends StatelessWidget {
-  const _RehabActionPickerCard({
-    required this.categories,
-    required this.actions,
-    required this.selectedCategory,
-    required this.selectedActionId,
-    required this.onCategoryChanged,
-    required this.onActionChanged,
-    required this.onRecord,
+class _RehabLogEntryDraft {
+  const _RehabLogEntryDraft({
+    required this.action,
+    required this.draft,
   });
 
-  final List<String> categories;
-  final List<RehabAction> actions;
-  final String? selectedCategory;
-  final int? selectedActionId;
-  final ValueChanged<String?> onCategoryChanged;
-  final ValueChanged<int?> onActionChanged;
-  final VoidCallback onRecord;
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedAction = _selectedActionOrNull(actions, selectedActionId);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DropdownButtonFormField<String>(
-              key: const ValueKey('rehab-category-dropdown'),
-              initialValue: selectedCategory,
-              decoration: const InputDecoration(labelText: '选择分类'),
-              items: [
-                for (final category in categories)
-                  DropdownMenuItem(
-                    value: category,
-                    child: Text(_categoryLabel(category)),
-                  ),
-              ],
-              onChanged: onCategoryChanged,
-            ),
-            if (selectedAction != null) ...[
-              const SizedBox(height: 12),
-              _SelectedActivityInfo(action: selectedAction),
-            ],
-            const SizedBox(height: 16),
-            DropdownButtonFormField<int>(
-              key: const ValueKey('rehab-activity-dropdown'),
-              initialValue: selectedActionId,
-              decoration: const InputDecoration(labelText: '选择活动'),
-              items: [
-                for (final action in actions)
-                  DropdownMenuItem(
-                    value: action.id,
-                    child: Text(action.name),
-                  ),
-              ],
-              onChanged: onActionChanged,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Icon(
-                  Icons.add_circle_outline,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '+ 添加康复记录',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              key: const ValueKey('rehab-add-log'),
-              onPressed: actions.isEmpty ? null : onRecord,
-              icon: const Icon(Icons.add),
-              label: const Text('+ 添加康复记录'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-RehabAction? _selectedActionOrNull(List<RehabAction> actions, int? actionId) {
-  for (final action in actions) {
-    if (action.id == actionId) {
-      return action;
-    }
-  }
-  return null;
+  final RehabAction action;
+  final RehabLogDraft draft;
 }
 
 class _SelectedActivityInfo extends StatelessWidget {
@@ -740,13 +713,15 @@ class _SelectedActivityInfo extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '${_phaseRangeLabel(activity)} · ${_categoryLabel(activity.category)} · ${_riskLabel(activity.riskLevel)}',
+              '适合阶段：${_phaseRangeLabel(activity)}',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
             ),
             const SizedBox(height: 6),
-            Text(activity.patientTip),
+            Text('关键点：${activity.patientTip}'),
+            const SizedBox(height: 4),
+            Text('风险等级：${_riskLabel(activity.riskLevel)}'),
             const SizedBox(height: 4),
             Text('暂停提示：${activity.stopRule}'),
             if (needsGuidance) ...[
@@ -782,72 +757,18 @@ class _RehabPhaseGuideCard extends StatelessWidget {
   }
 }
 
-const _categoryOrder = [
-  'WALK',
-  'BREAK',
-  'BASIC',
-  'CORE',
-  'HIP_LEG',
-  'MOBILITY',
-  'AEROBIC',
-  'SPORT',
-  'FUNCTION',
-];
-
-List<String> _availableCategories(List<RehabAction> actions) {
-  final available = actions.map(_categoryForAction).toSet();
-  return [
-    ..._categoryOrder.where(available.contains),
-    ...available.where((category) => !_categoryOrder.contains(category)),
-  ];
-}
-
-String _categoryForAction(RehabAction action) {
-  final direct = action.category;
-  if (direct != null && direct.isNotEmpty) {
-    return direct;
-  }
-  for (final builtIn in actionLibrary) {
-    if (builtIn.id == action.id) {
-      return builtIn.category ?? 'BASIC';
-    }
-  }
-  return 'BASIC';
-}
-
-String _categoryLabel(String category) {
-  return switch (category) {
-    'WALK' => '步行与有氧',
-    'BREAK' => '坐站节奏',
-    'BASIC' => '早期基础',
-    'CORE' => '核心稳定',
-    'HIP_LEG' => '臀腿力量',
-    'MOBILITY' => '灵活性活动',
-    'AEROBIC' => '低冲击有氧',
-    'SPORT' => '运动能力',
-    'FUNCTION' => '功能活动',
-    _ => category,
-  };
-}
-
-IconData _categoryIcon(String category) {
-  return switch (category) {
-    'WALK' => Icons.directions_walk_outlined,
-    'BASIC' => Icons.spa_outlined,
-    'CORE' => Icons.accessibility_new_outlined,
-    'HIP_LEG' => Icons.airline_seat_legroom_extra_outlined,
-    'MOBILITY' => Icons.self_improvement_outlined,
-    'AEROBIC' => Icons.directions_bike_outlined,
-    'SPORT' => Icons.sports_handball_outlined,
-    'FUNCTION' => Icons.work_outline,
-    _ => Icons.radio_button_checked,
-  };
-}
-
 String _phaseRangeLabel(RehabActivity activity) {
   final start = rehabPhaseTitle(activity.phaseStart);
   final end = rehabPhaseTitle(activity.phaseEnd);
   return start == end ? start : '$start-$end';
+}
+
+String _activityDropdownLabel(RehabAction action) {
+  final activity = activityForAction(action);
+  if (activity == null) {
+    return action.name;
+  }
+  return '${action.name} · ${_phaseRangeLabel(activity)}';
 }
 
 String _riskLabel(String riskLevel) {
@@ -867,12 +788,6 @@ const _rehabPhaseGuideText =
     '第3阶段（8-12周）：功能性负荷进阶。对应组织重塑成熟期，通过功能性负荷训练，逐步提升胶原纤维的承受能力，重建日常活动信心。\n\n'
     '第4阶段（12周后）：高负荷恢复。针对组织功能成熟期，由受控训练逐步过渡至自主运动，帮助回归正常生活与运动状态。\n\n'
     '这套分期体系用于提供对应的心理与行动支持，帮助你稳步找回身体的掌控感。';
-
-extension _FirstOrNull<T> on List<T> {
-  T? get firstOrNull {
-    return isEmpty ? null : first;
-  }
-}
 
 Color _reactionColor(RehabReaction reaction) {
   return switch (reaction) {
