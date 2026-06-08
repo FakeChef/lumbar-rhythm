@@ -59,6 +59,22 @@ ReminderSchedulePlan buildReminderSchedulePlan({
   };
 }
 
+int reminderDelayMinutes({
+  required int intervalMinutes,
+  DateTime? sessionStartedAt,
+  DateTime? now,
+}) {
+  if (sessionStartedAt == null) {
+    return intervalMinutes;
+  }
+  final elapsed = (now ?? DateTime.now()).difference(sessionStartedAt);
+  final remaining = Duration(minutes: intervalMinutes) - elapsed;
+  if (remaining <= Duration.zero) {
+    return 0;
+  }
+  return (remaining.inSeconds / 60).ceil();
+}
+
 class ReminderDebugState {
   const ReminderDebugState({
     this.lastImmediateTestAt,
@@ -187,9 +203,9 @@ class NotificationService {
   static const _testReminderId = 199;
   static const _foregroundTimerTestReminderId = 198;
   static const _oneMinuteSittingTestReminderId = 201;
-  static const softChannelId = 'lumbar_rhythm_soft_reminders_v2';
-  static const vibrationChannelId = 'lumbar_rhythm_vibration_reminders_v2';
-  static const alarmChannelId = 'lumbar_rhythm_alarm_reminders_v2';
+  static const softChannelId = 'lumbar_rhythm_soft_reminders_v3';
+  static const vibrationChannelId = 'lumbar_rhythm_vibration_reminders_v3';
+  static const alarmChannelId = 'lumbar_rhythm_alarm_reminders_v3';
   static const _channelDescription = '久坐久站和休息节奏提醒';
 
   final FlutterLocalNotificationsPlugin _plugin =
@@ -207,6 +223,10 @@ class NotificationService {
 
   ReminderDebugState get debugState => _debugState;
 
+  void recordError(Object error) {
+    _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+  }
+
   Future<void> initialize() async {
     if (_notificationsInitialized) {
       return;
@@ -214,7 +234,7 @@ class NotificationService {
 
     _ensureTimeZonesInitialized();
 
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings('ic_stat_notification');
     const settings = InitializationSettings(android: android);
 
     await _plugin.initialize(settings);
@@ -222,10 +242,9 @@ class NotificationService {
   }
 
   Future<bool> requestPermissions() async {
-    final androidPermission = await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    final androidPermission = await android?.requestNotificationsPermission();
 
     return androidPermission ?? true;
   }
@@ -237,6 +256,7 @@ class NotificationService {
     int walkingIntervalMinutes = 10,
     ReminderMode reminderMode = ReminderMode.soft,
     PostureType? currentPosture,
+    DateTime? currentSessionStartedAt,
   }) async {
     await initialize();
     await cancelScheduledReminders();
@@ -258,6 +278,7 @@ class NotificationService {
       return;
     }
 
+    final scheduledIds = <int>[];
     for (final kind in plan.kinds) {
       switch (kind) {
         case ReminderKind.sitting:
@@ -265,27 +286,53 @@ class NotificationService {
             id: _sittingReminderId,
             title: '该起身活动一下了',
             body: '已经接近久坐提醒间隔，建议短暂站立或走动。',
-            minutesFromNow: sittingIntervalMinutes,
+            minutesFromNow: reminderDelayMinutes(
+              intervalMinutes: sittingIntervalMinutes,
+              sessionStartedAt: currentSessionStartedAt,
+            ),
             reminderMode: reminderMode,
           );
+          scheduledIds.add(_sittingReminderId);
         case ReminderKind.standing:
           await _scheduleReminder(
             id: _standingReminderId,
             title: '该坐下休息一下了',
             body: '已经接近久站提醒间隔，建议短暂坐下放松。',
-            minutesFromNow: standingIntervalMinutes,
+            minutesFromNow: reminderDelayMinutes(
+              intervalMinutes: standingIntervalMinutes,
+              sessionStartedAt: currentSessionStartedAt,
+            ),
             reminderMode: reminderMode,
           );
+          scheduledIds.add(_standingReminderId);
         case ReminderKind.walking:
           await _scheduleReminder(
             id: _walkingReminderId,
             title: '走动时间到了',
             body: '这一段走动已经完成，可以坐下休息一下。',
-            minutesFromNow: walkingIntervalMinutes,
+            minutesFromNow: reminderDelayMinutes(
+              intervalMinutes: walkingIntervalMinutes,
+              sessionStartedAt: currentSessionStartedAt,
+            ),
             reminderMode: reminderMode,
           );
+          scheduledIds.add(_walkingReminderId);
       }
     }
+
+    final pendingAfter = await _readPendingNotificationIds();
+    final allScheduled =
+        scheduledIds.every((scheduledId) => pendingAfter.contains(scheduledId));
+    _updateDebug(
+      _debugState.copyWith(
+        pendingNotificationCount: pendingAfter.length,
+        pendingNotificationIds: pendingAfter,
+        scheduledPendingAfter: pendingAfter.length,
+        lastScheduleModeResult:
+            allScheduled ? '已安排，等待系统触发。' : '已请求安排，但 pending 列表未确认该提醒。',
+        lastErrorMessage: null,
+      ),
+    );
   }
 
   Future<void> cancelScheduledReminders() async {
@@ -627,8 +674,8 @@ NotificationDetails buildReminderNotificationDetails({
         NotificationService.softChannelId,
         '轻柔坐站提醒',
         channelDescription: NotificationService._channelDescription,
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
+        importance: Importance.high,
+        priority: Priority.high,
         playSound: true,
         enableVibration: false,
         actions: actions,
@@ -637,8 +684,8 @@ NotificationDetails buildReminderNotificationDetails({
         NotificationService.vibrationChannelId,
         '震动坐站提醒',
         channelDescription: NotificationService._channelDescription,
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
+        importance: Importance.high,
+        priority: Priority.high,
         playSound: false,
         enableVibration: true,
         vibrationPattern: Int64List.fromList([0, 180, 120, 180]),

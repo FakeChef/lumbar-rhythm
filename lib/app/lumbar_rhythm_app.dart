@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,16 +21,21 @@ class _LumbarRhythmAppState extends ConsumerState<LumbarRhythmApp> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(_initializeNotifications);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initializeNotifications());
+    });
   }
 
   Future<void> _initializeNotifications() async {
+    final notificationService = ref.read(notificationServiceProvider);
     try {
-      final notificationService = ref.read(notificationServiceProvider);
       await notificationService.initialize();
 
       final settings =
           await ref.read(reminderSettingsRepositoryProvider).load();
+      if (settings.remindersEnabled) {
+        await notificationService.requestPermissions();
+      }
       final openSession =
           await ref.read(postureSessionRepositoryProvider).loadOpenSession();
       await notificationService.scheduleNextReminders(
@@ -38,8 +45,10 @@ class _LumbarRhythmAppState extends ConsumerState<LumbarRhythmApp> {
         walkingIntervalMinutes: settings.walkingIntervalMinutes,
         reminderMode: settings.reminderMode,
         currentPosture: openSession?.type,
+        currentSessionStartedAt: openSession?.startedAt,
       );
-    } catch (_) {
+    } catch (error) {
+      notificationService.recordError(error);
       // Notification setup should never prevent the app from opening.
     }
   }

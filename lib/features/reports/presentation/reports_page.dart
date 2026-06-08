@@ -325,22 +325,86 @@ class _RehabActivityBarChart extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: 176,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final day in days)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 1),
-                child: _RehabActivityBar(
-                  day: day,
-                  maxValue: maxValue,
-                ),
-              ),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final day in days)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 1),
+                      child: _RehabActivityBar(
+                        day: day,
+                        maxValue: maxValue,
+                      ),
+                    ),
+                  ),
+              ],
             ),
+          ),
+          const SizedBox(height: 6),
+          _RehabActivityDateAxis(days: days),
         ],
       ),
     );
+  }
+}
+
+class _RehabActivityDateAxis extends StatelessWidget {
+  const _RehabActivityDateAxis({required this.days});
+
+  final List<_ActivityTrendDay> days;
+
+  @override
+  Widget build(BuildContext context) {
+    final tickIndexes = _dateTickIndexes(days);
+    return SizedBox(
+      height: 22,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const labelWidth = 44.0;
+          final availableWidth = constraints.maxWidth;
+          final denominator = days.length <= 1 ? 1 : days.length - 1;
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              for (final index in tickIndexes)
+                Positioned(
+                  left: ((availableWidth * index / denominator) -
+                          labelWidth / 2)
+                      .clamp(0, availableWidth - labelWidth),
+                  width: labelWidth,
+                  child: Text(
+                    _formatDateLabel(days[index].day),
+                    key: ValueKey(
+                      'rehab-trend-date-${days[index].day.year}-${days[index].day.month}-${days[index].day.day}',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  List<int> _dateTickIndexes(List<_ActivityTrendDay> days) {
+    if (days.length <= 7) {
+      return [for (var index = 0; index < days.length; index++) index];
+    }
+    final lastIndex = days.length - 1;
+    final indexes = <int>{0};
+    for (var index = lastIndex; index >= 0; index -= 7) {
+      indexes.add(index);
+    }
+    return indexes.toList()..sort();
   }
 }
 
@@ -360,50 +424,29 @@ class _RehabActivityBar extends StatelessWidget {
         maxValue == 0 ? 0.04 : (value / maxValue).clamp(0.04, 1.0).toDouble();
     final scheme = Theme.of(context).colorScheme;
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final minimumHeight = value == 0 ? 4.0 : 18.0;
-              final height =
-                  (constraints.maxHeight * heightFactor).clamp(
-                minimumHeight,
-                constraints.maxHeight,
-              );
-              return Align(
-                alignment: Alignment.bottomCenter,
-                child: SizedBox(
-                  height: height,
-                  width: double.infinity,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: ColoredBox(
-                      color: value == 0
-                          ? scheme.outlineVariant.withValues(alpha: 0.55)
-                          : scheme.primary,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 22,
-          child: Text(
-            _formatDateLabel(day.day),
-            key: ValueKey(
-              'rehab-trend-date-${day.day.year}-${day.day.month}-${day.day.day}',
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minimumHeight = value == 0 ? 4.0 : 18.0;
+        final height = (constraints.maxHeight * heightFactor).clamp(
+          minimumHeight,
+          constraints.maxHeight,
+        );
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            height: height,
+            width: double.infinity,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: ColoredBox(
+                color: value == 0
+                    ? scheme.outlineVariant.withValues(alpha: 0.55)
+                    : scheme.primary,
+              ),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.clip,
-            style: Theme.of(context).textTheme.labelSmall,
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
