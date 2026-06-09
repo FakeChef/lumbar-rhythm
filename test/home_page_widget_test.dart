@@ -205,6 +205,7 @@ void main() {
     expect(notificationService.postureReminderChannels,
         [NotificationService.vibrationChannelId]);
     expect(postureRepository.openSession?.type, PostureType.sitting);
+    expect(find.textContaining('久坐提醒已安排'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('today-posture-standing')));
     await tester.pumpAndSettle();
@@ -218,6 +219,7 @@ void main() {
     ]);
     expect(postureRepository.openSession?.type, PostureType.standing);
     expect(rehabRepository.addedLogs, isEmpty);
+    expect(find.textContaining('久站提醒已安排'), findsOneWidget);
   });
 
   testWidgets('walking cancels posture reminder without scheduling',
@@ -276,6 +278,7 @@ void main() {
 
     expect(postureRepository.openSession?.type, PostureType.sitting);
     expect(notificationService.lastRecordedError, contains('schedule failed'));
+    expect(find.textContaining('久坐提醒没有安排成功'), findsOneWidget);
   });
 
   test('latest posture schedule is not overwritten by stale startup cancel',
@@ -664,7 +667,7 @@ class _FakeNotification extends NotificationService {
   }
 
   @override
-  Future<void> scheduleNextReminders({
+  Future<bool> scheduleNextReminders({
     required bool enabled,
     required int sittingIntervalMinutes,
     required int standingIntervalMinutes,
@@ -685,9 +688,9 @@ class _FakeNotification extends NotificationService {
         currentPosture == PostureType.walking ||
         currentPosture == PostureType.resting) {
       await cancelScheduledReminders();
-      return;
+      return false;
     }
-    await schedulePostureReminder(
+    return schedulePostureReminder(
       postureType: currentPosture,
       delay: Duration(
         minutes: currentPosture == PostureType.standing

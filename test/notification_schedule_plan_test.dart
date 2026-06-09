@@ -294,7 +294,7 @@ void main() {
       'lib/core/notifications/notification_service.dart',
     ).readAsStringSync();
     final scheduleNextStart = service.indexOf(
-      'Future<void> scheduleNextReminders',
+      'Future<bool> scheduleNextReminders',
     );
     final cancelStart = service.indexOf(
       'Future<void> cancelScheduledReminders',

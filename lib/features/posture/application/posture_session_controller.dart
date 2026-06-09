@@ -8,6 +8,7 @@ import '../../actions/application/posture_reminder_rehab_link.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../reports/application/daily_report_controller.dart';
 import '../../settings/data/reminder_settings_repository.dart';
+import '../../settings/domain/reminder_settings.dart';
 import '../data/posture_session_repository.dart';
 import '../domain/posture_session.dart';
 
@@ -139,19 +140,72 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
       if (version != _scheduleRequestVersion) {
         return;
       }
-      await ref.read(notificationServiceProvider).scheduleNextReminders(
-            enabled: settings.remindersEnabled,
-            sittingIntervalMinutes: settings.sittingIntervalMinutes,
-            standingIntervalMinutes: settings.standingIntervalMinutes,
-            walkingIntervalMinutes: settings.walkingIntervalMinutes,
-            reminderMode: settings.reminderMode,
-            currentPosture: session?.type,
-            currentSessionStartedAt: session?.startedAt,
-          );
+      final scheduled =
+          await ref.read(notificationServiceProvider).scheduleNextReminders(
+                enabled: settings.remindersEnabled,
+                sittingIntervalMinutes: settings.sittingIntervalMinutes,
+                standingIntervalMinutes: settings.standingIntervalMinutes,
+                walkingIntervalMinutes: settings.walkingIntervalMinutes,
+                reminderMode: settings.reminderMode,
+                currentPosture: session?.type,
+                currentSessionStartedAt: session?.startedAt,
+              );
+      if (version == _scheduleRequestVersion) {
+        ref.read(postureReminderStatusProvider.notifier).state =
+            _scheduleStatusMessage(
+          session: session,
+          settings: settings,
+          scheduled: scheduled,
+        );
+      }
     } catch (error) {
       ref.read(notificationServiceProvider).recordError(error);
+      if (version == _scheduleRequestVersion) {
+        ref.read(postureReminderStatusProvider.notifier).state =
+            _scheduleFailureMessage(session);
+      }
       // Posture changes remain saved even if the platform cannot schedule.
     }
+  }
+
+  String? _scheduleStatusMessage({
+    required PostureSession? session,
+    required ReminderSettings settings,
+    required bool scheduled,
+  }) {
+    if (session == null ||
+        (session.type != PostureType.sitting &&
+            session.type != PostureType.standing)) {
+      return null;
+    }
+    if (!settings.remindersEnabled) {
+      return '提醒已关闭，姿势记录已开始。';
+    }
+    if (!scheduled) {
+      return _scheduleFailureMessage(session);
+    }
+    final intervalMinutes = session.type == PostureType.standing
+        ? settings.standingIntervalMinutes
+        : settings.sittingIntervalMinutes;
+    final delayMinutes = reminderDelayMinutes(
+      intervalMinutes: intervalMinutes,
+      sessionStartedAt: session.startedAt,
+    );
+    final postureLabel = session.type == PostureType.standing ? '久站' : '久坐';
+    if (delayMinutes <= 0) {
+      return '$postureLabel提醒已安排，很快会触发。';
+    }
+    return '$postureLabel提醒已安排，约 $delayMinutes 分钟后触发。';
+  }
+
+  String _scheduleFailureMessage(PostureSession? session) {
+    if (session == null ||
+        (session.type != PostureType.sitting &&
+            session.type != PostureType.standing)) {
+      return '提醒没有安排成功，请检查系统通知设置。';
+    }
+    final postureLabel = session.type == PostureType.standing ? '久站' : '久坐';
+    return '$postureLabel提醒没有安排成功，请检查系统通知设置。';
   }
 
   void _startForegroundMonitor(PostureSession? session) {

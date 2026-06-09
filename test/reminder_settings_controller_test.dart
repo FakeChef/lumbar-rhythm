@@ -171,7 +171,7 @@ class _FakeNotificationService extends NotificationService {
   final scheduledSettings = <_ScheduledSettings>[];
 
   @override
-  Future<void> scheduleNextReminders({
+  Future<bool> scheduleNextReminders({
     required bool enabled,
     required int sittingIntervalMinutes,
     required int standingIntervalMinutes,
@@ -190,6 +190,9 @@ class _FakeNotificationService extends NotificationService {
         currentSessionStartedAt: currentSessionStartedAt,
       ),
     );
+    return enabled &&
+        (currentPosture == PostureType.sitting ||
+            currentPosture == PostureType.standing);
   }
 }
 

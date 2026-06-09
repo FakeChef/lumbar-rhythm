@@ -312,7 +312,7 @@ class NotificationService {
     return _debugState;
   }
 
-  Future<void> scheduleNextReminders({
+  Future<bool> scheduleNextReminders({
     required bool enabled,
     required int sittingIntervalMinutes,
     required int standingIntervalMinutes,
@@ -334,19 +334,19 @@ class NotificationService {
           lastErrorMessage: null,
         ),
       );
-      return;
+      return false;
     }
     if (currentPosture == null ||
         currentPosture == PostureType.walking ||
         currentPosture == PostureType.resting) {
       await cancelScheduledReminders();
-      return;
+      return false;
     }
 
     final intervalMinutes = currentPosture == PostureType.standing
         ? standingIntervalMinutes
         : sittingIntervalMinutes;
-    await schedulePostureReminder(
+    return schedulePostureReminder(
       postureType: currentPosture,
       delay: Duration(
         minutes: reminderDelayMinutes(
