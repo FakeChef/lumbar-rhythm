@@ -33,7 +33,7 @@ void main() {
 
     final reports = File('lib/features/reports/presentation/reports_page.dart')
         .readAsStringSync();
-    expect(reports, contains('回顾你的康复动作记录和阶段活动'));
+    expect(reports, contains('回顾你的康复动作记录和趋势'));
     expect(reports, contains('今日康复动作记录'));
     expect(reports, contains('最近 7 天按活动趋势'));
     expect(reports, contains('最近 30 天按活动趋势'));

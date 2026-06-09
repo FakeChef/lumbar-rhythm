@@ -54,7 +54,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '回顾你的康复动作记录和阶段活动',
+                    '回顾你的康复动作记录和趋势',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
@@ -239,8 +239,7 @@ class _ActivityTrendReportSection extends StatelessWidget {
         subtitle: '按实际记录过的康复活动查看趋势',
         child: trends.isEmpty
             ? const _EmptyHint(
-                text:
-                    '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+                text: '这段时间还没有康复活动记录。记录后会按活动生成趋势图。',
               )
             : Column(
                 children: [
@@ -277,22 +276,38 @@ class _RehabActivityTrendSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    trend.action.name,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '${_formatNumber(trend.totalAmount)} ${trend.unit}',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
             Text(
-              trend.action.name,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+              '总记录次数：${trend.totalCount} 次',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
-            const SizedBox(height: 8),
-            _MetricRow(label: '总记录次数', value: '${trend.totalCount} 次'),
-            _MetricRow(
-              label: '总完成量',
-              value: '${_formatNumber(trend.totalAmount)} ${trend.unit}',
-            ),
+            const SizedBox(height: 10),
             KeyedSubtree(
               key: ValueKey('rehab-activity-trend-chart-${trend.action.id}'),
               child: Column(
@@ -324,7 +339,7 @@ class _RehabActivityBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 176,
+      height: 150,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -373,9 +388,9 @@ class _RehabActivityDateAxis extends StatelessWidget {
             children: [
               for (final index in tickIndexes)
                 Positioned(
-                  left: ((availableWidth * index / denominator) -
-                          labelWidth / 2)
-                      .clamp(0, availableWidth - labelWidth),
+                  left:
+                      ((availableWidth * index / denominator) - labelWidth / 2)
+                          .clamp(0, availableWidth - labelWidth),
                   width: labelWidth,
                   child: Text(
                     _formatDateLabel(days[index].day),
@@ -567,43 +582,6 @@ class _IconBadge extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Icon(icon, color: Theme.of(context).colorScheme.primary),
-      ),
-    );
-  }
-}
-
-class _MetricRow extends StatelessWidget {
-  const _MetricRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          ),
-        ],
       ),
     );
   }

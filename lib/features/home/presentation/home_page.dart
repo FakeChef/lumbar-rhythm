@@ -82,60 +82,55 @@ class _HomePageState extends ConsumerState<HomePage> {
                 title: '当前姿势读取失败',
                 onRetry: () => ref.invalidate(postureSessionControllerProvider),
               ),
-              data: (session) => Column(
-                children: [
-                  _PostureStatusCard(
-                    profile: recoveryProfileState.valueOrNull,
-                    session: session,
-                    now: postureNow,
-                    settings: settings,
-                    hasMarkedDiscomfort:
-                        overviewState.valueOrNull?.hasMarkedDiscomfort ?? false,
-                    selectedPosture: _selectedPosture,
-                    reminderStatus: reminderStatus,
-                  ),
-                  const SizedBox(height: 8),
-                  _PostureSwitchSection(
-                    activeType: session?.type,
-                    selectedType: _selectedPosture,
-                    isDaytimeLoopActive: _daytimeLoopActive,
-                    daytimeLoopEnabled: settings.daytimeLoopEnabled,
-                    onSwitchPosture: (type) async {
-                      setState(() => _selectedPosture = type);
-                      await ref
-                          .read(postureSessionControllerProvider.notifier)
-                          .switchTo(type);
-                      ref.invalidate(_homeTodayOverviewProvider);
-                    },
-                    onStop: () async {
-                      setState(() => _daytimeLoopActive = false);
-                      await ref
-                          .read(postureSessionControllerProvider.notifier)
-                          .stopCurrent();
-                      ref.invalidate(_homeTodayOverviewProvider);
-                    },
-                    onStartLoop: () async {
-                      setState(() {
-                        _daytimeLoopActive = true;
-                        _selectedPosture = PostureType.sitting;
-                      });
-                      await ref
-                          .read(postureSessionControllerProvider.notifier)
-                          .startSitting();
-                      ref.invalidate(_homeTodayOverviewProvider);
-                    },
-                    onNextLoopPhase: () async {
-                      final next = session?.type == PostureType.sitting
-                          ? PostureType.walking
-                          : PostureType.sitting;
-                      setState(() => _selectedPosture = next);
-                      await ref
-                          .read(postureSessionControllerProvider.notifier)
-                          .switchTo(next);
-                      ref.invalidate(_homeTodayOverviewProvider);
-                    },
-                  ),
-                ],
+              data: (session) => _PostureStatusCard(
+                profile: recoveryProfileState.valueOrNull,
+                session: session,
+                now: postureNow,
+                settings: settings,
+                hasMarkedDiscomfort:
+                    overviewState.valueOrNull?.hasMarkedDiscomfort ?? false,
+                selectedPosture: _selectedPosture,
+                reminderStatus: reminderStatus,
+                controls: _PostureSwitchSection(
+                  activeType: session?.type,
+                  selectedType: _selectedPosture,
+                  isDaytimeLoopActive: _daytimeLoopActive,
+                  daytimeLoopEnabled: settings.daytimeLoopEnabled,
+                  onSwitchPosture: (type) async {
+                    setState(() => _selectedPosture = type);
+                    await ref
+                        .read(postureSessionControllerProvider.notifier)
+                        .switchTo(type);
+                    ref.invalidate(_homeTodayOverviewProvider);
+                  },
+                  onStop: () async {
+                    setState(() => _daytimeLoopActive = false);
+                    await ref
+                        .read(postureSessionControllerProvider.notifier)
+                        .stopCurrent();
+                    ref.invalidate(_homeTodayOverviewProvider);
+                  },
+                  onStartLoop: () async {
+                    setState(() {
+                      _daytimeLoopActive = true;
+                      _selectedPosture = PostureType.sitting;
+                    });
+                    await ref
+                        .read(postureSessionControllerProvider.notifier)
+                        .startSitting();
+                    ref.invalidate(_homeTodayOverviewProvider);
+                  },
+                  onNextLoopPhase: () async {
+                    final next = session?.type == PostureType.sitting
+                        ? PostureType.walking
+                        : PostureType.sitting;
+                    setState(() => _selectedPosture = next);
+                    await ref
+                        .read(postureSessionControllerProvider.notifier)
+                        .switchTo(next);
+                    ref.invalidate(_homeTodayOverviewProvider);
+                  },
+                ),
               ),
             ),
           ),
@@ -228,7 +223,7 @@ class _MiniMetricGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
-        childAspectRatio: 2.7,
+        childAspectRatio: 2.55,
       ),
       itemBuilder: (context, index) => _MiniMetricTile(
         key: const ValueKey('today-posture-summary-metric'),
@@ -263,7 +258,7 @@ class _MiniMetricTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,6 +317,7 @@ class _PostureStatusCard extends StatelessWidget {
     required this.hasMarkedDiscomfort,
     required this.selectedPosture,
     required this.reminderStatus,
+    required this.controls,
   });
 
   final RecoveryProfile? profile;
@@ -331,6 +327,7 @@ class _PostureStatusCard extends StatelessWidget {
   final bool hasMarkedDiscomfort;
   final PostureType selectedPosture;
   final String? reminderStatus;
+  final Widget controls;
 
   @override
   Widget build(BuildContext context) {
@@ -362,7 +359,7 @@ class _PostureStatusCard extends StatelessWidget {
         key: const ValueKey('today-rhythm-card'),
         color: statusColor.withValues(alpha: 0.12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -380,7 +377,7 @@ class _PostureStatusCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
               ],
               Text(
                 encouragementText,
@@ -388,8 +385,10 @@ class _PostureStatusCard extends StatelessWidget {
                       color: const Color(0xFF4B5563),
                       height: 1.35,
                     ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               Center(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
@@ -397,7 +396,7 @@ class _PostureStatusCard extends StatelessWidget {
                     durationText,
                     key: const ValueKey('today-rhythm-duration'),
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                          fontSize: 92,
+                          fontSize: 76,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0,
                         ),
@@ -447,6 +446,8 @@ class _PostureStatusCard extends StatelessWidget {
                     timerState?.suggestion ??
                     '选择坐或走，开始今天的坐走节奏。',
               ),
+              const SizedBox(height: 12),
+              controls,
             ],
           ),
         ),
@@ -539,7 +540,7 @@ class _TimerInfoPanel extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w700,
@@ -549,7 +550,7 @@ class _TimerInfoPanel extends StatelessWidget {
             Text(
               suggestion,
               textAlign: TextAlign.center,
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall,
             ),
@@ -583,54 +584,50 @@ class _PostureSwitchSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (isDaytimeLoopActive) ...[
-              FilledButton.icon(
-                key: const ValueKey('today-cycle-next-phase'),
-                onPressed: onNextLoopPhase,
-                icon: const Icon(Icons.skip_next_outlined),
-                label: const Text('切到下一阶段'),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                key: const ValueKey('today-posture-stop'),
-                onPressed: onStop,
-                icon: const Icon(Icons.stop_circle_outlined),
-                label: const Text('停止循环'),
-              ),
-            ] else ...[
-              _PostureActionGrid(
-                activeType: activeType,
-                selectedType: selectedType,
-                isTiming: activeType == PostureType.sitting ||
-                    activeType == PostureType.walking,
-                onSwitchPosture: onSwitchPosture,
-              ),
-              const SizedBox(height: 10),
-              if (activeType == PostureType.sitting ||
-                  activeType == PostureType.walking)
-                OutlinedButton.icon(
-                  key: const ValueKey('today-posture-stop'),
-                  onPressed: onStop,
-                  icon: const Icon(Icons.stop_circle_outlined),
-                  label: const Text('停止记录'),
-                )
-              else
-                OutlinedButton.icon(
-                  key: const ValueKey('today-daytime-cycle-start'),
-                  onPressed: daytimeLoopEnabled ? onStartLoop : null,
-                  icon: const Icon(Icons.repeat_outlined),
-                  label: const Text('开启白天节奏'),
-                ),
-            ],
+    final isTiming =
+        activeType == PostureType.sitting || activeType == PostureType.walking;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (isDaytimeLoopActive) ...[
+          FilledButton.icon(
+            key: const ValueKey('today-cycle-next-phase'),
+            onPressed: onNextLoopPhase,
+            icon: const Icon(Icons.skip_next_outlined),
+            label: const Text('切到下一阶段'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const ValueKey('today-posture-stop'),
+            onPressed: onStop,
+            icon: const Icon(Icons.stop_circle_outlined),
+            label: const Text('停止循环'),
+          ),
+        ] else ...[
+          _PostureActionGrid(
+            activeType: activeType,
+            selectedType: selectedType,
+            isTiming: isTiming,
+            onSwitchPosture: onSwitchPosture,
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const ValueKey('today-posture-stop'),
+            onPressed: isTiming ? onStop : null,
+            icon: const Icon(Icons.stop_circle_outlined),
+            label: const Text('停止记录'),
+          ),
+          if (!isTiming) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const ValueKey('today-daytime-cycle-start'),
+              onPressed: daytimeLoopEnabled ? onStartLoop : null,
+              icon: const Icon(Icons.repeat_outlined),
+              label: const Text('开启白天节奏'),
+            ),
           ],
-        ),
-      ),
+        ],
+      ],
     );
   }
 }
@@ -651,26 +648,21 @@ class _PostureActionGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const primaryPostures = [PostureType.sitting, PostureType.walking];
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: primaryPostures.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 3.1,
-      ),
-      itemBuilder: (context, index) {
-        final type = primaryPostures[index];
-        return _PostureActionButton(
-          type: type,
-          isTiming: isTiming,
-          isActive: activeType == type,
-          isSelected: selectedType == type,
-          onPressed: () => onSwitchPosture(type),
-        );
-      },
+    return Row(
+      children: [
+        for (final type in primaryPostures) ...[
+          Expanded(
+            child: _PostureActionButton(
+              type: type,
+              isTiming: isTiming,
+              isActive: activeType == type,
+              isSelected: selectedType == type,
+              onPressed: () => onSwitchPosture(type),
+            ),
+          ),
+          if (type != primaryPostures.last) const SizedBox(width: 10),
+        ],
+      ],
     );
   }
 }

@@ -256,7 +256,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('康复报告'), findsOneWidget);
-    expect(find.text('回顾你的康复动作记录和阶段活动'), findsOneWidget);
+    expect(find.text('回顾你的康复动作记录和趋势'), findsOneWidget);
     expect(find.byKey(const ValueKey('rehab-report-daily-section')),
         findsOneWidget);
     expect(find.text('今日康复动作记录'), findsOneWidget);
@@ -280,10 +280,8 @@ void main() {
     expect(find.text('按实际记录过的康复活动查看趋势'), findsOneWidget);
     expect(find.text('短距离步行'), findsOneWidget);
     expect(find.text('膈式呼吸'), findsOneWidget);
-    expect(find.text('总记录次数'), findsNWidgets(2));
-    expect(find.text('2 次'), findsOneWidget);
-    expect(find.text('1 次'), findsOneWidget);
-    expect(find.text('总完成量'), findsNWidgets(2));
+    expect(find.text('总记录次数：2 次'), findsOneWidget);
+    expect(find.text('总记录次数：1 次'), findsOneWidget);
     expect(find.text('13 分钟'), findsOneWidget);
     expect(find.text('3 分钟'), findsOneWidget);
     expect(
@@ -411,7 +409,7 @@ void main() {
     expect(find.text('最近 7 天按活动趋势'), findsOneWidget);
     expect(
       find.text(
-        '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+        '这段时间还没有康复活动记录。记录后会按活动生成趋势图。',
       ),
       findsOneWidget,
     );
@@ -427,7 +425,7 @@ void main() {
     expect(find.text('最近 30 天按活动趋势'), findsOneWidget);
     expect(
       find.text(
-        '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+        '这段时间还没有康复活动记录。记录后会按活动生成趋势图。',
       ),
       findsOneWidget,
     );
@@ -549,11 +547,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('我的康复资料'), findsOneWidget);
-    expect(find.text('坐站提醒'), findsOneWidget);
+    expect(find.text('坐走提醒'), findsOneWidget);
     expect(find.text('该记录一下今天的状态了'), findsOneWidget);
     expect(find.widgetWithText(SwitchListTile, '夜间勿扰'), findsNothing);
     expect(find.text('白天节奏'), findsOneWidget);
-    expect(find.textContaining('循环提醒'), findsOneWidget);
+    expect(find.textContaining('循环提醒'), findsWidgets);
 
     await tester.tap(find.text('昵称与手术日期'));
     await tester.pumpAndSettle();
@@ -621,6 +619,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(notificationService.testReminderModes, [ReminderMode.alarm]);
+
+    await tester.scrollUntilVisible(
+      find.text('高级排查'),
+      300.0,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('高级排查'));
+    await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
       find.text('1 分钟定时测试：inexactAllowWhileIdle'),
@@ -798,6 +804,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('膈式呼吸'), findsWidgets);
     expect(find.text('膈式呼吸活动'), findsNothing);
+    await tester.tap(find.text('活动说明'));
+    await tester.pumpAndSettle();
     expect(find.text('选择舒适姿势，放慢呼吸并记录时间。'), findsOneWidget);
     expect(find.text('如果头晕或不舒服，恢复自然呼吸。'), findsOneWidget);
     expect(find.textContaining('风险等级'), findsNothing);

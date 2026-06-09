@@ -42,7 +42,7 @@ class SettingsPage extends ConsumerWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          '管理康复资料、坐站提醒、本地数据和隐私说明',
+          '管理康复资料、坐走提醒、本地数据和隐私说明',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 20),
@@ -67,7 +67,7 @@ class SettingsPage extends ConsumerWidget {
           ),
           data: (settings) => _SettingsGroup(
             icon: Icons.notifications_active_outlined,
-            title: '坐站提醒',
+            title: '坐走提醒',
             children: [
               _ReminderSettingsSection(
                 settings: settings,
@@ -313,7 +313,7 @@ class SettingsPage extends ConsumerWidget {
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.verified_user_outlined),
               title: Text('无账号 / 无广告 / 无云端上传'),
-              subtitle: Text('核心记录默认保存在本地设备，不接入广告、统计分析或第三方追踪 SDK。'),
+              subtitle: Text('数据保存在本机。不需要账号。不自动上传，不接入广告、统计分析或第三方追踪 SDK。'),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -727,6 +727,44 @@ class _SettingsGroup extends StatelessWidget {
   }
 }
 
+class _SettingsSubheader extends StatelessWidget {
+  const _SettingsSubheader({
+    required this.title,
+    this.description,
+  });
+
+  final String title;
+  final String? description;
+
+  @override
+  Widget build(BuildContext context) {
+    final description = this.description;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          if (description != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              description,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _ReminderSettingsSection extends StatelessWidget {
   const _ReminderSettingsSection({
     required this.settings,
@@ -780,6 +818,10 @@ class _ReminderSettingsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        const _SettingsSubheader(
+          title: '本地提醒',
+          description: '提醒只在本机运行，不上传健康数据。',
+        ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           value: settings.remindersEnabled,
@@ -788,6 +830,25 @@ class _ReminderSettingsSection extends StatelessWidget {
           title: const Text('本地提醒'),
           subtitle: const Text('提醒只在本机运行，不上传健康数据。'),
         ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.tune_outlined),
+          title: const Text('提醒方式'),
+          subtitle: const Text('默认轻柔通知；需要更明显时可改为震动或响铃。'),
+          trailing: DropdownButton<ReminderMode>(
+            value: settings.reminderMode,
+            onChanged: settings.remindersEnabled ? onReminderModeChanged : null,
+            items: [
+              for (final mode in ReminderMode.values)
+                DropdownMenuItem(
+                  value: mode,
+                  child: Text(mode.label),
+                ),
+            ],
+          ),
+        ),
+        const Divider(height: 20),
+        const _SettingsSubheader(title: '久坐与走动间隔'),
         _IntervalTile(
           icon: Icons.event_seat_outlined,
           title: '久坐提醒间隔',
@@ -803,6 +864,11 @@ class _ReminderSettingsSection extends StatelessWidget {
           options: walkingIntervalOptions,
           onChanged:
               settings.remindersEnabled ? onWalkingIntervalChanged : null,
+        ),
+        const Divider(height: 20),
+        const _SettingsSubheader(
+          title: '循环节奏提醒',
+          description: '在指定时间段内循环提醒你在坐和走动之间切换。',
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -843,28 +909,17 @@ class _ReminderSettingsSection extends StatelessWidget {
           onChanged:
               settings.daytimeLoopEnabled ? onDaytimeWalkingChanged : null,
         ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.tune_outlined),
-          title: const Text('提醒方式'),
-          subtitle: const Text('默认轻柔通知；需要更明显时可改为震动或响铃。'),
-          trailing: DropdownButton<ReminderMode>(
-            value: settings.reminderMode,
-            onChanged: settings.remindersEnabled ? onReminderModeChanged : null,
-            items: [
-              for (final mode in ReminderMode.values)
-                DropdownMenuItem(
-                  value: mode,
-                  child: Text(mode.label),
-                ),
-            ],
-          ),
-        ),
+        const Divider(height: 20),
         const ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.check_circle_outline),
           title: Text('自动保存'),
           subtitle: Text('以上设置会立即保存到本地数据库。'),
+        ),
+        const Divider(height: 20),
+        const _SettingsSubheader(
+          title: '通知测试',
+          description: '用于确认系统通知权限和前台提醒是否正常。',
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
@@ -893,68 +948,82 @@ class _ReminderSettingsSection extends StatelessWidget {
                 : null,
           ),
         ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.schedule_outlined),
-          title: const Text('1 分钟定时测试：inexactAllowWhileIdle'),
-          subtitle: const Text('Android 后台定时辅助路径，可能受系统调度影响。'),
-          trailing: IconButton(
-            tooltip: '1 分钟定时测试：inexactAllowWhileIdle',
-            icon: const Icon(Icons.timer_outlined),
-            onPressed: settings.remindersEnabled && !testReminderSending
-                ? onOneMinuteTestPressed
-                : null,
-          ),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.schedule_send_outlined),
-          title: const Text('1 分钟定时测试：exactAllowWhileIdle'),
-          subtitle: const Text('仅用于排查；若系统或权限不支持，会显示错误。'),
-          trailing: IconButton(
-            tooltip: '1 分钟定时测试：exactAllowWhileIdle',
-            icon: const Icon(Icons.timer_outlined),
-            onPressed: settings.remindersEnabled && !testReminderSending
-                ? onExactOneMinuteTestPressed
-                : null,
-          ),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.alarm_outlined),
-          title: const Text('1 分钟定时测试：alarmClock'),
-          subtitle: const Text('仅用于排查；不会把 App 默认改成闹钟应用。'),
-          trailing: IconButton(
-            tooltip: '1 分钟定时测试：alarmClock',
-            icon: const Icon(Icons.timer_outlined),
-            onPressed: settings.remindersEnabled && !testReminderSending
-                ? onAlarmClockOneMinuteTestPressed
-                : null,
-          ),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.fact_check_outlined),
-          title: const Text('查看待触发提醒'),
-          subtitle: Text(
-            '当前待触发提醒：${debugState.pendingNotificationCount ?? 0} 个',
-          ),
-          trailing: IconButton(
-            tooltip: '查看待触发提醒',
-            icon: const Icon(Icons.refresh_outlined),
-            onPressed: onPendingPressed,
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(56, 0, 0, 8),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '如果定时测试没有弹出，但 pending 消失，说明系统已处理该定时提醒，但本机可能未展示；正式提醒会以前台 Timer 为主。',
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.build_outlined),
+            title: const Text('高级排查'),
+            subtitle: Text(
+              '当前待触发提醒：${debugState.pendingNotificationCount ?? 0} 个',
             ),
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.schedule_outlined),
+                title: const Text('1 分钟定时测试：inexactAllowWhileIdle'),
+                subtitle: const Text('Android 后台定时辅助路径，可能受系统调度影响。'),
+                trailing: IconButton(
+                  tooltip: '1 分钟定时测试：inexactAllowWhileIdle',
+                  icon: const Icon(Icons.timer_outlined),
+                  onPressed: settings.remindersEnabled && !testReminderSending
+                      ? onOneMinuteTestPressed
+                      : null,
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.schedule_send_outlined),
+                title: const Text('1 分钟定时测试：exactAllowWhileIdle'),
+                subtitle: const Text('仅用于排查；若系统或权限不支持，会显示错误。'),
+                trailing: IconButton(
+                  tooltip: '1 分钟定时测试：exactAllowWhileIdle',
+                  icon: const Icon(Icons.timer_outlined),
+                  onPressed: settings.remindersEnabled && !testReminderSending
+                      ? onExactOneMinuteTestPressed
+                      : null,
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.alarm_outlined),
+                title: const Text('1 分钟定时测试：alarmClock'),
+                subtitle: const Text('仅用于排查；不会把 App 默认改成闹钟应用。'),
+                trailing: IconButton(
+                  tooltip: '1 分钟定时测试：alarmClock',
+                  icon: const Icon(Icons.timer_outlined),
+                  onPressed: settings.remindersEnabled && !testReminderSending
+                      ? onAlarmClockOneMinuteTestPressed
+                      : null,
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.fact_check_outlined),
+                title: const Text('查看待触发提醒'),
+                subtitle: Text(
+                  '当前待触发提醒：${debugState.pendingNotificationCount ?? 0} 个',
+                ),
+                trailing: IconButton(
+                  tooltip: '查看待触发提醒',
+                  icon: const Icon(Icons.refresh_outlined),
+                  onPressed: onPendingPressed,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(56, 0, 0, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '如果定时测试没有弹出，但 pending 消失，说明系统已处理该定时提醒，但本机可能未展示；正式提醒会以前台 Timer 为主。',
+                  ),
+                ),
+              ),
+              _ReminderDebugPanel(debugState: debugState),
+            ],
           ),
         ),
-        _ReminderDebugPanel(debugState: debugState),
         if (testReminderFeedback != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(56, 0, 0, 8),
@@ -1168,7 +1237,7 @@ class _SettingsLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     return const _SettingsGroup(
       icon: Icons.notifications_active_outlined,
-      title: '坐站提醒',
+      title: '坐走提醒',
       children: [
         ListTile(
           contentPadding: EdgeInsets.zero,
@@ -1192,7 +1261,7 @@ class _SettingsError extends StatelessWidget {
   Widget build(BuildContext context) {
     return _SettingsGroup(
       icon: Icons.error_outline,
-      title: '坐站提醒',
+      title: '坐走提醒',
       children: [
         ListTile(
           contentPadding: EdgeInsets.zero,

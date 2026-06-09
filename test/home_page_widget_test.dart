@@ -47,7 +47,7 @@ void main() {
     final durationText = tester.widget<Text>(
       find.byKey(const ValueKey('today-rhythm-duration')),
     );
-    expect(durationText.style?.fontSize, greaterThanOrEqualTo(88));
+    expect(durationText.style?.fontSize, greaterThanOrEqualTo(72));
     expect(find.text('当前状态：我在坐'), findsOneWidget);
     expect(find.text('节奏正常'), findsWidgets);
     final rhythmCard = tester.widget<Card>(
