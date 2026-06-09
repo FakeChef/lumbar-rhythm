@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -144,10 +142,10 @@ void main() {
     expect(find.text('我在坐'), findsWidgets);
     expect(find.text('我在站'), findsWidgets);
     expect(find.text('我在走'), findsWidgets);
-    expect(find.text('我在休息'), findsNothing);
+    expect(find.text('休息'), findsWidgets);
     expect(find.byKey(const ValueKey('today-add-rehab-log')), findsNothing);
-    expect(find.byKey(const ValueKey('today-daytime-cycle-start')),
-        findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('today-daytime-cycle-start')), findsNothing);
   });
 
   testWidgets('app startup requests notification permission when reminders run',
@@ -176,11 +174,11 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     expect(notificationService.permissionRequests, 1);
-    expect(notificationService.scheduledPostures, isEmpty);
-    expect(notificationService.cancelAllCount, greaterThanOrEqualTo(1));
+    expect(notificationService.startedCountdownPostures, isEmpty);
+    expect(notificationService.stopCountdownCount, 0);
   });
 
-  testWidgets('sitting and standing schedule real posture reminders',
+  testWidgets('sitting and standing start manual posture countdowns',
       (tester) async {
     final postureRepository = _FakePostureRepository();
     final notificationService = _FakeNotification();
@@ -199,37 +197,24 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
     await tester.pumpAndSettle();
-    expect(
-        notificationService.scheduledPostures, contains(PostureType.sitting));
-    expect(notificationService.postureReminderModes, [ReminderMode.vibration]);
-    expect(notificationService.postureReminderChannels,
-        [NotificationService.vibrationChannelId]);
+    expect(notificationService.startedCountdownPostures,
+        contains(PostureType.sitting));
+    expect(notificationService.countdownModes, [ReminderMode.vibration]);
     expect(postureRepository.openSession?.type, PostureType.sitting);
-    expect(notificationService.foregroundWatcherActive, isTrue);
-    expect(notificationService.foregroundWatcherPostures.last,
-        PostureType.sitting);
-    expect(find.textContaining('久坐提醒已开启'), findsOneWidget);
-    expect(find.textContaining('预计约'), findsOneWidget);
+    expect(find.textContaining('久坐倒计时中'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('today-posture-standing')));
     await tester.pumpAndSettle();
-    expect(
-        notificationService.scheduledPostures, contains(PostureType.standing));
-    expect(notificationService.postureReminderModes,
+    expect(notificationService.startedCountdownPostures,
+        contains(PostureType.standing));
+    expect(notificationService.countdownModes,
         [ReminderMode.vibration, ReminderMode.vibration]);
-    expect(notificationService.postureReminderChannels, [
-      NotificationService.vibrationChannelId,
-      NotificationService.vibrationChannelId,
-    ]);
     expect(postureRepository.openSession?.type, PostureType.standing);
     expect(rehabRepository.addedLogs, isEmpty);
-    expect(notificationService.foregroundWatcherActive, isTrue);
-    expect(notificationService.foregroundWatcherPostures.last,
-        PostureType.standing);
-    expect(find.textContaining('久站提醒已开启'), findsOneWidget);
+    expect(find.textContaining('久站倒计时中'), findsOneWidget);
   });
 
-  testWidgets('walking cancels posture reminder without scheduling',
+  testWidgets('walking stops posture countdown without scheduling',
       (tester) async {
     final postureRepository = _FakePostureRepository();
     final notificationService = _FakeNotification();
@@ -245,14 +230,33 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('today-posture-walking')));
     await tester.pumpAndSettle();
-    expect(notificationService.scheduledPostures, [PostureType.sitting]);
-    expect(notificationService.cancelAllCount, greaterThanOrEqualTo(1));
-    expect(notificationService.foregroundWatcherActive, isFalse);
+    expect(notificationService.startedCountdownPostures, [PostureType.sitting]);
+    expect(notificationService.stopCountdownCount, greaterThanOrEqualTo(1));
     expect(postureRepository.openSession?.type, PostureType.walking);
+    expect(find.text('当前状态不需要久坐/久站倒计时。'), findsOneWidget);
     expect(rehabRepository.addedLogs.single.source, 'posture_session');
   });
 
-  testWidgets('disabled reminders do not schedule posture reminder',
+  testWidgets('resting stops posture countdown', (tester) async {
+    final postureRepository = _FakePostureRepository();
+    final notificationService = _FakeNotification();
+    await _pumpHome(
+      tester,
+      postureRepository: postureRepository,
+      notificationService: notificationService,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('today-posture-resting')));
+    await tester.pumpAndSettle();
+
+    expect(postureRepository.openSession?.type, PostureType.resting);
+    expect(notificationService.stopCountdownCount, greaterThanOrEqualTo(1));
+    expect(find.text('当前状态不需要久坐/久站倒计时。'), findsOneWidget);
+  });
+
+  testWidgets('disabled reminders do not start posture countdown',
       (tester) async {
     final notificationService = _FakeNotification();
     await _pumpHome(
@@ -266,16 +270,15 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
     await tester.pumpAndSettle();
 
-    expect(notificationService.scheduledPostures, isEmpty);
-    expect(notificationService.cancelAllCount, greaterThanOrEqualTo(1));
-    expect(notificationService.foregroundWatcherActive, isFalse);
+    expect(notificationService.startedCountdownPostures, isEmpty);
+    expect(notificationService.stopCountdownCount, greaterThanOrEqualTo(1));
     expect(find.textContaining('提醒未开启'), findsOneWidget);
   });
 
-  testWidgets('posture switch keeps record and records scheduling failures',
+  testWidgets('posture switch keeps record and shows countdown failure',
       (tester) async {
     final postureRepository = _FakePostureRepository();
-    final notificationService = _FakeNotification(failScheduling: true);
+    final notificationService = _FakeNotification(failCountdownStart: true);
 
     await _pumpHome(
       tester,
@@ -287,14 +290,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(postureRepository.openSession?.type, PostureType.sitting);
-    expect(notificationService.lastRecordedError, contains('schedule failed'));
-    expect(find.textContaining('久坐提醒没有安排成功'), findsOneWidget);
+    expect(find.textContaining('倒计时启动失败'), findsOneWidget);
   });
 
-  test('latest posture schedule is not overwritten by stale startup cancel',
+  test('latest posture countdown is not overwritten by startup setup',
       () async {
     final postureRepository = _FakePostureRepository();
-    final notificationService = _FakeNotification(delayFirstSchedule: true);
+    final notificationService = _FakeNotification();
     final container = ProviderContainer(
       overrides: [
         postureSessionRepositoryProvider.overrideWithValue(postureRepository),
@@ -308,27 +310,27 @@ void main() {
     addTearDown(container.dispose);
 
     await container.read(postureSessionControllerProvider.future);
-    final switchFuture = container
+    await container
         .read(postureSessionControllerProvider.notifier)
         .startSitting();
-    await Future<void>.delayed(Duration.zero);
 
-    expect(notificationService.scheduledPostures, isEmpty);
-
-    notificationService.completeFirstSchedule();
-    await switchFuture;
-
-    expect(notificationService.scheduledPostures, [PostureType.sitting]);
+    expect(notificationService.startedCountdownPostures, [PostureType.sitting]);
   });
 
-  test(
-      'restored overdue sitting and standing sessions fire foreground reminder',
-      () async {
+  test('restored sitting and standing sessions show countdown state', () async {
     for (final posture in [PostureType.sitting, PostureType.standing]) {
       final postureRepository = _FakePostureRepository(
-        openSession: _session(posture, minutesAgo: 60),
+        openSession: _session(posture, minutesAgo: 10),
       );
-      final notificationService = _FakeNotification();
+      final notificationService = _FakeNotification(
+        countdownState: PostureCountdownState(
+          running: true,
+          postureType: posture,
+          remainingSeconds: 120,
+          startedAt: DateTime.now().subtract(const Duration(minutes: 10)),
+          dueAt: DateTime.now().add(const Duration(minutes: 2)),
+        ),
+      );
       final container = ProviderContainer(
         overrides: [
           postureSessionRepositoryProvider.overrideWithValue(postureRepository),
@@ -345,128 +347,27 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(restored?.type, posture);
-      expect(notificationService.duePostures, [posture]);
-      expect(notificationService.cancelledPostures, [posture]);
-      expect(notificationService.scheduledPostures, [posture]);
-      expect(notificationService.foregroundWatcherActive, isTrue);
-      expect(notificationService.hybridTriggeredBy, ['foregroundWatcher']);
-      expect(container.read(postureReminderStatusProvider), isNotNull);
+      expect(
+        container.read(postureReminderStatusProvider),
+        contains(posture == PostureType.standing ? '久站倒计时中' : '久坐倒计时中'),
+      );
       container.dispose();
     }
   });
 
-  testWidgets('foreground reminder retries after a failed show',
-      (tester) async {
+  test('due countdown state shows one-shot due message', () async {
     final postureRepository = _FakePostureRepository(
       openSession: _session(PostureType.sitting, minutesAgo: 60),
     );
-    final notificationService = _FakeNotification(dueResults: [false, true]);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          postureSessionRepositoryProvider.overrideWithValue(postureRepository),
-          reminderSettingsRepositoryProvider.overrideWithValue(
-            _FakeReminderSettingsRepository(),
-          ),
-          notificationServiceProvider.overrideWithValue(notificationService),
-        ],
-        child: Consumer(
-          builder: (context, ref, child) {
-            ref.watch(postureSessionControllerProvider);
-            return const SizedBox();
-          },
-        ),
+    final notificationService = _FakeNotification(
+      countdownState: PostureCountdownState(
+        running: false,
+        postureType: PostureType.sitting,
+        remainingSeconds: 0,
+        startedAt: DateTime.now().subtract(const Duration(hours: 1)),
+        dueAt: DateTime.now().subtract(const Duration(minutes: 1)),
       ),
     );
-
-    await tester.pump();
-    await tester.pump();
-    expect(notificationService.duePostures, [PostureType.sitting]);
-    expect(notificationService.cancelledPostures, isEmpty);
-
-    await tester.pump(postureForegroundReminderCheckInterval);
-    await tester.pump();
-    expect(
-      notificationService.duePostures,
-      [PostureType.sitting, PostureType.sitting],
-    );
-    expect(notificationService.cancelledPostures, [PostureType.sitting]);
-  });
-
-  testWidgets('foreground watcher fires once for an overdue session',
-      (tester) async {
-    final postureRepository = _FakePostureRepository(
-      openSession: _session(PostureType.sitting, minutesAgo: 60),
-    );
-    final notificationService = _FakeNotification();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          postureSessionRepositoryProvider.overrideWithValue(postureRepository),
-          reminderSettingsRepositoryProvider.overrideWithValue(
-            _FakeReminderSettingsRepository(),
-          ),
-          notificationServiceProvider.overrideWithValue(notificationService),
-        ],
-        child: Consumer(
-          builder: (context, ref, child) {
-            ref.watch(postureSessionControllerProvider);
-            return const SizedBox();
-          },
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
-
-    expect(notificationService.foregroundWatcherActive, isTrue);
-    expect(notificationService.duePostures, [PostureType.sitting]);
-    expect(notificationService.hybridTriggeredBy, ['foregroundWatcher']);
-
-    await tester.pump(postureForegroundReminderCheckInterval);
-    await tester.pump();
-
-    expect(notificationService.duePostures, [PostureType.sitting]);
-  });
-
-  testWidgets('foreground watcher does not fire before due time',
-      (tester) async {
-    final postureRepository = _FakePostureRepository(
-      openSession: _session(PostureType.sitting, minutesAgo: 10),
-    );
-    final notificationService = _FakeNotification();
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          postureSessionRepositoryProvider.overrideWithValue(postureRepository),
-          reminderSettingsRepositoryProvider.overrideWithValue(
-            _FakeReminderSettingsRepository(),
-          ),
-          notificationServiceProvider.overrideWithValue(notificationService),
-        ],
-        child: Consumer(
-          builder: (context, ref, child) {
-            ref.watch(postureSessionControllerProvider);
-            return const SizedBox();
-          },
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(postureForegroundReminderCheckInterval);
-
-    expect(notificationService.foregroundWatcherActive, isTrue);
-    expect(notificationService.duePostures, isEmpty);
-    expect(notificationService.hybridTriggeredBy, isEmpty);
-  });
-
-  test('app resume catchup fires overdue posture reminder once', () async {
-    final postureRepository = _FakePostureRepository(
-      openSession: _session(PostureType.sitting, minutesAgo: 60),
-    );
-    final notificationService = _FakeNotification(dueResults: [false, true]);
     final container = ProviderContainer(
       overrides: [
         postureSessionRepositoryProvider.overrideWithValue(postureRepository),
@@ -479,58 +380,13 @@ void main() {
     addTearDown(container.dispose);
 
     await container.read(postureSessionControllerProvider.future);
-    await Future<void>.delayed(Duration.zero);
-    await container
-        .read(postureSessionControllerProvider.notifier)
-        .handleAppResumed();
-    await Future<void>.delayed(Duration.zero);
-
-    expect(
-      notificationService.duePostures,
-      [PostureType.sitting, PostureType.sitting],
-    );
-    expect(notificationService.hybridTriggeredBy, ['lifecycleCatchup']);
     expect(
       container.read(postureReminderStatusProvider),
-      '刚刚补发了一条久坐提醒。',
-    );
-
-    await container
-        .read(postureSessionControllerProvider.notifier)
-        .handleAppResumed();
-
-    expect(
-      notificationService.duePostures,
-      [PostureType.sitting, PostureType.sitting],
+      '久坐已到提醒时间，建议现在活动一下。',
     );
   });
 
-  test('app resume catchup does not fire before due time', () async {
-    final postureRepository = _FakePostureRepository(
-      openSession: _session(PostureType.standing, minutesAgo: 10),
-    );
-    final notificationService = _FakeNotification();
-    final container = ProviderContainer(
-      overrides: [
-        postureSessionRepositoryProvider.overrideWithValue(postureRepository),
-        reminderSettingsRepositoryProvider.overrideWithValue(
-          _FakeReminderSettingsRepository(),
-        ),
-        notificationServiceProvider.overrideWithValue(notificationService),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    await container.read(postureSessionControllerProvider.future);
-    await container
-        .read(postureSessionControllerProvider.notifier)
-        .handleAppResumed();
-
-    expect(notificationService.duePostures, isEmpty);
-    expect(notificationService.hybridTriggeredBy, isEmpty);
-  });
-
-  test('one minute sitting diagnostic starts hybrid reminder chain', () async {
+  test('one minute sitting diagnostic starts manual countdown', () async {
     final postureRepository = _FakePostureRepository();
     final notificationService = _FakeNotification();
     final container = ProviderContainer(
@@ -550,18 +406,14 @@ void main() {
         .startTodaySittingChainTest();
 
     expect(postureRepository.openSession?.type, PostureType.sitting);
-    expect(notificationService.scheduledPostures, [PostureType.sitting]);
+    expect(notificationService.startedCountdownPostures, [PostureType.sitting]);
     expect(
-        notificationService.scheduledDelays.single, const Duration(minutes: 1));
-    expect(notificationService.foregroundWatcherActive, isTrue);
-    expect(
-        notificationService.foregroundDueAts.single.difference(
-          postureRepository.openSession!.startedAt,
-        ),
-        const Duration(minutes: 1));
+      notificationService.countdownDurations.single,
+      const Duration(minutes: 1),
+    );
     expect(
       container.read(postureReminderStatusProvider),
-      contains('预计约 1 分钟后提醒'),
+      contains('久坐倒计时中'),
     );
   });
 
@@ -811,37 +663,19 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 
 class _FakeNotification extends NotificationService {
   _FakeNotification({
-    List<bool> dueResults = const [],
-    this.failScheduling = false,
-    this.delayFirstSchedule = false,
-  }) : _dueResults = [...dueResults];
+    this.failCountdownStart = false,
+    this.countdownState = const PostureCountdownState(running: false),
+  });
 
-  final List<bool> _dueResults;
-  final bool failScheduling;
-  final bool delayFirstSchedule;
-  final scheduledPostures = <PostureType?>[];
-  final postureReminderModes = <ReminderMode>[];
-  final postureReminderChannels = <String>[];
-  final scheduledDelays = <Duration>[];
-  final duePostures = <PostureType>[];
-  final dueModes = <ReminderMode>[];
-  final cancelledPostures = <PostureType>[];
-  final foregroundWatcherPostures = <PostureType?>[];
-  final foregroundDueAts = <DateTime>[];
-  final hybridTriggeredBy = <String>[];
-  bool foregroundWatcherActive = false;
-  int cancelAllCount = 0;
-  final Completer<void> _firstScheduleCompleter = Completer<void>();
-  var _scheduleCalls = 0;
+  final bool failCountdownStart;
+  PostureCountdownState countdownState;
+  final startedCountdownPostures = <PostureType>[];
+  final countdownModes = <ReminderMode>[];
+  final countdownDurations = <Duration>[];
+  int stopCountdownCount = 0;
   int initializeCalls = 0;
   int permissionRequests = 0;
   String? lastRecordedError;
-
-  void completeFirstSchedule() {
-    if (!_firstScheduleCompleter.isCompleted) {
-      _firstScheduleCompleter.complete();
-    }
-  }
 
   @override
   Future<void> initialize() async {
@@ -855,111 +689,48 @@ class _FakeNotification extends NotificationService {
   }
 
   @override
-  Future<bool> scheduleNextReminders({
-    required bool enabled,
-    required int sittingIntervalMinutes,
-    required int standingIntervalMinutes,
-    int walkingIntervalMinutes = 10,
-    ReminderMode reminderMode = ReminderMode.soft,
-    PostureType? currentPosture,
-    DateTime? currentSessionStartedAt,
+  Future<bool> startPostureCountdown({
+    required PostureType postureType,
+    required Duration duration,
+    required ReminderMode reminderMode,
+    required DateTime startedAt,
   }) async {
-    if (failScheduling) {
-      throw StateError('schedule failed');
-    }
-    _scheduleCalls++;
-    if (delayFirstSchedule && _scheduleCalls == 1) {
-      await _firstScheduleCompleter.future;
-    }
-    if (!enabled ||
-        currentPosture == null ||
-        currentPosture == PostureType.walking ||
-        currentPosture == PostureType.resting) {
-      await cancelScheduledReminders();
+    if (failCountdownStart) {
       return false;
     }
-    return schedulePostureReminder(
-      postureType: currentPosture,
-      delay: Duration(
-        minutes: currentPosture == PostureType.standing
-            ? standingIntervalMinutes
-            : sittingIntervalMinutes,
-      ),
-      mode: reminderMode,
-      sessionStartedAt: currentSessionStartedAt ?? DateTime.now(),
+    startedCountdownPostures.add(postureType);
+    countdownModes.add(reminderMode);
+    countdownDurations.add(duration);
+    countdownState = PostureCountdownState(
+      running: true,
+      postureType: postureType,
+      remainingSeconds: duration.inSeconds,
+      startedAt: startedAt,
+      dueAt: startedAt.add(duration),
     );
-  }
-
-  @override
-  Future<bool> schedulePostureReminder({
-    required PostureType postureType,
-    required Duration delay,
-    required ReminderMode mode,
-    required DateTime sessionStartedAt,
-    ReminderScheduleDiagnosticMode diagnosticMode =
-        ReminderScheduleDiagnosticMode.inexactAllowWhileIdle,
-  }) async {
-    if (failScheduling) {
-      throw StateError('schedule failed');
-    }
-    scheduledPostures.add(postureType);
-    scheduledDelays.add(delay);
-    postureReminderModes.add(mode);
-    postureReminderChannels.add(channelIdForReminderMode(mode));
     return true;
   }
 
   @override
-  Future<void> cancelScheduledReminders() async {
-    cancelAllCount += 1;
+  Future<void> stopPostureCountdown() async {
+    stopCountdownCount += 1;
+    countdownState = PostureCountdownState(
+      running: false,
+      postureType: countdownState.postureType,
+      remainingSeconds: 0,
+      startedAt: countdownState.startedAt,
+      dueAt: countdownState.dueAt,
+    );
   }
 
   @override
-  Future<bool> showPostureDueReminder({
-    required PostureType posture,
-    ReminderMode reminderMode = ReminderMode.soft,
-  }) async {
-    duePostures.add(posture);
-    dueModes.add(reminderMode);
-    if (_dueResults.isEmpty) {
-      return true;
-    }
-    return _dueResults.removeAt(0);
-  }
-
-  @override
-  Future<void> cancelScheduledReminderForPosture(PostureType posture) async {
-    cancelledPostures.add(posture);
+  Future<PostureCountdownState> getPostureCountdownState() async {
+    return countdownState;
   }
 
   @override
   void recordError(Object error) {
     lastRecordedError = error.toString();
-  }
-
-  @override
-  void updateHybridReminderState({
-    required bool foregroundWatcherActive,
-    DateTime? foregroundDueAt,
-    PostureType? postureType,
-    DateTime? sessionStartedAt,
-  }) {
-    this.foregroundWatcherActive = foregroundWatcherActive;
-    foregroundWatcherPostures.add(postureType);
-    if (foregroundDueAt != null) {
-      foregroundDueAts.add(foregroundDueAt);
-    }
-  }
-
-  @override
-  void recordHybridReminderFired({
-    required String triggeredBy,
-    required DateTime firedAt,
-    required PostureType postureType,
-    required DateTime sessionStartedAt,
-    required DateTime dueAt,
-  }) {
-    hybridTriggeredBy.add(triggeredBy);
   }
 }
 

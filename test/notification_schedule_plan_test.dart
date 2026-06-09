@@ -1,13 +1,13 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
 import 'package:lumbar_rhythm/features/posture/domain/posture_session.dart';
 import 'package:lumbar_rhythm/features/settings/domain/reminder_settings.dart';
 
 void main() {
-  test('builds notification plan from current posture only', () {
+  test('builds countdown plan from current posture only', () {
     expect(
       buildReminderSchedulePlan(
         enabled: true,
@@ -49,480 +49,115 @@ void main() {
     expect(vibration?.importance, Importance.high);
   });
 
-  test('notification details are Android-only and include gentle actions', () {
+  test('notification details are Android-only without repeat actions', () {
     final details = buildReminderNotificationDetails();
-    final android = details.android;
 
     expect(details.iOS, isNull);
-    expect(android, isNotNull);
-    expect(
-      android!.actions?.map((action) => action.id),
-      containsAll(['postpone_10m', 'dismiss_once']),
-    );
-    expect(
-      android.actions?.map((action) => action.title),
-      containsAll(['10 分钟后提醒', '忽略本次']),
-    );
+    expect(details.android, isNotNull);
+    expect(details.android!.actions, isNull);
   });
 
-  test('notification service source does not contain Darwin branches', () {
-    final source = File(
-      'lib/core/notifications/notification_service.dart',
-    ).readAsStringSync();
-
-    expect(source, isNot(contains('Darwin')));
-    expect(source, isNot(contains('IOSFlutterLocalNotificationsPlugin')));
-  });
-
-  test(
-    'Android manifest declares local notification permissions and receivers',
-    () {
-      final manifest = File(
-        'android/app/src/main/AndroidManifest.xml',
-      ).readAsStringSync();
-
-      expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
-      expect(manifest, contains('android.permission.VIBRATE'));
-      expect(
-        manifest,
-        contains(
-          'com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver',
-        ),
-      );
-      if (manifest.contains('android.permission.RECEIVE_BOOT_COMPLETED')) {
-        expect(
-          manifest,
-          contains(
-            'com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver',
-          ),
-        );
-        expect(manifest, contains('android.intent.action.BOOT_COMPLETED'));
-        expect(manifest, contains('android.intent.action.MY_PACKAGE_REPLACED'));
-      }
-      expect(manifest, isNot(contains('android.permission.USE_EXACT_ALARM')));
-      expect(
-        manifest,
-        isNot(contains('android.permission.SCHEDULE_EXACT_ALARM')),
-      );
-    },
-  );
-
-  test(
-    'scheduled reminders initialize timezone database before scheduling',
-    () {
-      final service = File(
-        'lib/core/notifications/notification_service.dart',
-      ).readAsStringSync();
-      final scheduleStart = service.indexOf('Future<void> _scheduleReminder');
-      final scheduleEnd = service.indexOf('Future<List<int>> _readPending');
-      final scheduleReminder = service.substring(scheduleStart, scheduleEnd);
-
-      expect(
-        scheduleReminder.indexOf('_ensureTimeZonesInitialized();'),
-        lessThan(scheduleReminder.indexOf('_plugin.zonedSchedule')),
-      );
-      expect(service, contains('tz_data.initializeTimeZones();'));
-    },
-  );
-
-  test(
-    'notification service does not reference Android raw sound resources',
-    () {
-      final service = File(
-        'lib/core/notifications/notification_service.dart',
-      ).readAsStringSync();
-      final rawSoundDirectory = Directory('android/app/src/main/res/raw');
-
-      expect(service, isNot(contains('RawResourceAndroidNotificationSound')));
-      expect(rawSoundDirectory.existsSync(), isFalse);
-    },
-  );
-
-  test('notification initialization uses a drawable small icon', () {
-    final service = File(
-      'lib/core/notifications/notification_service.dart',
-    ).readAsStringSync();
+  test('Android manifest declares foreground countdown service safely', () {
     final manifest = File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
-    final icon = File(
-      'android/app/src/main/res/drawable/ic_stat_notification.xml',
+
+    expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
+    expect(manifest, contains('android.permission.VIBRATE'));
+    expect(manifest, contains('android.permission.FOREGROUND_SERVICE'));
+    expect(
+      manifest,
+      contains('android.permission.FOREGROUND_SERVICE_SPECIAL_USE'),
     );
+    expect(manifest, contains('.PostureCountdownService'));
+    expect(manifest, contains('android:foregroundServiceType="specialUse"'));
+    expect(
+        manifest, isNot(contains('android.permission.ACCESS_FINE_LOCATION')));
+    expect(manifest, isNot(contains('android.permission.CAMERA')));
+    expect(manifest, isNot(contains('android.permission.RECORD_AUDIO')));
+    expect(manifest, isNot(contains('android.permission.BODY_SENSORS')));
+    expect(manifest, isNot(contains('android.permission.USE_EXACT_ALARM')));
+    expect(
+      manifest,
+      isNot(contains('android.permission.SCHEDULE_EXACT_ALARM')),
+    );
+  });
+
+  test('foreground service sends one due reminder and does not loop', () {
+    final service = File(
+      'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/PostureCountdownService.kt',
+    ).readAsStringSync();
+
+    expect(service, contains('startForeground'));
+    expect(service, contains('TICK_INTERVAL_MILLIS = 15_000L'));
+    expect(service, contains('reminderShown'));
+    expect(service, contains('if (!state.reminderShown)'));
+    expect(service, contains('stopSelf()'));
+    expect(service, isNot(contains('BOOT_COMPLETED')));
+    expect(service, isNot(contains('zonedSchedule')));
+  });
+
+  test('method channel exposes manual posture countdown methods', () {
+    final service = File(
+      'lib/core/notifications/notification_service.dart',
+    ).readAsStringSync();
+    final activity = File(
+      'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/MainActivity.kt',
+    ).readAsStringSync();
 
     expect(
-      service,
-      contains("AndroidInitializationSettings('ic_stat_notification')"),
-    );
-    expect(
-      service,
-      isNot(contains("AndroidInitializationSettings('@mipmap/ic_launcher')")),
-    );
-    expect(manifest, contains('@drawable/ic_stat_notification'));
-    expect(icon.existsSync(), isTrue);
+        service, contains("MethodChannel('lumbar_rhythm/posture_countdown')"));
+    expect(service, contains('startPostureCountdown'));
+    expect(service, contains('stopPostureCountdown'));
+    expect(service, contains('getPostureCountdownState'));
+    expect(activity, contains('startPostureCountdown'));
+    expect(activity, contains('stopPostureCountdown'));
+    expect(activity, contains('getPostureCountdownState'));
   });
 
-  test('vibration reminder does not play sound', () {
-    final details = buildReminderNotificationDetails(
-      reminderMode: ReminderMode.vibration,
-    );
-    final android = details.android;
+  test('real posture reminder path no longer schedules pending notifications',
+      () {
+    final service = File(
+      'lib/core/notifications/notification_service.dart',
+    ).readAsStringSync();
+    final scheduleStart = service.indexOf('Future<bool> scheduleNextReminders');
+    final scheduleEnd = service.indexOf('Future<bool> schedulePostureReminder');
+    final scheduleNext = service.substring(scheduleStart, scheduleEnd);
 
-    expect(android, isNotNull);
-    expect(android!.playSound, isFalse);
-    expect(android.enableVibration, isTrue);
-    expect(android.vibrationPattern, isNotNull);
+    expect(scheduleNext, contains('手动倒计时模式不安排后台定时提醒'));
+    expect(scheduleNext, isNot(contains('_scheduleReminder(')));
+    expect(scheduleNext, isNot(contains('zonedSchedule')));
   });
 
-  test('alarm reminder uses sound and vibration with high priority', () {
-    final details = buildReminderNotificationDetails(
-      reminderMode: ReminderMode.alarm,
-    );
-    final android = details.android;
-
-    expect(android, isNotNull);
-    expect(android!.importance, Importance.high);
-    expect(android.priority, Priority.high);
-    expect(android.playSound, isTrue);
-    expect(android.enableVibration, isTrue);
-    expect(android.vibrationPattern, isNotNull);
-  });
-
-  test('reminder debug state records scheduled notification metadata', () {
-    final dueAt = DateTime(2026, 6, 7, 14, 32);
-    final state = ReminderDebugState(
-      lastLocalScheduleRequestedAt: DateTime(2026, 6, 7, 14, 31),
-      lastLocalScheduleDueAt: dueAt,
-      lastNotificationId: 201,
-      lastReminderMode: ReminderMode.alarm,
-      lastChannelId: NotificationService.alarmChannelId,
-      pendingNotificationCount: 1,
-      pendingNotificationIds: const [201],
-    );
-
-    expect(state.lastLocalScheduleDueAt, dueAt);
-    expect(state.lastNotificationId, 201);
-    expect(state.lastChannelId, NotificationService.alarmChannelId);
-    expect(state.pendingNotificationCount, 1);
-    expect(state.pendingNotificationIds, [201]);
-  });
-
-  test('notification diagnostic source exposes four verification layers', () {
+  test('settings and home copy describe manual countdown only', () {
     final settings = File(
       'lib/features/settings/presentation/settings_page.dart',
     ).readAsStringSync();
-    final service = File(
-      'lib/core/notifications/notification_service.dart',
-    ).readAsStringSync();
-
-    expect(settings, contains('立即测试提醒'));
-    expect(settings, contains('10 秒前台测试'));
-    expect(settings, contains('1 分钟定时测试：inexactAllowWhileIdle'));
-    expect(settings, contains('1 分钟定时测试：exactAllowWhileIdle'));
-    expect(settings, contains('1 分钟定时测试：alarmClock'));
-    expect(settings, contains('查看待触发提醒'));
-    expect(settings, contains('showReminderNow'));
-    expect(service, contains('showTestReminder'));
-    expect(service, contains('showReminderNow'));
-    expect(service, contains('scheduleForegroundTimerTestReminder'));
-    expect(service, contains('scheduleOneMinuteSittingTestReminder'));
-    expect(service, contains('pendingNotificationRequests'));
-  });
-
-  test(
-    'immediate reminders use direct plugin show without scheduled pending',
-    () {
-      final service = File(
-        'lib/core/notifications/notification_service.dart',
-      ).readAsStringSync();
-      final showReminderNowStart = service.indexOf(
-        'Future<bool> showReminderNow',
-      );
-      final foregroundStart = service.indexOf(
-        'Future<bool> scheduleForegroundTimerTestReminder',
-      );
-      final showReminderNow = service.substring(
-        showReminderNowStart,
-        foregroundStart,
-      );
-
-      expect(showReminderNow, contains('_showNotification'));
-      expect(showReminderNow, isNot(contains('zonedSchedule')));
-      expect(showReminderNow, isNot(contains('pendingNotificationRequests')));
-      expect(
-        showReminderNow,
-        isNot(contains('refreshPendingScheduledNotifications')),
-      );
-    },
-  );
-
-  test('foreground test uses Dart Timer before direct show', () {
-    final service = File(
-      'lib/core/notifications/notification_service.dart',
-    ).readAsStringSync();
-    final foregroundStart = service.indexOf(
-      'Future<bool> scheduleForegroundTimerTestReminder',
-    );
-    final oneMinuteStart = service.indexOf(
-      'Future<bool> scheduleOneMinuteSittingTestReminder',
-    );
-    final foregroundTest = service.substring(foregroundStart, oneMinuteStart);
-
-    expect(foregroundTest, contains('Timer(delay'));
-    expect(foregroundTest, contains('showReminderNow'));
-    expect(foregroundTest, contains('lastForegroundTimerFiredAt'));
-    expect(foregroundTest, isNot(contains('zonedSchedule')));
-    expect(foregroundTest, isNot(contains('pendingNotificationRequests')));
-  });
-
-  test('scheduled notifications are documented as background fallback', () {
-    final settings = File(
-      'lib/features/settings/presentation/settings_page.dart',
-    ).readAsStringSync();
-    final service = File(
-      'lib/core/notifications/notification_service.dart',
-    ).readAsStringSync();
-
-    expect(settings, contains('主提醒路径'));
-    expect(settings, contains('Android 后台定时辅助路径'));
-    expect(settings, contains('系统已处理该定时提醒，但本机可能未展示'));
-    expect(service, contains('系统已处理该定时提醒，但本机可能未展示'));
-    expect(service, contains('Android may delay inexact reminders'));
-  });
-
-  test('scheduled reminder path requests runtime notification permission', () {
-    final service = File(
-      'lib/core/notifications/notification_service.dart',
-    ).readAsStringSync();
-    final scheduleNextStart = service.indexOf(
-      'Future<bool> scheduleNextReminders',
-    );
-    final cancelStart = service.indexOf(
-      'Future<void> cancelScheduledReminders',
-    );
-    final scheduleNext = service.substring(scheduleNextStart, cancelStart);
-
-    expect(scheduleNext, contains('requestPermissions()'));
-    expect(
-      scheduleNext.indexOf('requestPermissions()'),
-      lessThan(scheduleNext.indexOf('_scheduleReminder(')),
-    );
-    expect(scheduleNext, contains('系统通知权限未开启'));
-  });
-
-  test('app startup defers notification setup until after the first frame', () {
-    final app = File('lib/app/lumbar_rhythm_app.dart').readAsStringSync();
-
-    expect(app, contains('WidgetsBinding.instance.addPostFrameCallback'));
-    expect(app, isNot(contains('Future.microtask(_initializeNotifications)')));
-  });
-
-  test('notification failures are recorded in debug state', () {
-    final service = File(
-      'lib/core/notifications/notification_service.dart',
-    ).readAsStringSync();
-    final app = File('lib/app/lumbar_rhythm_app.dart').readAsStringSync();
-    final postureController = File(
+    final controller = File(
       'lib/features/posture/application/posture_session_controller.dart',
     ).readAsStringSync();
 
-    expect(service, contains('void recordError(Object error)'));
-    expect(app, contains('notificationService.recordError(error)'));
-    expect(postureController, contains('recordError(error)'));
+    expect(settings, contains('手动倒计时'));
+    expect(settings, contains('到点提醒一次'));
+    expect(controller, contains('久坐倒计时中'));
+    expect(controller, contains('久站倒计时中'));
+    expect(controller, contains('当前状态不需要久坐/久站倒计时'));
+    expect(settings, isNot(contains('白天节奏')));
+    expect(settings, isNot(contains('自动循环提醒')));
+    expect(settings, isNot(contains('全天节奏提醒')));
   });
 
-  test('one minute test reuses real sitting posture reminder path', () {
-    final service = File(
-      'lib/core/notifications/notification_service.dart',
-    ).readAsStringSync();
-
-    expect(service, contains('schedulePostureReminder'));
-    expect(service, contains('postureType: PostureType.sitting'));
-    expect(service, contains('delay: const Duration(minutes: 1)'));
-    expect(service, contains('ReminderScheduleDiagnosticMode'));
-    expect(service, contains('AndroidScheduleMode.inexactAllowWhileIdle'));
-    expect(service, contains('AndroidScheduleMode.exactAllowWhileIdle'));
-    expect(service, contains('AndroidScheduleMode.alarmClock'));
-    expect(service, contains('lastLocalScheduleDueAt'));
-    expect(service, contains('lastNotificationId: id'));
-    expect(service, contains('lastChannelId: channelIdForReminderMode'));
-    expect(service, contains('lastPostureReminderType'));
-    expect(service, contains('lastPostureReminderPending'));
-    expect(service, contains('refreshPendingScheduledNotifications'));
-  });
-
-  test('diagnostic reminders expose permission and v2 channel checks', () {
-    final service = File(
-      'lib/core/notifications/notification_service.dart',
-    ).readAsStringSync();
+  test('diagnostic UI is simplified for regular users', () {
     final settings = File(
       'lib/features/settings/presentation/settings_page.dart',
     ).readAsStringSync();
 
-    expect(service, contains('areNotificationsEnabled'));
-    expect(service, contains('canScheduleExactNotifications'));
-    expect(service, contains('showImmediateDiagnosticReminder'));
-    expect(service, contains('scheduleTenSecondDiagnosticReminder'));
-    expect(service, contains('showVibrationDiagnosticReminder'));
-    expect(service, contains('showAlarmDiagnosticReminder'));
-    expect(service, contains('_plugin.zonedSchedule'));
-    expect(settings, contains('提醒诊断'));
     expect(settings, contains('检查并请求通知权限'));
     expect(settings, contains('发送立即测试提醒'));
-    expect(settings, contains('10 秒后测试提醒'));
-    expect(settings, contains('1 分钟真实久坐提醒测试'));
-    expect(settings, contains('foregroundWatcherActive'));
-    expect(settings, contains('lastPostureReminderTriggeredBy'));
-    expect(service, contains('updateHybridReminderState'));
-    expect(service, contains('recordHybridReminderFired'));
-    expect(settings, contains('最近一次真实坐站提醒'));
-    expect(settings, contains('测试震动提醒'));
-    expect(settings, contains('测试响铃提醒'));
-    expect(settings, contains('当前 channel id'));
-    expect(settings, contains('通知权限状态'));
-    expect(settings, contains('精确提醒状态'));
-    expect(settings, contains('勿扰模式和电池限制'));
+    expect(settings, contains('打开系统通知设置'));
+    expect(settings, isNot(contains('foregroundWatcherActive')));
+    expect(settings, isNot(contains('lastPostureReminderTriggeredBy')));
+    expect(settings, isNot(contains('查看待触发提醒')));
+    expect(settings, isNot(contains('精确提醒状态')));
   });
-
-  test(
-    'stop recording cancels pending reminders and foreground timer can show',
-    () {
-      final postureController = File(
-        'lib/features/posture/application/posture_session_controller.dart',
-      ).readAsStringSync();
-      final service = File(
-        'lib/core/notifications/notification_service.dart',
-      ).readAsStringSync();
-
-      expect(postureController, contains('showPostureDueReminder'));
-      expect(postureController, contains('postureReminderStatusProvider'));
-      expect(postureController, contains('_foregroundReminderSessionKey'));
-      expect(
-          postureController, contains('_configureForegroundWatcher(session)'));
-      expect(postureController, contains('handleAppResumed'));
-      expect(postureController, contains('await _scheduleFor(session)'));
-      expect(
-        postureController,
-        contains('currentSessionStartedAt: session?.startedAt'),
-      );
-      expect(postureController, contains('_stopForegroundMonitor();'));
-      expect(postureController, contains('await _scheduleFor(null)'));
-      expect(service, contains('cancelScheduledReminders'));
-      expect(service, contains('_foregroundTestTimer?.cancel()'));
-      expect(
-        service,
-        isNot(contains('await _plugin.cancel(_foregroundTimerTestReminderId)')),
-      );
-    },
-  );
-
-  test(
-    'sitting and standing foreground reminders call direct now path once',
-    () {
-      final postureController = File(
-        'lib/features/posture/application/posture_session_controller.dart',
-      ).readAsStringSync();
-      final service = File(
-        'lib/core/notifications/notification_service.dart',
-      ).readAsStringSync();
-
-      expect(
-        postureController,
-        contains('sessionKey == _foregroundReminderSessionKey'),
-      );
-      expect(
-        postureController,
-        contains('_foregroundReminderSessionKey = sessionKey'),
-      );
-      expect(postureController, contains('lifecycleCatchup'));
-      expect(postureController, contains('foregroundWatcher'));
-      expect(postureController, contains('settings.standingIntervalMinutes'));
-      expect(postureController, contains('settings.sittingIntervalMinutes'));
-      expect(postureController, contains('showPostureDueReminder'));
-      expect(service, contains('showPostureDueReminder'));
-      expect(service, contains('return showReminderNow'));
-    },
-  );
-
-  test(
-    'posture due reminders only show direct sitting and standing ids',
-    () async {
-      final service = _CapturingNotificationService();
-
-      expect(
-        await service.showPostureDueReminder(
-          posture: PostureType.sitting,
-          reminderMode: ReminderMode.vibration,
-        ),
-        isTrue,
-      );
-      expect(
-        await service.showPostureDueReminder(
-          posture: PostureType.standing,
-          reminderMode: ReminderMode.alarm,
-        ),
-        isTrue,
-      );
-      expect(
-        await service.showPostureDueReminder(posture: PostureType.walking),
-        isFalse,
-      );
-      expect(
-        await service.showPostureDueReminder(posture: PostureType.resting),
-        isFalse,
-      );
-
-      expect(service.shownIds, [101, 102]);
-      expect(service.shownModes, [ReminderMode.vibration, ReminderMode.alarm]);
-    },
-  );
-
-  test('does not request exact alarm permission by default', () {
-    final androidManifest = File(
-      'android/app/src/main/AndroidManifest.xml',
-    ).readAsStringSync();
-    final service = File(
-      'lib/core/notifications/notification_service.dart',
-    ).readAsStringSync();
-    final settings = File(
-      'lib/features/settings/presentation/settings_page.dart',
-    ).readAsStringSync();
-
-    expect(androidManifest, isNot(contains('SCHEDULE_EXACT_ALARM')));
-    expect(androidManifest, isNot(contains('USE_EXACT_ALARM')));
-    expect(service, contains('AndroidScheduleMode.inexactAllowWhileIdle'));
-    expect(settings, contains('主提醒路径'));
-  });
-
-  test('reminder diagnostics do not add medical judgment copy', () {
-    final source = (File(
-              'lib/core/notifications/notification_service.dart',
-            ).readAsStringSync() +
-            File(
-              'lib/features/settings/presentation/settings_page.dart',
-            ).readAsStringSync())
-        .replaceAll('以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。', '');
-    const forbidden = ['治疗', '治愈', '复发判断', '医疗建议', '医学结论'];
-
-    for (final word in forbidden) {
-      expect(source, isNot(contains(word)));
-    }
-  });
-}
-
-class _CapturingNotificationService extends NotificationService {
-  final shownIds = <int>[];
-  final shownModes = <ReminderMode>[];
-
-  @override
-  Future<bool> showReminderNow({
-    required ReminderMode mode,
-    required String title,
-    required String body,
-    int id = 199,
-    bool markAsImmediateTest = false,
-  }) async {
-    shownIds.add(id);
-    shownModes.add(mode);
-    return true;
-  }
 }

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -24,6 +25,55 @@ final reminderDebugStateProvider = StateProvider<ReminderDebugState>((ref) {
 enum ReminderKind {
   sitting,
   standing,
+}
+
+class PostureCountdownState {
+  const PostureCountdownState({
+    required this.running,
+    this.postureType,
+    this.remainingSeconds,
+    this.dueAt,
+    this.startedAt,
+  });
+
+  final bool running;
+  final PostureType? postureType;
+  final int? remainingSeconds;
+  final DateTime? dueAt;
+  final DateTime? startedAt;
+
+  bool get isDue {
+    final due = dueAt;
+    if (running || postureType == null || due == null) {
+      return false;
+    }
+    return !DateTime.now().isBefore(due);
+  }
+
+  static PostureCountdownState fromMap(Map<Object?, Object?> map) {
+    DateTime? millisToDate(Object? value) {
+      if (value is int && value > 0) {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      return null;
+    }
+
+    final postureName = map['postureType'];
+    return PostureCountdownState(
+      running: map['running'] == true,
+      postureType: postureName is String
+          ? PostureType.values.cast<PostureType?>().firstWhere(
+                (type) => type?.name == postureName,
+                orElse: () => null,
+              )
+          : null,
+      remainingSeconds: map['remainingSeconds'] is int
+          ? map['remainingSeconds'] as int
+          : null,
+      dueAt: millisToDate(map['dueAtMillis']),
+      startedAt: millisToDate(map['startedAtMillis']),
+    );
+  }
 }
 
 class ReminderSchedulePlan {
@@ -96,13 +146,7 @@ class ReminderDebugState {
     this.lastPostureReminderType,
     this.lastPostureReminderSessionStartedAt,
     this.lastPostureReminderPending,
-    this.foregroundWatcherActive,
-    this.foregroundDueAt,
-    this.foregroundFiredAt,
-    this.lifecycleCatchupFiredAt,
     this.lastPostureReminderDueAt,
-    this.lastPostureReminderTriggeredBy,
-    this.lastHybridReminderError,
   });
 
   final DateTime? lastImmediateTestAt;
@@ -127,13 +171,7 @@ class ReminderDebugState {
   final PostureType? lastPostureReminderType;
   final DateTime? lastPostureReminderSessionStartedAt;
   final bool? lastPostureReminderPending;
-  final bool? foregroundWatcherActive;
-  final DateTime? foregroundDueAt;
-  final DateTime? foregroundFiredAt;
-  final DateTime? lifecycleCatchupFiredAt;
   final DateTime? lastPostureReminderDueAt;
-  final String? lastPostureReminderTriggeredBy;
-  final String? lastHybridReminderError;
 
   ReminderDebugState copyWith({
     DateTime? lastImmediateTestAt,
@@ -158,13 +196,7 @@ class ReminderDebugState {
     PostureType? lastPostureReminderType,
     DateTime? lastPostureReminderSessionStartedAt,
     bool? lastPostureReminderPending,
-    bool? foregroundWatcherActive,
-    DateTime? foregroundDueAt,
-    DateTime? foregroundFiredAt,
-    DateTime? lifecycleCatchupFiredAt,
     DateTime? lastPostureReminderDueAt,
-    String? lastPostureReminderTriggeredBy,
-    String? lastHybridReminderError,
   }) {
     return ReminderDebugState(
       lastImmediateTestAt: lastImmediateTestAt ?? this.lastImmediateTestAt,
@@ -205,17 +237,8 @@ class ReminderDebugState {
               this.lastPostureReminderSessionStartedAt,
       lastPostureReminderPending:
           lastPostureReminderPending ?? this.lastPostureReminderPending,
-      foregroundWatcherActive:
-          foregroundWatcherActive ?? this.foregroundWatcherActive,
-      foregroundDueAt: foregroundDueAt ?? this.foregroundDueAt,
-      foregroundFiredAt: foregroundFiredAt ?? this.foregroundFiredAt,
-      lifecycleCatchupFiredAt:
-          lifecycleCatchupFiredAt ?? this.lifecycleCatchupFiredAt,
       lastPostureReminderDueAt:
           lastPostureReminderDueAt ?? this.lastPostureReminderDueAt,
-      lastPostureReminderTriggeredBy:
-          lastPostureReminderTriggeredBy ?? this.lastPostureReminderTriggeredBy,
-      lastHybridReminderError: lastHybridReminderError,
     );
   }
 }
@@ -267,6 +290,8 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+  static const MethodChannel _postureCountdownChannel =
+      MethodChannel('lumbar_rhythm/posture_countdown');
   final void Function(ReminderDebugState state)? _onDebugStateChanged;
 
   bool _timeZonesInitialized = false;
@@ -280,53 +305,107 @@ class NotificationService {
 
   ReminderDebugState get debugState => _debugState;
 
+  Future<bool> startPostureCountdown({
+    required PostureType postureType,
+    required Duration duration,
+    required ReminderMode reminderMode,
+    required DateTime startedAt,
+  }) async {
+    if (postureType != PostureType.sitting &&
+        postureType != PostureType.standing) {
+      await stopPostureCountdown();
+      return false;
+    }
+    try {
+      await initialize();
+      final permissionGranted = await requestPermissions();
+      if (!permissionGranted) {
+        _updateDebug(
+          _debugState.copyWith(lastErrorMessage: '系统通知权限未开启。'),
+        );
+        return false;
+      }
+      await _postureCountdownChannel.invokeMethod<void>(
+        'startPostureCountdown',
+        {
+          'postureType': postureType.name,
+          'durationSeconds': duration.inSeconds,
+          'reminderMode': reminderMode.name,
+          'startedAtMillis': startedAt.millisecondsSinceEpoch,
+        },
+      );
+      final dueAt = startedAt.add(duration);
+      _updateDebug(
+        _debugState.copyWith(
+          lastPostureReminderType: postureType,
+          lastPostureReminderSessionStartedAt: startedAt,
+          lastPostureReminderDueAt: dueAt,
+          lastReminderMode: reminderMode,
+          lastChannelId: channelIdForReminderMode(reminderMode),
+          lastErrorMessage: null,
+        ),
+      );
+      return true;
+    } catch (error) {
+      _updateDebug(
+        _debugState.copyWith(
+          lastPostureReminderType: postureType,
+          lastPostureReminderSessionStartedAt: startedAt,
+          lastErrorMessage: error.toString(),
+        ),
+      );
+      return false;
+    }
+  }
+
+  Future<void> stopPostureCountdown() async {
+    try {
+      await _postureCountdownChannel.invokeMethod<void>(
+        'stopPostureCountdown',
+      );
+      _updateDebug(
+        _debugState.copyWith(
+          lastPostureReminderPending: false,
+          lastErrorMessage: null,
+        ),
+      );
+    } catch (error) {
+      _updateDebug(
+        _debugState.copyWith(
+          lastErrorMessage: error.toString(),
+        ),
+      );
+    }
+  }
+
+  Future<PostureCountdownState> getPostureCountdownState() async {
+    try {
+      final state = await _postureCountdownChannel
+          .invokeMapMethod<Object?, Object?>('getPostureCountdownState');
+      if (state == null) {
+        return const PostureCountdownState(running: false);
+      }
+      return PostureCountdownState.fromMap(state);
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return const PostureCountdownState(running: false);
+    }
+  }
+
+  Future<bool> openNotificationSettings() async {
+    try {
+      final opened = await _postureCountdownChannel.invokeMethod<bool>(
+        'openNotificationSettings',
+      );
+      return opened ?? false;
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return false;
+    }
+  }
+
   void recordError(Object error) {
     _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
-  }
-
-  void updateHybridReminderState({
-    required bool foregroundWatcherActive,
-    DateTime? foregroundDueAt,
-    PostureType? postureType,
-    DateTime? sessionStartedAt,
-  }) {
-    _updateDebug(
-      _debugState.copyWith(
-        foregroundWatcherActive: foregroundWatcherActive,
-        foregroundDueAt: foregroundDueAt,
-        lastPostureReminderDueAt: foregroundDueAt,
-        lastPostureReminderType: postureType,
-        lastPostureReminderSessionStartedAt: sessionStartedAt,
-        lastHybridReminderError: null,
-      ),
-    );
-  }
-
-  void recordHybridReminderFired({
-    required String triggeredBy,
-    required DateTime firedAt,
-    required PostureType postureType,
-    required DateTime sessionStartedAt,
-    required DateTime dueAt,
-  }) {
-    _updateDebug(
-      _debugState.copyWith(
-        foregroundFiredAt: triggeredBy == 'foregroundWatcher' ? firedAt : null,
-        lifecycleCatchupFiredAt:
-            triggeredBy == 'lifecycleCatchup' ? firedAt : null,
-        lastPostureReminderTriggeredBy: triggeredBy,
-        lastPostureReminderType: postureType,
-        lastPostureReminderSessionStartedAt: sessionStartedAt,
-        lastPostureReminderDueAt: dueAt,
-        lastHybridReminderError: null,
-      ),
-    );
-  }
-
-  void recordHybridReminderError(Object error) {
-    _updateDebug(
-      _debugState.copyWith(lastHybridReminderError: error.toString()),
-    );
   }
 
   Future<void> initialize() async {
@@ -398,8 +477,6 @@ class NotificationService {
     PostureType? currentPosture,
     DateTime? currentSessionStartedAt,
   }) async {
-    await initialize();
-
     if (!enabled) {
       await cancelScheduledReminders();
       _updateDebug(
@@ -419,21 +496,16 @@ class NotificationService {
       await cancelScheduledReminders();
       return false;
     }
-
-    final intervalMinutes = currentPosture == PostureType.standing
-        ? standingIntervalMinutes
-        : sittingIntervalMinutes;
-    return schedulePostureReminder(
-      postureType: currentPosture,
-      delay: Duration(
-        minutes: reminderDelayMinutes(
-          intervalMinutes: intervalMinutes,
-          sessionStartedAt: currentSessionStartedAt,
-        ),
+    _updateDebug(
+      _debugState.copyWith(
+        lastPostureReminderType: currentPosture,
+        lastPostureReminderSessionStartedAt: currentSessionStartedAt,
+        lastPostureReminderPending: false,
+        lastScheduleModeResult: '手动倒计时模式不安排后台定时提醒。',
+        lastErrorMessage: null,
       ),
-      mode: reminderMode,
-      sessionStartedAt: currentSessionStartedAt ?? DateTime.now(),
     );
+    return false;
   }
 
   Future<bool> schedulePostureReminder({
@@ -475,36 +547,22 @@ class NotificationService {
         return false;
       }
 
-      final pendingBefore = await _readPendingNotificationIds();
       await _plugin.cancel(_sittingReminderId);
       await _plugin.cancel(_standingReminderId);
-      final id = _postureReminderId(postureType);
-      await _scheduleReminder(
-        id: id,
-        title: _postureReminderTitle(postureType),
-        body: _postureReminderBody(postureType),
-        delay: delay,
-        reminderMode: mode,
-        androidScheduleMode: diagnosticMode.androidScheduleMode,
-        scheduleModeLabel: diagnosticMode.label,
-      );
-      final pendingAfter = await _readPendingNotificationIds();
-      final pending = pendingAfter.contains(id);
       _updateDebug(
         _debugState.copyWith(
-          pendingNotificationCount: pendingAfter.length,
-          pendingNotificationIds: pendingAfter,
-          scheduledPendingBefore: pendingBefore.length,
-          scheduledPendingAfter: pendingAfter.length,
+          pendingNotificationCount: 0,
+          pendingNotificationIds: const [],
+          scheduledPendingBefore: 0,
+          scheduledPendingAfter: 0,
           lastPostureReminderType: postureType,
           lastPostureReminderSessionStartedAt: sessionStartedAt,
-          lastPostureReminderPending: pending,
-          lastScheduleModeResult:
-              pending ? '已安排，等待系统触发。' : '已请求安排，但 pending 列表未确认该提醒。',
+          lastPostureReminderPending: false,
+          lastScheduleModeResult: '手动倒计时模式不安排后台定时提醒。',
           lastErrorMessage: null,
         ),
       );
-      return true;
+      return false;
     } catch (error) {
       _updateDebug(
         _debugState.copyWith(
@@ -521,12 +579,11 @@ class NotificationService {
   Future<bool> scheduleTodaySittingChainTest({
     required ReminderMode reminderMode,
   }) {
-    final startedAt = DateTime.now();
-    return schedulePostureReminder(
+    return startPostureCountdown(
       postureType: PostureType.sitting,
-      delay: const Duration(minutes: 1),
-      mode: reminderMode,
-      sessionStartedAt: startedAt,
+      duration: const Duration(minutes: 1),
+      reminderMode: reminderMode,
+      startedAt: DateTime.now(),
     );
   }
 
@@ -875,30 +932,6 @@ class NotificationService {
   NotificationDetails _notificationDetails(ReminderMode reminderMode) =>
       buildReminderNotificationDetails(reminderMode: reminderMode);
 
-  int _postureReminderId(PostureType posture) {
-    return switch (posture) {
-      PostureType.sitting => _sittingReminderId,
-      PostureType.standing => _standingReminderId,
-      PostureType.walking || PostureType.resting => _sittingReminderId,
-    };
-  }
-
-  String _postureReminderTitle(PostureType posture) {
-    return switch (posture) {
-      PostureType.sitting => '该起身活动一下了',
-      PostureType.standing => '该坐下休息一下了',
-      PostureType.walking || PostureType.resting => '腰椎节奏提醒',
-    };
-  }
-
-  String _postureReminderBody(PostureType posture) {
-    return switch (posture) {
-      PostureType.sitting => '已经到久坐提醒时间，建议起身走一走。',
-      PostureType.standing => '已经到久站提醒时间，建议坐下放松一会儿。',
-      PostureType.walking || PostureType.resting => '当前状态不需要安排久坐/久站提醒。',
-    };
-  }
-
   void _ensureTimeZonesInitialized() {
     if (_timeZonesInitialized) {
       return;
@@ -925,12 +958,6 @@ String channelIdForReminderMode(ReminderMode reminderMode) {
 NotificationDetails buildReminderNotificationDetails({
   ReminderMode reminderMode = ReminderMode.soft,
 }) {
-  // TODO: Wire these local-only actions to callbacks when a stable notification
-  // action handling path is added. They should affect only the current reminder.
-  const actions = [
-    AndroidNotificationAction('postpone_10m', '10 分钟后提醒'),
-    AndroidNotificationAction('dismiss_once', '忽略本次'),
-  ];
   final android = switch (reminderMode) {
     ReminderMode.soft => const AndroidNotificationDetails(
         NotificationService.softChannelId,
@@ -940,7 +967,6 @@ NotificationDetails buildReminderNotificationDetails({
         priority: Priority.high,
         playSound: true,
         enableVibration: false,
-        actions: actions,
       ),
     ReminderMode.vibration => AndroidNotificationDetails(
         NotificationService.vibrationChannelId,
@@ -951,7 +977,6 @@ NotificationDetails buildReminderNotificationDetails({
         playSound: false,
         enableVibration: true,
         vibrationPattern: Int64List.fromList([0, 180, 120, 180]),
-        actions: actions,
       ),
     ReminderMode.alarm => AndroidNotificationDetails(
         NotificationService.alarmChannelId,
@@ -962,8 +987,6 @@ NotificationDetails buildReminderNotificationDetails({
         playSound: true,
         enableVibration: true,
         vibrationPattern: Int64List.fromList([0, 450, 180, 450]),
-        actions: actions,
-        // TODO: Add a short bundled reminder sound if a gentle custom asset is introduced.
       ),
   };
 

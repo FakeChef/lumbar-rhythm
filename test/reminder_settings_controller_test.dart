@@ -58,13 +58,7 @@ void main() {
     expect(repository.savedSettings.last.sittingIntervalMinutes, 60);
     expect(repository.savedSettings.last.remindersEnabled, isFalse);
     expect(repository.savedSettings.last.reminderMode, ReminderMode.vibration);
-    expect(notificationService.scheduledSettings.last.enabled, isFalse);
-    expect(
-        notificationService.scheduledSettings.last.sittingIntervalMinutes, 60);
-    expect(notificationService.scheduledSettings.last.reminderMode,
-        ReminderMode.vibration);
-    expect(notificationService.scheduledSettings.last.currentPosture,
-        PostureType.sitting);
+    expect(notificationService.stopCountdownCount, greaterThanOrEqualTo(1));
     expect(container.read(appDataRefreshProvider), 3);
   });
 }
@@ -168,48 +162,10 @@ class _FakePostureSessionRepository implements PostureSessionRepository {
 }
 
 class _FakeNotificationService extends NotificationService {
-  final scheduledSettings = <_ScheduledSettings>[];
+  int stopCountdownCount = 0;
 
   @override
-  Future<bool> scheduleNextReminders({
-    required bool enabled,
-    required int sittingIntervalMinutes,
-    required int standingIntervalMinutes,
-    int walkingIntervalMinutes = 10,
-    ReminderMode reminderMode = ReminderMode.soft,
-    PostureType? currentPosture,
-    DateTime? currentSessionStartedAt,
-  }) async {
-    scheduledSettings.add(
-      _ScheduledSettings(
-        enabled: enabled,
-        sittingIntervalMinutes: sittingIntervalMinutes,
-        standingIntervalMinutes: standingIntervalMinutes,
-        reminderMode: reminderMode,
-        currentPosture: currentPosture,
-        currentSessionStartedAt: currentSessionStartedAt,
-      ),
-    );
-    return enabled &&
-        (currentPosture == PostureType.sitting ||
-            currentPosture == PostureType.standing);
+  Future<void> stopPostureCountdown() async {
+    stopCountdownCount += 1;
   }
-}
-
-class _ScheduledSettings {
-  const _ScheduledSettings({
-    required this.enabled,
-    required this.sittingIntervalMinutes,
-    required this.standingIntervalMinutes,
-    required this.reminderMode,
-    required this.currentPosture,
-    required this.currentSessionStartedAt,
-  });
-
-  final bool enabled;
-  final int sittingIntervalMinutes;
-  final int standingIntervalMinutes;
-  final ReminderMode reminderMode;
-  final PostureType? currentPosture;
-  final DateTime? currentSessionStartedAt;
 }
