@@ -72,6 +72,7 @@ This checklist is for preparing Lumbar Rhythm for Android review.
 - Android release APK builds successfully.
 - Android App Bundle builds successfully when preparing for store upload.
 - Android release build steps are documented in `ANDROID_RELEASE.md`.
+- Test APKs are uploaded to GitHub Releases and are not added to Git.
 
 ## Repository
 
@@ -80,4 +81,5 @@ This checklist is for preparing Lumbar Rhythm for Android review.
 - `DISCLAIMER.md` is current.
 - `AGENTS.md` is current.
 - `QA.md` is current.
+- Root APK files are ignored by Git and no APK is staged for commit.
 - Git working tree is clean before tagging a release.
