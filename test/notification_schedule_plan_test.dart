@@ -27,7 +27,7 @@ void main() {
         enabled: true,
         currentPosture: PostureType.walking,
       ).kinds,
-      [ReminderKind.walking],
+      isEmpty,
     );
   });
 
@@ -330,12 +330,14 @@ void main() {
     expect(postureController, contains('recordError(error)'));
   });
 
-  test('one minute test uses a dedicated id and records pending state', () {
+  test('one minute test reuses real sitting posture reminder path', () {
     final service = File(
       'lib/core/notifications/notification_service.dart',
     ).readAsStringSync();
 
-    expect(service, contains('_oneMinuteSittingTestReminderId = 201'));
+    expect(service, contains('schedulePostureReminder'));
+    expect(service, contains('postureType: PostureType.sitting'));
+    expect(service, contains('delay: const Duration(minutes: 1)'));
     expect(service, contains('ReminderScheduleDiagnosticMode'));
     expect(service, contains('AndroidScheduleMode.inexactAllowWhileIdle'));
     expect(service, contains('AndroidScheduleMode.exactAllowWhileIdle'));
@@ -343,6 +345,8 @@ void main() {
     expect(service, contains('lastLocalScheduleDueAt'));
     expect(service, contains('lastNotificationId: id'));
     expect(service, contains('lastChannelId: channelIdForReminderMode'));
+    expect(service, contains('lastPostureReminderType'));
+    expect(service, contains('lastPostureReminderPending'));
     expect(service, contains('refreshPendingScheduledNotifications'));
   });
 
@@ -365,6 +369,8 @@ void main() {
     expect(settings, contains('检查并请求通知权限'));
     expect(settings, contains('发送立即测试提醒'));
     expect(settings, contains('10 秒后测试提醒'));
+    expect(settings, contains('今日页 1 分钟久坐链路测试'));
+    expect(settings, contains('最近一次真实坐站提醒'));
     expect(settings, contains('测试震动提醒'));
     expect(settings, contains('测试响铃提醒'));
     expect(settings, contains('当前 channel id'));
@@ -404,7 +410,7 @@ void main() {
   );
 
   test(
-    'sitting and walking foreground reminders call direct now path once',
+    'sitting and standing foreground reminders call direct now path once',
     () {
       final postureController = File(
         'lib/features/posture/application/posture_session_controller.dart',
@@ -421,7 +427,7 @@ void main() {
         postureController,
         contains('_foregroundReminderSessionId = session.id'),
       );
-      expect(postureController, contains('settings.walkingIntervalMinutes'));
+      expect(postureController, contains('settings.standingIntervalMinutes'));
       expect(postureController, contains('settings.sittingIntervalMinutes'));
       expect(postureController, contains('showPostureDueReminder'));
       expect(service, contains('showPostureDueReminder'));
@@ -430,7 +436,7 @@ void main() {
   );
 
   test(
-    'posture due reminders only show direct sitting and walking ids',
+    'posture due reminders only show direct sitting and standing ids',
     () async {
       final service = _CapturingNotificationService();
 
@@ -443,13 +449,13 @@ void main() {
       );
       expect(
         await service.showPostureDueReminder(
-          posture: PostureType.walking,
+          posture: PostureType.standing,
           reminderMode: ReminderMode.alarm,
         ),
         isTrue,
       );
       expect(
-        await service.showPostureDueReminder(posture: PostureType.standing),
+        await service.showPostureDueReminder(posture: PostureType.walking),
         isFalse,
       );
       expect(
@@ -457,7 +463,7 @@ void main() {
         isFalse,
       );
 
-      expect(service.shownIds, [101, 103]);
+      expect(service.shownIds, [101, 102]);
       expect(service.shownModes, [ReminderMode.vibration, ReminderMode.alarm]);
     },
   );

@@ -13,10 +13,10 @@ void main() {
     expect(home, contains("ValueKey('today-daytime-cycle-start')"));
     expect(home, contains("ValueKey('today-cycle-next-phase')"));
     expect(home, contains('我在坐'));
+    expect(home, contains('我在站'));
     expect(home, contains('我在走'));
     expect(home, contains('今日提醒次数'));
     expect(home, contains('今日停止次数'));
-    expect(home, isNot(contains('我在站')));
     expect(home, isNot(contains('我在休息')));
     expect(home, isNot(contains("ValueKey('today-add-rehab-log')")));
     expect(home, isNot(contains('+ 添加康复记录')));
@@ -69,7 +69,7 @@ void main() {
     expect(reportImage, contains('本报告仅用于个人康复记录回顾'));
   });
 
-  test('v0.4.3 wires walking reminders through local-only services', () {
+  test('walking records remain local and do not schedule posture reminders', () {
     final notifications =
         File('lib/core/notifications/notification_service.dart')
             .readAsStringSync();
@@ -80,8 +80,10 @@ void main() {
         File('lib/features/posture/data/posture_session_repository.dart')
             .readAsStringSync();
 
-    expect(notifications, contains('ReminderKind.walking'));
+    expect(notifications, contains('PostureType.walking'));
+    expect(notifications, isNot(contains('ReminderKind.walking')));
     expect(notifications, contains('walkingIntervalMinutes'));
+    expect(notifications, contains('当前姿势不需要安排久坐/久站提醒'));
     expect(controller, contains('startWalking'));
     expect(controller, contains('showPostureDueReminder'));
     expect(repository, contains('walkingThresholdMinutes'));

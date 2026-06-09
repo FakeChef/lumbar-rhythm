@@ -137,12 +137,13 @@ void main() {
     expect(find.text('正在休息'), findsNothing);
   });
 
-  testWidgets('shows only sitting and walking posture buttons', (tester) async {
+  testWidgets('shows sitting standing and walking posture buttons',
+      (tester) async {
     await _pumpHome(tester);
 
     expect(find.text('我在坐'), findsWidgets);
+    expect(find.text('我在站'), findsWidgets);
     expect(find.text('我在走'), findsWidgets);
-    expect(find.text('我在站'), findsNothing);
     expect(find.text('我在休息'), findsNothing);
     expect(find.byKey(const ValueKey('today-add-rehab-log')), findsNothing);
     expect(find.byKey(const ValueKey('today-daytime-cycle-start')),
@@ -175,10 +176,51 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     expect(notificationService.permissionRequests, 1);
-    expect(notificationService.scheduledPostures, contains(null));
+    expect(notificationService.scheduledPostures, isEmpty);
+    expect(notificationService.cancelAllCount, greaterThanOrEqualTo(1));
   });
 
-  testWidgets('sitting schedules reminder and walking clears sitting reminder',
+  testWidgets('sitting and standing schedule real posture reminders',
+      (tester) async {
+    final postureRepository = _FakePostureRepository();
+    final notificationService = _FakeNotification();
+    final rehabRepository = _FakeRehabRepository();
+    await _pumpHome(
+      tester,
+      postureRepository: postureRepository,
+      notificationService: notificationService,
+      rehabRepository: rehabRepository,
+      reminderSettingsRepository: _FakeReminderSettingsRepository(
+        ReminderSettings.defaults.copyWith(
+          reminderMode: ReminderMode.vibration,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
+    await tester.pumpAndSettle();
+    expect(
+        notificationService.scheduledPostures, contains(PostureType.sitting));
+    expect(notificationService.postureReminderModes, [ReminderMode.vibration]);
+    expect(notificationService.postureReminderChannels,
+        [NotificationService.vibrationChannelId]);
+    expect(postureRepository.openSession?.type, PostureType.sitting);
+
+    await tester.tap(find.byKey(const ValueKey('today-posture-standing')));
+    await tester.pumpAndSettle();
+    expect(
+        notificationService.scheduledPostures, contains(PostureType.standing));
+    expect(notificationService.postureReminderModes,
+        [ReminderMode.vibration, ReminderMode.vibration]);
+    expect(notificationService.postureReminderChannels, [
+      NotificationService.vibrationChannelId,
+      NotificationService.vibrationChannelId,
+    ]);
+    expect(postureRepository.openSession?.type, PostureType.standing);
+    expect(rehabRepository.addedLogs, isEmpty);
+  });
+
+  testWidgets('walking cancels posture reminder without scheduling',
       (tester) async {
     final postureRepository = _FakePostureRepository();
     final notificationService = _FakeNotification();
@@ -192,16 +234,30 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
     await tester.pumpAndSettle();
-    expect(
-        notificationService.scheduledPostures, contains(PostureType.sitting));
-    expect(postureRepository.openSession?.type, PostureType.sitting);
-
     await tester.tap(find.byKey(const ValueKey('today-posture-walking')));
     await tester.pumpAndSettle();
-    expect(
-        notificationService.scheduledPostures, contains(PostureType.walking));
+    expect(notificationService.scheduledPostures, [PostureType.sitting]);
+    expect(notificationService.cancelAllCount, greaterThanOrEqualTo(1));
     expect(postureRepository.openSession?.type, PostureType.walking);
     expect(rehabRepository.addedLogs.single.source, 'posture_session');
+  });
+
+  testWidgets('disabled reminders do not schedule posture reminder',
+      (tester) async {
+    final notificationService = _FakeNotification();
+    await _pumpHome(
+      tester,
+      notificationService: notificationService,
+      reminderSettingsRepository: _FakeReminderSettingsRepository(
+        ReminderSettings.defaults.copyWith(remindersEnabled: false),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
+    await tester.pumpAndSettle();
+
+    expect(notificationService.scheduledPostures, isEmpty);
+    expect(notificationService.cancelAllCount, greaterThanOrEqualTo(1));
   });
 
   testWidgets('posture switch keeps record and records scheduling failures',
@@ -252,9 +308,10 @@ void main() {
     expect(notificationService.scheduledPostures, [PostureType.sitting]);
   });
 
-  test('restored overdue sitting and walking sessions fire foreground reminder',
+  test(
+      'restored overdue sitting and standing sessions fire foreground reminder',
       () async {
-    for (final posture in [PostureType.sitting, PostureType.walking]) {
+    for (final posture in [PostureType.sitting, PostureType.standing]) {
       final postureRepository = _FakePostureRepository(
         openSession: _session(posture, minutesAgo: 60),
       );
@@ -432,6 +489,7 @@ Future<void> _pumpHome(
   _FakeRecoveryRepository? recoveryRepository,
   _FakeNotification? notificationService,
   _FakeRehabRepository? rehabRepository,
+  _FakeReminderSettingsRepository? reminderSettingsRepository,
   ValueChanged<int>? onOpenTab,
 }) async {
   await tester.binding.setSurfaceSize(const Size(420, 2200));
@@ -443,6 +501,7 @@ Future<void> _pumpHome(
     recoveryRepository: recoveryRepository,
     notificationService: notificationService,
     rehabRepository: rehabRepository,
+    reminderSettingsRepository: reminderSettingsRepository,
   );
 }
 
@@ -453,6 +512,7 @@ Future<void> _pumpApp(
   _FakeRecoveryRepository? recoveryRepository,
   _FakeNotification? notificationService,
   _FakeRehabRepository? rehabRepository,
+  _FakeReminderSettingsRepository? reminderSettingsRepository,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -461,7 +521,7 @@ Future<void> _pumpApp(
           postureRepository ?? _FakePostureRepository(),
         ),
         reminderSettingsRepositoryProvider.overrideWithValue(
-          _FakeReminderSettingsRepository(),
+          reminderSettingsRepository ?? _FakeReminderSettingsRepository(),
         ),
         notificationServiceProvider.overrideWithValue(
           notificationService ?? _FakeNotification(),
@@ -552,8 +612,12 @@ class _FakePostureRepository implements PostureSessionRepository {
 }
 
 class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
+  _FakeReminderSettingsRepository([this.settings = ReminderSettings.defaults]);
+
+  final ReminderSettings settings;
+
   @override
-  Future<ReminderSettings> load() async => ReminderSettings.defaults;
+  Future<ReminderSettings> load() async => settings;
 
   @override
   Future<void> save(ReminderSettings settings) async {}
@@ -570,9 +634,12 @@ class _FakeNotification extends NotificationService {
   final bool failScheduling;
   final bool delayFirstSchedule;
   final scheduledPostures = <PostureType?>[];
+  final postureReminderModes = <ReminderMode>[];
+  final postureReminderChannels = <String>[];
   final duePostures = <PostureType>[];
   final dueModes = <ReminderMode>[];
   final cancelledPostures = <PostureType>[];
+  int cancelAllCount = 0;
   final Completer<void> _firstScheduleCompleter = Completer<void>();
   var _scheduleCalls = 0;
   int initializeCalls = 0;
@@ -613,7 +680,46 @@ class _FakeNotification extends NotificationService {
     if (delayFirstSchedule && _scheduleCalls == 1) {
       await _firstScheduleCompleter.future;
     }
-    scheduledPostures.add(currentPosture);
+    if (!enabled ||
+        currentPosture == null ||
+        currentPosture == PostureType.walking ||
+        currentPosture == PostureType.resting) {
+      await cancelScheduledReminders();
+      return;
+    }
+    await schedulePostureReminder(
+      postureType: currentPosture,
+      delay: Duration(
+        minutes: currentPosture == PostureType.standing
+            ? standingIntervalMinutes
+            : sittingIntervalMinutes,
+      ),
+      mode: reminderMode,
+      sessionStartedAt: currentSessionStartedAt ?? DateTime.now(),
+    );
+  }
+
+  @override
+  Future<bool> schedulePostureReminder({
+    required PostureType postureType,
+    required Duration delay,
+    required ReminderMode mode,
+    required DateTime sessionStartedAt,
+    ReminderScheduleDiagnosticMode diagnosticMode =
+        ReminderScheduleDiagnosticMode.inexactAllowWhileIdle,
+  }) async {
+    if (failScheduling) {
+      throw StateError('schedule failed');
+    }
+    scheduledPostures.add(postureType);
+    postureReminderModes.add(mode);
+    postureReminderChannels.add(channelIdForReminderMode(mode));
+    return true;
+  }
+
+  @override
+  Future<void> cancelScheduledReminders() async {
+    cancelAllCount += 1;
   }
 
   @override

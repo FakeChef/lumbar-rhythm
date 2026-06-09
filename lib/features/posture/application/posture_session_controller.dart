@@ -49,12 +49,28 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     return switchTo(PostureType.walking);
   }
 
+  Future<void> startStanding() {
+    return switchTo(PostureType.standing);
+  }
+
+  Future<void> startTodaySittingChainTest() async {
+    final settings = await ref.read(reminderSettingsRepositoryProvider).load();
+    await ref.read(notificationServiceProvider).schedulePostureReminder(
+          postureType: PostureType.sitting,
+          delay: const Duration(minutes: 1),
+          mode: settings.reminderMode,
+          sessionStartedAt: DateTime.now(),
+        );
+  }
+
   Future<void> stopCurrent() {
     return endCurrent();
   }
 
   Future<void> switchTo(PostureType type) async {
-    if (type != PostureType.sitting && type != PostureType.walking) {
+    if (type != PostureType.sitting &&
+        type != PostureType.standing &&
+        type != PostureType.walking) {
       return;
     }
     final settings = await ref.read(reminderSettingsRepositoryProvider).load();
@@ -144,7 +160,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     _foregroundReminderAttemptSessionId = null;
     if (session == null ||
         (session.type != PostureType.sitting &&
-            session.type != PostureType.walking)) {
+            session.type != PostureType.standing)) {
       return;
     }
     _foregroundTimer = Timer.periodic(const Duration(seconds: 10), (_) {
@@ -160,13 +176,14 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     _foregroundReminderAttemptSessionId = null;
   }
 
-  Future<void> _checkForegroundReminder([PostureSession? currentSession]) async {
+  Future<void> _checkForegroundReminder(
+      [PostureSession? currentSession]) async {
     final session = currentSession ?? state.valueOrNull;
     if (session == null ||
         session.id == _foregroundReminderSessionId ||
         session.id == _foregroundReminderAttemptSessionId ||
         (session.type != PostureType.sitting &&
-            session.type != PostureType.walking)) {
+            session.type != PostureType.standing)) {
       return;
     }
     final settings = await ref.read(reminderSettingsRepositoryProvider).load();
@@ -174,8 +191,8 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
       return;
     }
     final threshold = Duration(
-      minutes: session.type == PostureType.walking
-          ? settings.walkingIntervalMinutes
+      minutes: session.type == PostureType.standing
+          ? settings.standingIntervalMinutes
           : settings.sittingIntervalMinutes,
     );
     if (DateTime.now().difference(session.startedAt) < threshold) {
@@ -201,8 +218,8 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
       }
     }
     ref.read(postureReminderStatusProvider.notifier).state = shown
-        ? (session.type == PostureType.walking
-            ? '走动提醒已触发，可以坐下休息一下。'
+        ? (session.type == PostureType.standing
+            ? '久站提醒已触发，可以坐下休息一下。'
             : '久坐提醒已触发，可以起身走一走。')
         : '提醒触发失败，请检查系统通知设置。';
   }

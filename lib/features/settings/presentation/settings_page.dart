@@ -1146,6 +1146,9 @@ class _ReminderDebugPanel extends StatelessWidget {
       'foregroundFiredAt: ${_formatClockMinuteFromDate(debugState.lastForegroundTimerFiredAt)}',
       'scheduledAt: ${_formatClockMinuteFromDate(debugState.lastLocalScheduleRequestedAt)}',
       'dueAt: ${_formatClockMinuteFromDate(debugState.lastLocalScheduleDueAt)}',
+      'postureType: ${debugState.lastPostureReminderType?.name ?? '-'}',
+      'postureSessionStartedAt: ${_formatClockMinuteFromDate(debugState.lastPostureReminderSessionStartedAt)}',
+      'posturePending: ${debugState.lastPostureReminderPending ?? '-'}',
       'scheduledMode: ${debugState.lastScheduledModeUsed ?? '-'}',
       'scheduleResult: ${debugState.lastScheduleModeResult ?? '-'}',
       'pendingBefore: ${debugState.scheduledPendingBefore ?? '-'}',
@@ -1217,6 +1220,37 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
                 falseText: '不可用',
               ),
             ),
+            const SizedBox(height: 8),
+            const Text('最近一次真实坐站提醒：'),
+            _DiagnosticLine(
+              label: 'postureType',
+              value: debugState.lastPostureReminderType?.name ?? '-',
+            ),
+            _DiagnosticLine(
+              label: 'delay',
+              value: _formatDiagnosticDelay(debugState),
+            ),
+            _DiagnosticLine(
+              label: 'scheduledAt',
+              value: _formatClockMinuteFromDate(
+                debugState.lastLocalScheduleRequestedAt,
+              ),
+            ),
+            _DiagnosticLine(
+              label: 'dueAt',
+              value: _formatClockMinuteFromDate(
+                debugState.lastLocalScheduleDueAt,
+              ),
+            ),
+            _DiagnosticLine(
+              label: 'channel id',
+              value: debugState.lastChannelId ?? '-',
+            ),
+            _DiagnosticLine(
+              label: 'pending',
+              value:
+                  '${debugState.lastPostureReminderPending ?? '-'} / ${debugState.pendingNotificationCount ?? 0} ${debugState.pendingNotificationIds}',
+            ),
             const SizedBox(height: 12),
             const Text(
               '如果测试提醒没有声音，请检查系统设置中的通知权限、通知频道声音、勿扰模式和电池限制。',
@@ -1253,6 +1287,21 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
                       reminderMode: settings.reminderMode,
                     ),
                 successMessage: '已安排 10 秒后提醒',
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.event_seat_outlined,
+              label: '今日页 1 分钟久坐链路测试',
+              onPressed: () => _runDiagnosticAction(
+                context: context,
+                ref: ref,
+                action: () async {
+                  await ref
+                      .read(postureSessionControllerProvider.notifier)
+                      .startTodaySittingChainTest();
+                  return true;
+                },
+                successMessage: '已安排今日页 1 分钟久坐链路测试',
               ),
             ),
             _DiagnosticButton(
@@ -1349,6 +1398,19 @@ String _formatDiagnosticBool(
     return '未知';
   }
   return value ? trueText : falseText;
+}
+
+String _formatDiagnosticDelay(ReminderDebugState debugState) {
+  final scheduledAt = debugState.lastLocalScheduleRequestedAt;
+  final dueAt = debugState.lastLocalScheduleDueAt;
+  if (scheduledAt == null || dueAt == null) {
+    return '-';
+  }
+  final seconds = dueAt.difference(scheduledAt).inSeconds;
+  if (seconds >= 60 && seconds % 60 == 0) {
+    return '${seconds ~/ 60} minute';
+  }
+  return '$seconds seconds';
 }
 
 Future<void> _requestDiagnosticPermission(

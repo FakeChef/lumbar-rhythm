@@ -336,10 +336,11 @@ class _PostureStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = session;
     final activeType = current?.type;
-    final displayType =
-        activeType == PostureType.sitting || activeType == PostureType.walking
-            ? activeType!
-            : selectedPosture;
+    final displayType = activeType == PostureType.sitting ||
+            activeType == PostureType.standing ||
+            activeType == PostureType.walking
+        ? activeType!
+        : selectedPosture;
     final duration = current?.durationAt(now) ?? Duration.zero;
     final durationText = current == null ? '00:00' : _formatDuration(duration);
     final greetingText = _recoveryGreeting(profile, now);
@@ -466,8 +467,9 @@ class _PostureStatusCard extends StatelessWidget {
   String _displayLabel(PostureType type) {
     return switch (type) {
       PostureType.sitting => '我在坐',
+      PostureType.standing => '我在站',
       PostureType.walking => '我在走',
-      PostureType.standing || PostureType.resting => '暂未开始',
+      PostureType.resting => '暂未开始',
     };
   }
 
@@ -608,11 +610,13 @@ class _PostureSwitchSection extends StatelessWidget {
                 activeType: activeType,
                 selectedType: selectedType,
                 isTiming: activeType == PostureType.sitting ||
+                    activeType == PostureType.standing ||
                     activeType == PostureType.walking,
                 onSwitchPosture: onSwitchPosture,
               ),
               const SizedBox(height: 10),
               if (activeType == PostureType.sitting ||
+                  activeType == PostureType.standing ||
                   activeType == PostureType.walking)
                 OutlinedButton.icon(
                   key: const ValueKey('today-posture-stop'),
@@ -650,16 +654,20 @@ class _PostureActionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primaryPostures = [PostureType.sitting, PostureType.walking];
+    const primaryPostures = [
+      PostureType.sitting,
+      PostureType.standing,
+      PostureType.walking,
+    ];
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: primaryPostures.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+        crossAxisCount: 3,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 3.1,
+        childAspectRatio: 2.6,
       ),
       itemBuilder: (context, index) {
         final type = primaryPostures[index];
@@ -736,14 +744,16 @@ class _PostureActionButton extends StatelessWidget {
     if (isTiming) {
       return switch (type) {
         PostureType.sitting => '切换到坐',
+        PostureType.standing => '切换到站',
         PostureType.walking => '切换到走',
-        PostureType.standing || PostureType.resting => '暂未开始',
+        PostureType.resting => '暂未开始',
       };
     }
     return switch (type) {
       PostureType.sitting => '我在坐',
+      PostureType.standing => '我在站',
       PostureType.walking => '我在走',
-      PostureType.standing || PostureType.resting => '暂未开始',
+      PostureType.resting => '暂未开始',
     };
   }
 

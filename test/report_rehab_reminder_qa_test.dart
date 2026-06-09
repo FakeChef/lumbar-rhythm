@@ -708,6 +708,8 @@ void main() {
     expect(find.text('检查并请求通知权限'), findsOneWidget);
     expect(find.text('发送立即测试提醒'), findsOneWidget);
     expect(find.text('10 秒后测试提醒'), findsOneWidget);
+    expect(find.text('今日页 1 分钟久坐链路测试'), findsOneWidget);
+    expect(find.text('最近一次真实坐站提醒：'), findsOneWidget);
     expect(find.text('测试震动提醒'), findsOneWidget);
     expect(find.text('测试响铃提醒'), findsOneWidget);
 
@@ -716,6 +718,8 @@ void main() {
     await tester.tap(find.text('发送立即测试提醒'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('10 秒后测试提醒'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('今日页 1 分钟久坐链路测试'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('测试震动提醒'));
     await tester.pumpAndSettle();
@@ -727,6 +731,12 @@ void main() {
         notificationService.diagnosticImmediateModes, [ReminderMode.vibration]);
     expect(
         notificationService.tenSecondDiagnosticModes, [ReminderMode.vibration]);
+    expect(notificationService.postureReminderTypes, [PostureType.sitting]);
+    expect(notificationService.postureReminderModes, [ReminderMode.vibration]);
+    expect(notificationService.postureReminderDelays,
+        [const Duration(minutes: 1)]);
+    expect(notificationService.testReminderModes, isEmpty);
+    expect(notificationService.oneMinuteTestReminderModes, isEmpty);
     expect(notificationService.vibrationDiagnosticCount, 1);
     expect(notificationService.alarmDiagnosticCount, 1);
   });
@@ -1298,6 +1308,9 @@ class _FakeNotificationService extends NotificationService {
   final oneMinuteTestReminderModes = <ReminderMode>[];
   final diagnosticImmediateModes = <ReminderMode>[];
   final tenSecondDiagnosticModes = <ReminderMode>[];
+  final postureReminderTypes = <PostureType>[];
+  final postureReminderModes = <ReminderMode>[];
+  final postureReminderDelays = <Duration>[];
   int permissionRequests = 0;
   int vibrationDiagnosticCount = 0;
   int alarmDiagnosticCount = 0;
@@ -1359,6 +1372,21 @@ class _FakeNotificationService extends NotificationService {
     ReminderMode reminderMode = ReminderMode.soft,
   }) async {
     tenSecondDiagnosticModes.add(reminderMode);
+    return true;
+  }
+
+  @override
+  Future<bool> schedulePostureReminder({
+    required PostureType postureType,
+    required Duration delay,
+    required ReminderMode mode,
+    required DateTime sessionStartedAt,
+    ReminderScheduleDiagnosticMode diagnosticMode =
+        ReminderScheduleDiagnosticMode.inexactAllowWhileIdle,
+  }) async {
+    postureReminderTypes.add(postureType);
+    postureReminderModes.add(mode);
+    postureReminderDelays.add(delay);
     return true;
   }
 

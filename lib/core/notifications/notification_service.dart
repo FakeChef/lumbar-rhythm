@@ -24,7 +24,6 @@ final reminderDebugStateProvider = StateProvider<ReminderDebugState>((ref) {
 enum ReminderKind {
   sitting,
   standing,
-  walking,
 }
 
 class ReminderSchedulePlan {
@@ -50,9 +49,7 @@ ReminderSchedulePlan buildReminderSchedulePlan({
     PostureType.standing => const ReminderSchedulePlan(
         kinds: [ReminderKind.standing],
       ),
-    PostureType.walking => const ReminderSchedulePlan(
-        kinds: [ReminderKind.walking],
-      ),
+    PostureType.walking => const ReminderSchedulePlan(kinds: []),
     PostureType.resting => const ReminderSchedulePlan(
         kinds: [],
       ),
@@ -96,6 +93,9 @@ class ReminderDebugState {
     this.lastScheduleModeResult,
     this.notificationsEnabled,
     this.exactNotificationsAvailable,
+    this.lastPostureReminderType,
+    this.lastPostureReminderSessionStartedAt,
+    this.lastPostureReminderPending,
   });
 
   final DateTime? lastImmediateTestAt;
@@ -117,6 +117,9 @@ class ReminderDebugState {
   final String? lastScheduleModeResult;
   final bool? notificationsEnabled;
   final bool? exactNotificationsAvailable;
+  final PostureType? lastPostureReminderType;
+  final DateTime? lastPostureReminderSessionStartedAt;
+  final bool? lastPostureReminderPending;
 
   ReminderDebugState copyWith({
     DateTime? lastImmediateTestAt,
@@ -138,6 +141,9 @@ class ReminderDebugState {
     String? lastScheduleModeResult,
     bool? notificationsEnabled,
     bool? exactNotificationsAvailable,
+    PostureType? lastPostureReminderType,
+    DateTime? lastPostureReminderSessionStartedAt,
+    bool? lastPostureReminderPending,
   }) {
     return ReminderDebugState(
       lastImmediateTestAt: lastImmediateTestAt ?? this.lastImmediateTestAt,
@@ -171,6 +177,13 @@ class ReminderDebugState {
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       exactNotificationsAvailable:
           exactNotificationsAvailable ?? this.exactNotificationsAvailable,
+      lastPostureReminderType:
+          lastPostureReminderType ?? this.lastPostureReminderType,
+      lastPostureReminderSessionStartedAt:
+          lastPostureReminderSessionStartedAt ??
+              this.lastPostureReminderSessionStartedAt,
+      lastPostureReminderPending:
+          lastPostureReminderPending ?? this.lastPostureReminderPending,
     );
   }
 }
@@ -208,10 +221,8 @@ extension ReminderScheduleDiagnosticModeLabel
 class NotificationService {
   static const _sittingReminderId = 101;
   static const _standingReminderId = 102;
-  static const _walkingReminderId = 103;
   static const _testReminderId = 199;
   static const _foregroundTimerTestReminderId = 198;
-  static const _oneMinuteSittingTestReminderId = 201;
   static const _tenSecondScheduledTestReminderId = 202;
 
   // Android notification channel sound and vibration behavior is fixed after
@@ -311,87 +322,140 @@ class NotificationService {
     DateTime? currentSessionStartedAt,
   }) async {
     await initialize();
-    await cancelScheduledReminders();
 
-    final plan = buildReminderSchedulePlan(
-      enabled: enabled,
-      currentPosture: currentPosture,
-    );
-
-    if (plan.shouldCancelOnly) {
-      return;
-    }
-
-    final permissionGranted = await requestPermissions();
-    if (!permissionGranted) {
+    if (!enabled) {
+      await cancelScheduledReminders();
       _updateDebug(
-        _debugState.copyWith(lastErrorMessage: '系统通知权限未开启。'),
+        _debugState.copyWith(
+          lastScheduleModeResult: '提醒未开启。',
+          lastPostureReminderType: currentPosture,
+          lastPostureReminderSessionStartedAt: currentSessionStartedAt,
+          lastPostureReminderPending: false,
+          lastErrorMessage: null,
+        ),
       );
       return;
     }
-
-    final scheduledIds = <int>[];
-    for (final kind in plan.kinds) {
-      switch (kind) {
-        case ReminderKind.sitting:
-          await _scheduleReminder(
-            id: _sittingReminderId,
-            title: '该起身活动一下了',
-            body: '已经接近久坐提醒间隔，建议短暂站立或走动。',
-            minutesFromNow: reminderDelayMinutes(
-              intervalMinutes: sittingIntervalMinutes,
-              sessionStartedAt: currentSessionStartedAt,
-            ),
-            reminderMode: reminderMode,
-          );
-          scheduledIds.add(_sittingReminderId);
-        case ReminderKind.standing:
-          await _scheduleReminder(
-            id: _standingReminderId,
-            title: '该坐下休息一下了',
-            body: '已经接近久站提醒间隔，建议短暂坐下放松。',
-            minutesFromNow: reminderDelayMinutes(
-              intervalMinutes: standingIntervalMinutes,
-              sessionStartedAt: currentSessionStartedAt,
-            ),
-            reminderMode: reminderMode,
-          );
-          scheduledIds.add(_standingReminderId);
-        case ReminderKind.walking:
-          await _scheduleReminder(
-            id: _walkingReminderId,
-            title: '走动时间到了',
-            body: '这一段走动已经完成，可以坐下休息一下。',
-            minutesFromNow: reminderDelayMinutes(
-              intervalMinutes: walkingIntervalMinutes,
-              sessionStartedAt: currentSessionStartedAt,
-            ),
-            reminderMode: reminderMode,
-          );
-          scheduledIds.add(_walkingReminderId);
-      }
+    if (currentPosture == null ||
+        currentPosture == PostureType.walking ||
+        currentPosture == PostureType.resting) {
+      await cancelScheduledReminders();
+      return;
     }
 
-    final pendingAfter = await _readPendingNotificationIds();
-    final allScheduled =
-        scheduledIds.every((scheduledId) => pendingAfter.contains(scheduledId));
-    _updateDebug(
-      _debugState.copyWith(
-        pendingNotificationCount: pendingAfter.length,
-        pendingNotificationIds: pendingAfter,
-        scheduledPendingAfter: pendingAfter.length,
-        lastScheduleModeResult:
-            allScheduled ? '已安排，等待系统触发。' : '已请求安排，但 pending 列表未确认该提醒。',
-        lastErrorMessage: null,
+    final intervalMinutes = currentPosture == PostureType.standing
+        ? standingIntervalMinutes
+        : sittingIntervalMinutes;
+    await schedulePostureReminder(
+      postureType: currentPosture,
+      delay: Duration(
+        minutes: reminderDelayMinutes(
+          intervalMinutes: intervalMinutes,
+          sessionStartedAt: currentSessionStartedAt,
+        ),
       ),
+      mode: reminderMode,
+      sessionStartedAt: currentSessionStartedAt ?? DateTime.now(),
+    );
+  }
+
+  Future<bool> schedulePostureReminder({
+    required PostureType postureType,
+    required Duration delay,
+    required ReminderMode mode,
+    required DateTime sessionStartedAt,
+    ReminderScheduleDiagnosticMode diagnosticMode =
+        ReminderScheduleDiagnosticMode.inexactAllowWhileIdle,
+  }) async {
+    if (postureType != PostureType.sitting &&
+        postureType != PostureType.standing) {
+      await cancelScheduledReminders();
+      _updateDebug(
+        _debugState.copyWith(
+          lastPostureReminderType: postureType,
+          lastPostureReminderSessionStartedAt: sessionStartedAt,
+          lastPostureReminderPending: false,
+          lastScheduleModeResult: '当前姿势不需要安排久坐/久站提醒。',
+          lastErrorMessage: null,
+        ),
+      );
+      return false;
+    }
+
+    try {
+      await initialize();
+      final permissionGranted = await requestPermissions();
+      if (!permissionGranted) {
+        _updateDebug(
+          _debugState.copyWith(
+            lastPostureReminderType: postureType,
+            lastPostureReminderSessionStartedAt: sessionStartedAt,
+            lastPostureReminderPending: false,
+            lastScheduleModeResult: '通知权限未允许。',
+            lastErrorMessage: '系统通知权限未开启。',
+          ),
+        );
+        return false;
+      }
+
+      final pendingBefore = await _readPendingNotificationIds();
+      await _plugin.cancel(_sittingReminderId);
+      await _plugin.cancel(_standingReminderId);
+      final id = _postureReminderId(postureType);
+      await _scheduleReminder(
+        id: id,
+        title: _postureReminderTitle(postureType),
+        body: _postureReminderBody(postureType),
+        delay: delay,
+        reminderMode: mode,
+        androidScheduleMode: diagnosticMode.androidScheduleMode,
+        scheduleModeLabel: diagnosticMode.label,
+      );
+      final pendingAfter = await _readPendingNotificationIds();
+      final pending = pendingAfter.contains(id);
+      _updateDebug(
+        _debugState.copyWith(
+          pendingNotificationCount: pendingAfter.length,
+          pendingNotificationIds: pendingAfter,
+          scheduledPendingBefore: pendingBefore.length,
+          scheduledPendingAfter: pendingAfter.length,
+          lastPostureReminderType: postureType,
+          lastPostureReminderSessionStartedAt: sessionStartedAt,
+          lastPostureReminderPending: pending,
+          lastScheduleModeResult:
+              pending ? '已安排，等待系统触发。' : '已请求安排，但 pending 列表未确认该提醒。',
+          lastErrorMessage: null,
+        ),
+      );
+      return true;
+    } catch (error) {
+      _updateDebug(
+        _debugState.copyWith(
+          lastPostureReminderType: postureType,
+          lastPostureReminderSessionStartedAt: sessionStartedAt,
+          lastPostureReminderPending: false,
+          lastErrorMessage: error.toString(),
+        ),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> scheduleTodaySittingChainTest({
+    required ReminderMode reminderMode,
+  }) {
+    final startedAt = DateTime.now();
+    return schedulePostureReminder(
+      postureType: PostureType.sitting,
+      delay: const Duration(minutes: 1),
+      mode: reminderMode,
+      sessionStartedAt: startedAt,
     );
   }
 
   Future<void> cancelScheduledReminders() async {
     await _plugin.cancel(_sittingReminderId);
     await _plugin.cancel(_standingReminderId);
-    await _plugin.cancel(_walkingReminderId);
-    await _plugin.cancel(_oneMinuteSittingTestReminderId);
     await refreshPendingScheduledNotifications();
   }
 
@@ -399,8 +463,7 @@ class NotificationService {
     final id = switch (posture) {
       PostureType.sitting => _sittingReminderId,
       PostureType.standing => _standingReminderId,
-      PostureType.walking => _walkingReminderId,
-      PostureType.resting => null,
+      PostureType.walking || PostureType.resting => null,
     };
     if (id == null) {
       return;
@@ -420,13 +483,13 @@ class NotificationService {
           body: '已经到久坐提醒时间，建议起身走一走。',
           id: _sittingReminderId,
         ),
-      PostureType.walking => showReminderNow(
+      PostureType.standing => showReminderNow(
           mode: reminderMode,
-          title: '走动时间到了',
-          body: '这一段走动已经完成，可以坐下休息一下。',
-          id: _walkingReminderId,
+          title: '该坐下休息一下了',
+          body: '已经到久站提醒时间，建议坐下放松一会儿。',
+          id: _standingReminderId,
         ),
-      PostureType.standing || PostureType.resting => false,
+      PostureType.walking || PostureType.resting => false,
     };
   }
 
@@ -581,44 +644,13 @@ class NotificationService {
     ReminderScheduleDiagnosticMode diagnosticMode =
         ReminderScheduleDiagnosticMode.inexactAllowWhileIdle,
   }) async {
-    try {
-      await initialize();
-
-      final permissionGranted = await requestPermissions();
-      if (!permissionGranted) {
-        return false;
-      }
-
-      final pendingBefore = await _readPendingNotificationIds();
-      await _plugin.cancel(_oneMinuteSittingTestReminderId);
-      await _scheduleReminder(
-        id: _oneMinuteSittingTestReminderId,
-        title: '该起身活动一下了',
-        body: '这是 1 分钟测试久坐提醒，用于确认定时调度是否可用。',
-        minutesFromNow: 1,
-        reminderMode: reminderMode,
-        androidScheduleMode: diagnosticMode.androidScheduleMode,
-        scheduleModeLabel: diagnosticMode.label,
-      );
-      final pendingAfter = await _readPendingNotificationIds();
-      final containsTestId =
-          pendingAfter.contains(_oneMinuteSittingTestReminderId);
-      _updateDebug(
-        _debugState.copyWith(
-          pendingNotificationCount: pendingAfter.length,
-          pendingNotificationIds: pendingAfter,
-          scheduledPendingBefore: pendingBefore.length,
-          scheduledPendingAfter: pendingAfter.length,
-          lastScheduleModeResult:
-              containsTestId ? '已安排，等待系统触发。' : '已请求安排，但 pending 列表未确认该提醒。',
-          lastErrorMessage: null,
-        ),
-      );
-      return true;
-    } catch (error) {
-      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
-      return false;
-    }
+    return schedulePostureReminder(
+      postureType: PostureType.sitting,
+      delay: const Duration(minutes: 1),
+      mode: reminderMode,
+      sessionStartedAt: DateTime.now(),
+      diagnosticMode: diagnosticMode,
+    );
   }
 
   Future<bool> scheduleTenSecondDiagnosticReminder({
@@ -765,6 +797,30 @@ class NotificationService {
 
   NotificationDetails _notificationDetails(ReminderMode reminderMode) =>
       buildReminderNotificationDetails(reminderMode: reminderMode);
+
+  int _postureReminderId(PostureType posture) {
+    return switch (posture) {
+      PostureType.sitting => _sittingReminderId,
+      PostureType.standing => _standingReminderId,
+      PostureType.walking || PostureType.resting => _sittingReminderId,
+    };
+  }
+
+  String _postureReminderTitle(PostureType posture) {
+    return switch (posture) {
+      PostureType.sitting => '该起身活动一下了',
+      PostureType.standing => '该坐下休息一下了',
+      PostureType.walking || PostureType.resting => '腰椎节奏提醒',
+    };
+  }
+
+  String _postureReminderBody(PostureType posture) {
+    return switch (posture) {
+      PostureType.sitting => '已经到久坐提醒时间，建议起身走一走。',
+      PostureType.standing => '已经到久站提醒时间，建议坐下放松一会儿。',
+      PostureType.walking || PostureType.resting => '当前状态不需要安排久坐/久站提醒。',
+    };
+  }
 
   void _ensureTimeZonesInitialized() {
     if (_timeZonesInitialized) {
