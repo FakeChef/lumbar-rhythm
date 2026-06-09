@@ -94,6 +94,8 @@ class ReminderDebugState {
     this.lastImmediateShownAt,
     this.lastScheduledModeUsed,
     this.lastScheduleModeResult,
+    this.notificationsEnabled,
+    this.exactNotificationsAvailable,
   });
 
   final DateTime? lastImmediateTestAt;
@@ -113,6 +115,8 @@ class ReminderDebugState {
   final DateTime? lastImmediateShownAt;
   final String? lastScheduledModeUsed;
   final String? lastScheduleModeResult;
+  final bool? notificationsEnabled;
+  final bool? exactNotificationsAvailable;
 
   ReminderDebugState copyWith({
     DateTime? lastImmediateTestAt,
@@ -132,6 +136,8 @@ class ReminderDebugState {
     DateTime? lastImmediateShownAt,
     String? lastScheduledModeUsed,
     String? lastScheduleModeResult,
+    bool? notificationsEnabled,
+    bool? exactNotificationsAvailable,
   }) {
     return ReminderDebugState(
       lastImmediateTestAt: lastImmediateTestAt ?? this.lastImmediateTestAt,
@@ -162,6 +168,9 @@ class ReminderDebugState {
           lastScheduledModeUsed ?? this.lastScheduledModeUsed,
       lastScheduleModeResult:
           lastScheduleModeResult ?? this.lastScheduleModeResult,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      exactNotificationsAvailable:
+          exactNotificationsAvailable ?? this.exactNotificationsAvailable,
     );
   }
 }
@@ -203,9 +212,14 @@ class NotificationService {
   static const _testReminderId = 199;
   static const _foregroundTimerTestReminderId = 198;
   static const _oneMinuteSittingTestReminderId = 201;
-  static const softChannelId = 'lumbar_rhythm_soft_reminders_v3';
-  static const vibrationChannelId = 'lumbar_rhythm_vibration_reminders_v3';
-  static const alarmChannelId = 'lumbar_rhythm_alarm_reminders_v3';
+  static const _tenSecondScheduledTestReminderId = 202;
+
+  // Android notification channel sound and vibration behavior is fixed after
+  // channel creation. Use v2 ids so old muted or misconfigured channels do not
+  // pollute reminder diagnostics or real posture reminders.
+  static const softChannelId = 'lumbar_rhythm_soft_reminders_v2';
+  static const vibrationChannelId = 'lumbar_rhythm_vibration_reminders_v2';
+  static const alarmChannelId = 'lumbar_rhythm_alarm_reminders_v2';
   static const _channelDescription = '久坐久站和休息节奏提醒';
 
   final FlutterLocalNotificationsPlugin _plugin =
@@ -246,7 +260,45 @@ class NotificationService {
         AndroidFlutterLocalNotificationsPlugin>();
     final androidPermission = await android?.requestNotificationsPermission();
 
-    return androidPermission ?? true;
+    final granted = androidPermission ?? true;
+    _updateDebug(_debugState.copyWith(notificationsEnabled: granted));
+    return granted;
+  }
+
+  Future<bool?> areNotificationsEnabled() async {
+    try {
+      await initialize();
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      final enabled = await android?.areNotificationsEnabled();
+      _updateDebug(_debugState.copyWith(notificationsEnabled: enabled));
+      return enabled;
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return null;
+    }
+  }
+
+  Future<bool?> canScheduleExactNotifications() async {
+    try {
+      await initialize();
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      final available = await android?.canScheduleExactNotifications();
+      _updateDebug(
+        _debugState.copyWith(exactNotificationsAvailable: available),
+      );
+      return available;
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return null;
+    }
+  }
+
+  Future<ReminderDebugState> refreshReminderDiagnostics() async {
+    await areNotificationsEnabled();
+    await canScheduleExactNotifications();
+    return _debugState;
   }
 
   Future<void> scheduleNextReminders({
@@ -385,6 +437,38 @@ class NotificationService {
       mode: reminderMode,
       title: '腰椎节奏提醒测试',
       body: '本地通知已可用。后续提醒会按你的设置安排。',
+      id: _testReminderId,
+      markAsImmediateTest: true,
+    );
+  }
+
+  Future<bool> showImmediateDiagnosticReminder({
+    ReminderMode reminderMode = ReminderMode.soft,
+  }) {
+    return showReminderNow(
+      mode: reminderMode,
+      title: '腰椎节奏测试提醒',
+      body: '这是一条立即测试提醒',
+      id: _testReminderId,
+      markAsImmediateTest: true,
+    );
+  }
+
+  Future<bool> showVibrationDiagnosticReminder() {
+    return showReminderNow(
+      mode: ReminderMode.vibration,
+      title: '腰椎节奏测试提醒',
+      body: '这是一条震动测试提醒',
+      id: _testReminderId,
+      markAsImmediateTest: true,
+    );
+  }
+
+  Future<bool> showAlarmDiagnosticReminder() {
+    return showReminderNow(
+      mode: ReminderMode.alarm,
+      title: '腰椎节奏测试提醒',
+      body: '这是一条响铃测试提醒',
       id: _testReminderId,
       markAsImmediateTest: true,
     );
@@ -537,6 +621,50 @@ class NotificationService {
     }
   }
 
+  Future<bool> scheduleTenSecondDiagnosticReminder({
+    ReminderMode reminderMode = ReminderMode.soft,
+  }) async {
+    try {
+      await initialize();
+
+      final permissionGranted = await requestPermissions();
+      if (!permissionGranted) {
+        _updateDebug(
+          _debugState.copyWith(lastErrorMessage: '系统通知权限未开启。'),
+        );
+        return false;
+      }
+
+      final pendingBefore = await _readPendingNotificationIds();
+      await _plugin.cancel(_tenSecondScheduledTestReminderId);
+      await _scheduleReminder(
+        id: _tenSecondScheduledTestReminderId,
+        title: '腰椎节奏定时测试',
+        body: '这是 10 秒后的定时测试提醒',
+        delay: const Duration(seconds: 10),
+        reminderMode: reminderMode,
+      );
+      final pendingAfter = await _readPendingNotificationIds();
+      final containsTestId =
+          pendingAfter.contains(_tenSecondScheduledTestReminderId);
+      _updateDebug(
+        _debugState.copyWith(
+          pendingNotificationCount: pendingAfter.length,
+          pendingNotificationIds: pendingAfter,
+          scheduledPendingBefore: pendingBefore.length,
+          scheduledPendingAfter: pendingAfter.length,
+          lastScheduleModeResult:
+              containsTestId ? '已安排，等待系统触发。' : '已请求安排，但 pending 列表未确认该提醒。',
+          lastErrorMessage: null,
+        ),
+      );
+      return true;
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return false;
+    }
+  }
+
   Future<ReminderDebugState> refreshPendingScheduledNotifications() async {
     try {
       await initialize();
@@ -569,7 +697,8 @@ class NotificationService {
     required int id,
     required String title,
     required String body,
-    required int minutesFromNow,
+    int minutesFromNow = 0,
+    Duration? delay,
     required ReminderMode reminderMode,
     AndroidScheduleMode androidScheduleMode =
         AndroidScheduleMode.inexactAllowWhileIdle,
@@ -579,7 +708,7 @@ class NotificationService {
 
     final requestedAt = DateTime.now();
     var scheduledAt = tz.TZDateTime.now(tz.local).add(
-      Duration(minutes: minutesFromNow),
+      delay ?? Duration(minutes: minutesFromNow),
     );
     final minimumDueAt = tz.TZDateTime.now(tz.local).add(
       const Duration(seconds: 5),
