@@ -563,16 +563,9 @@ class _PostureSwitchSection extends StatelessWidget {
               activeType: activeType,
               selectedType: selectedType,
               isTiming: activeType == PostureType.sitting ||
-                  activeType == PostureType.standing ||
-                  activeType == PostureType.walking,
+                  activeType == PostureType.standing,
               onSwitchPosture: onSwitchPosture,
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              key: const ValueKey('today-posture-stop'),
-              onPressed: onStop,
-              icon: const Icon(Icons.self_improvement_outlined),
-              label: const Text('休息'),
+              onStop: onStop,
             ),
           ],
         ),
@@ -587,19 +580,20 @@ class _PostureActionGrid extends StatelessWidget {
     required this.selectedType,
     required this.isTiming,
     required this.onSwitchPosture,
+    required this.onStop,
   });
 
   final PostureType? activeType;
   final PostureType selectedType;
   final bool isTiming;
   final ValueChanged<PostureType> onSwitchPosture;
+  final VoidCallback onStop;
 
   @override
   Widget build(BuildContext context) {
     const primaryPostures = [
       PostureType.sitting,
       PostureType.standing,
-      PostureType.walking,
       PostureType.resting,
     ];
     return GridView.builder(
@@ -610,7 +604,7 @@ class _PostureActionGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 2.6,
+        childAspectRatio: 2.45,
       ),
       itemBuilder: (context, index) {
         final type = primaryPostures[index];
@@ -619,7 +613,9 @@ class _PostureActionGrid extends StatelessWidget {
           isTiming: isTiming,
           isActive: activeType == type,
           isSelected: selectedType == type,
-          onPressed: () => onSwitchPosture(type),
+          onPressed: type == PostureType.resting
+              ? onStop
+              : () => onSwitchPosture(type),
         );
       },
     );
@@ -689,14 +685,14 @@ class _PostureActionButton extends StatelessWidget {
         PostureType.sitting => '切换到坐',
         PostureType.standing => '切换到站',
         PostureType.walking => '切换到走',
-        PostureType.resting => '休息',
+        PostureType.resting => '我去休息了',
       };
     }
     return switch (type) {
-      PostureType.sitting => '我在坐',
-      PostureType.standing => '我在站',
+      PostureType.sitting => '我在坐着',
+      PostureType.standing => '我在站着',
       PostureType.walking => '我在走',
-      PostureType.resting => '休息',
+      PostureType.resting => '我去休息了',
     };
   }
 

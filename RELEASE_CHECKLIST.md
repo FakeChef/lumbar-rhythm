@@ -29,16 +29,17 @@ This checklist is for preparing Lumbar Rhythm for Android review.
 - The app does not judge recurrence.
 - The app does not replace doctors, therapists, or other licensed professionals.
 - The disclaimer text in the app matches `DISCLAIMER.md`.
-- Store description should describe the app as a postoperative recovery log app with local sitting and standing rhythm reminders.
+- Store description should describe the app as a postoperative recovery log app with user-started sitting and standing countdown reminders.
 
 ## Android
 
 - `android.permission.POST_NOTIFICATIONS` is present only for local reminders.
+- Foreground service permissions are present only for the user-started posture countdown.
 - No exact alarm permission is requested.
 - App label is correct.
 - Package id is correct.
 - Debug build can be installed on an emulator or physical device.
-- Notification permission flow has been checked on Android 13 or later.
+- Notification permission flow and foreground countdown notification have been checked on Android 13 or later.
 - Export and delete local data have been checked on a device.
 - Release signing uses `android/key.properties` when a store keystore is available.
 - Keystore files and signing passwords are not committed to Git.
@@ -51,15 +52,19 @@ This checklist is for preparing Lumbar Rhythm for Android review.
 - Today page opens without errors.
 - Current posture can switch between sitting, standing, walking, and resting.
 - Posture sessions are saved when the user changes state.
-- Sitting reminders are scheduled only when the current posture is sitting.
-- Standing reminders are scheduled only when the current posture is standing.
-- Walking and resting cancel sitting and standing reminders.
+- Sitting countdown starts only when the user taps sitting.
+- Standing countdown starts only when the user taps standing.
+- Walking and resting stop the current sitting or standing countdown.
+- The notification shade shows the running countdown.
+- The due reminder fires, then repeats gently until the user switches posture or taps resting.
+- The app does not promise all-day background reminder cycles.
 - Today page can save a rehabilitation action record and daily recovery note.
 - Calendar page can review records by date.
 - Rehabilitation logs can be created from built-in templates.
 - Reports show day, week, and month summaries.
 - Reports remain framed as personal recovery review and do not provide medical conclusions.
 - Settings can save reminder intervals.
+- Settings explain the manual sitting/standing countdown behavior.
 - Test notification can be triggered.
 - Local JSON export contains app metadata, settings, records, posture sessions, rehabilitation actions, rehabilitation logs, recovery profile, daily recovery notes, and recovery milestones.
 - Delete all local data clears records, settings, posture sessions, rehabilitation logs, recovery profile, daily recovery notes, and recovery milestones while keeping built-in rehabilitation templates available.

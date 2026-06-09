@@ -3,17 +3,18 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('v0.4.3 keeps sit-walk home flow focused', () {
+  test('v0.5.2 keeps manual countdown home flow focused', () {
     final home = File('lib/features/home/presentation/home_page.dart')
         .readAsStringSync();
 
     expect(home, contains("ValueKey('today-posture-sitting')"));
-    expect(home, contains("ValueKey('today-posture-walking')"));
-    expect(home, contains("ValueKey('today-posture-stop')"));
+    expect(home, contains("ValueKey('today-posture-standing')"));
+    expect(home, contains("ValueKey('today-posture-resting')"));
+    expect(home, isNot(contains('PostureType.walking,')));
+    expect(home, isNot(contains("ValueKey('today-posture-stop')")));
     expect(home, contains('我在坐'));
     expect(home, contains('我在站'));
-    expect(home, contains('我在走'));
-    expect(home, contains('休息'));
+    expect(home, contains('我去休息了'));
     expect(home, contains('今日提醒次数'));
     expect(home, contains('今日停止次数'));
     expect(home, isNot(contains('白天节奏')));
@@ -39,7 +40,7 @@ void main() {
             .readAsStringSync();
 
     expect(settings, contains('手动倒计时'));
-    expect(settings, contains('点击“我在坐”或“我在站”后开始计时'));
+    expect(settings, contains('点击“我在坐着”或“我在站着”后开始计时'));
     expect(settings, isNot(contains('自动循环提醒')));
     expect(settings, isNot(contains('全天节奏提醒')));
   });

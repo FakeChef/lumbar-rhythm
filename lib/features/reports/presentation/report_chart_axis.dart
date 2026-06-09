@@ -44,6 +44,27 @@ List<int> buildActivityTrendTickIndexes({
 
 String formatActivityTrendTickLabel(DateTime date) => date.day.toString();
 
+double activityTrendTickLabelLeft({
+  required int index,
+  required int dayCount,
+  required double availableWidth,
+  required double labelWidth,
+}) {
+  if (availableWidth <= labelWidth || dayCount <= 1) {
+    return 0;
+  }
+  if (index <= 0) {
+    return 0;
+  }
+  if (index >= dayCount - 1) {
+    return availableWidth - labelWidth;
+  }
+  final denominator = dayCount - 1;
+  return ((availableWidth * index / denominator) - labelWidth / 2)
+      .clamp(0, availableWidth - labelWidth)
+      .toDouble();
+}
+
 int? _farthestActivityIndex(List<int> activityIndexes, Set<int> selected) {
   int? bestIndex;
   var bestDistance = -1;

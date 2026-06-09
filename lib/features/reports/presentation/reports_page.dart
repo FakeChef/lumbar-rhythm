@@ -375,15 +375,17 @@ class _RehabActivityDateAxis extends StatelessWidget {
         builder: (context, constraints) {
           const labelWidth = 44.0;
           final availableWidth = constraints.maxWidth;
-          final denominator = days.length <= 1 ? 1 : days.length - 1;
           return Stack(
             clipBehavior: Clip.none,
             children: [
               for (final index in tickIndexes)
                 Positioned(
-                  left:
-                      ((availableWidth * index / denominator) - labelWidth / 2)
-                          .clamp(0, availableWidth - labelWidth),
+                  left: activityTrendTickLabelLeft(
+                    index: index,
+                    dayCount: days.length,
+                    availableWidth: availableWidth,
+                    labelWidth: labelWidth,
+                  ),
                   width: labelWidth,
                   child: Text(
                     formatActivityTrendTickLabel(days[index].day),

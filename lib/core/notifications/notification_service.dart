@@ -34,6 +34,8 @@ class PostureCountdownState {
     this.remainingSeconds,
     this.dueAt,
     this.startedAt,
+    this.overdue = false,
+    this.status,
   });
 
   final bool running;
@@ -41,10 +43,15 @@ class PostureCountdownState {
   final int? remainingSeconds;
   final DateTime? dueAt;
   final DateTime? startedAt;
+  final bool overdue;
+  final String? status;
 
   bool get isDue {
     final due = dueAt;
-    if (running || postureType == null || due == null) {
+    if (overdue || status == 'overdue') {
+      return true;
+    }
+    if (postureType == null || due == null) {
       return false;
     }
     return !DateTime.now().isBefore(due);
@@ -72,6 +79,8 @@ class PostureCountdownState {
           : null,
       dueAt: millisToDate(map['dueAtMillis']),
       startedAt: millisToDate(map['startedAtMillis']),
+      overdue: map['overdue'] == true || map['status'] == 'overdue',
+      status: map['status'] is String ? map['status'] as String : null,
     );
   }
 }

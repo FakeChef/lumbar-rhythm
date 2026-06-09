@@ -111,7 +111,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
           walkingThresholdMinutes: settings.walkingIntervalMinutes,
         );
     state = const AsyncData(null);
-    ref.read(postureReminderStatusProvider.notifier).state = '当前状态不需要久坐/久站倒计时。';
+    ref.read(postureReminderStatusProvider.notifier).state = '当前已休息，坐/站倒计时已停止。';
     notifyAppDataChanged(ref);
     _stopCountdownStatusRefresh();
     await ref.read(notificationServiceProvider).stopPostureCountdown();
@@ -174,7 +174,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
 
   Future<void> _stopCountdownForNonTimedPosture() async {
     await ref.read(notificationServiceProvider).stopPostureCountdown();
-    ref.read(postureReminderStatusProvider.notifier).state = '当前状态不需要久坐/久站倒计时。';
+    ref.read(postureReminderStatusProvider.notifier).state = '当前已休息，坐/站倒计时已停止。';
     _stopCountdownStatusRefresh();
   }
 
@@ -201,7 +201,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
         (session.type != PostureType.sitting &&
             session.type != PostureType.standing)) {
       ref.read(postureReminderStatusProvider.notifier).state =
-          '当前状态不需要久坐/久站倒计时。';
+          '当前已休息，坐/站倒计时已停止。';
       return;
     }
     final settings = await ref.read(reminderSettingsRepositoryProvider).load();
@@ -212,9 +212,11 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     final countdown =
         await ref.read(notificationServiceProvider).getPostureCountdownState();
     if (countdown.postureType == session.type && countdown.dueAt != null) {
-      final message = countdown.running
-          ? _countdownRunningMessage(session.type, countdown.dueAt!)
-          : _countdownDueMessage(session.type);
+      final message = countdown.overdue
+          ? _countdownDueMessage(session.type)
+          : countdown.running
+              ? _countdownRunningMessage(session.type, countdown.dueAt!)
+              : _countdownDueMessage(session.type);
       ref.read(postureReminderStatusProvider.notifier).state = message;
       return;
     }

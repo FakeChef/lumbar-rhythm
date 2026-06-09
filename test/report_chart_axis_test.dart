@@ -58,6 +58,48 @@ void main() {
   test('tick label only shows day of month', () {
     expect(formatActivityTrendTickLabel(DateTime(2026, 6, 3)), '3');
   });
+
+  test('week axis endpoint labels sit near chart edges', () {
+    expect(
+      activityTrendTickLabelLeft(
+        index: 0,
+        dayCount: 7,
+        availableWidth: 280,
+        labelWidth: 44,
+      ),
+      0,
+    );
+    expect(
+      activityTrendTickLabelLeft(
+        index: 6,
+        dayCount: 7,
+        availableWidth: 280,
+        labelWidth: 44,
+      ),
+      236,
+    );
+  });
+
+  test('month axis endpoint labels sit near chart edges', () {
+    expect(
+      activityTrendTickLabelLeft(
+        index: 0,
+        dayCount: 30,
+        availableWidth: 300,
+        labelWidth: 44,
+      ),
+      0,
+    );
+    expect(
+      activityTrendTickLabelLeft(
+        index: 29,
+        dayCount: 30,
+        availableWidth: 300,
+        labelWidth: 44,
+      ),
+      256,
+    );
+  });
 }
 
 List<ActivityTrendAxisDay> _days(

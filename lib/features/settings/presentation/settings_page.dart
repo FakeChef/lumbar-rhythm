@@ -806,7 +806,7 @@ class _ReminderSettingsSection extends StatelessWidget {
           leading: Icon(Icons.check_circle_outline),
           title: Text('手动倒计时'),
           subtitle: Text(
-            '坐姿或站姿提醒采用手动倒计时：点击“我在坐”或“我在站”后开始计时，到点提醒一次；切换为走路或休息后自动停止。',
+            '坐姿或站姿提醒采用手动倒计时：点击“我在坐着”或“我在站着”后开始计时，到点后持续温和提醒；点击“我去休息了”后自动停止。',
           ),
         ),
         ListTile(

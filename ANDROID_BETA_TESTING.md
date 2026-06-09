@@ -13,7 +13,7 @@ build/app/outputs/flutter-apk/app-release.apk
 Suggested shared file name:
 
 ```text
-lumbar-rhythm-v0.3.0-beta1.apk
+lumbar-rhythm-v0.5.1-manual-countdown-beta.apk
 ```
 
 ## Tester message
@@ -25,10 +25,12 @@ You can send this text to testers:
 
 它是一个永久免费、无广告、无账号、无云端上传的腰突术后康复日志 App。坐站节奏是核心工具之一，所有记录默认保存在本地设备。
 
+坐/站提醒采用手动倒计时：点击“我在坐着”或“我在站着”后开始计时，通知栏显示持续倒计时；到点后持续温和提醒，直到切换坐/站状态或点击“我去休息了”停止倒计时。App 不承诺全天后台自动循环。
+
 请帮忙测试：
 1. 能否正常安装和打开。
 2. 底部导航“今日 / 康复 / 日历 / 报告 / 设置”是否都能打开。
-3. 今日页坐站节奏大计时器、坐/站/走/休息切换和今日摘要是否清楚。
+3. 今日页坐站节奏大计时器、“我在坐着 / 我在站着 / 我去休息了”三个主按钮、通知栏倒计时和今日摘要是否清楚。
 4. 日历页状态点和当天详情是否清楚。
 5. 康复页动作记录、做后反应和明显加重提示是否可用。
 6. 报告页坐站节奏报告、康复记录报告和免责声明是否清楚。
@@ -45,17 +47,18 @@ You can send this text to testers:
 - If installation is blocked, enable installation from the file manager or browser used to open the APK.
 - The app does not require login or network access.
 - If notification testing is needed, allow notification permission when prompted.
+- The reminder countdown is user-started. It should not automatically run all day or start another full countdown round after a reminder fires.
 
 ## Core test tasks
 
 Ask each tester to complete these tasks:
 
 1. Open the app and confirm the bottom navigation shows Today, Calendar, Rehab, Reports, and Settings.
-2. On the Today tab, check the sitting/standing rhythm timer, switch between sitting, standing, walking, and resting, and review today's summary.
+2. On the Today tab, tap sitting and standing to start the manual countdown, confirm the persistent notification shows the remaining time, then tap resting to stop the countdown.
 3. On the Calendar tab, check date status dots and open one day to review the day's details.
 4. On the Rehab tab, add one action record, choose a post-action reaction, and confirm the gentle prompt appears when "明显加重" is selected.
 5. On the Reports tab, check the sitting/standing rhythm report, rehabilitation record report, and disclaimer text.
-6. On the Settings tab, adjust reminder intervals, open the privacy text, export local JSON data, and delete all local data.
+6. On the Settings tab, adjust reminder intervals, read the manual countdown explanation, open the privacy text, export local JSON data, and delete all local data.
 7. Confirm report and reminder text is for personal review only and does not read like diagnosis, treatment advice, or recovery judgment.
 
 ## Feedback template

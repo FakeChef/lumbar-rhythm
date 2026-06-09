@@ -564,7 +564,7 @@ void main() {
     expect(find.text('该记录一下今天的状态了'), findsOneWidget);
     expect(find.widgetWithText(SwitchListTile, '夜间勿扰'), findsNothing);
     expect(find.text('手动倒计时'), findsOneWidget);
-    expect(find.textContaining('到点提醒一次'), findsOneWidget);
+    expect(find.textContaining('持续温和提醒'), findsOneWidget);
     expect(find.text('白天节奏'), findsNothing);
 
     await tester.tap(find.text('昵称与手术日期'));
@@ -802,6 +802,25 @@ void main() {
     expect(find.byKey(const ValueKey('rehab-amount-increase')), findsOneWidget);
     expect(find.byKey(const ValueKey('rehab-unit-options')), findsOneWidget);
     expect(find.byKey(const ValueKey('rehab-log-save-button')), findsOneWidget);
+  });
+
+  testWidgets('rehab tab does not show rehab phase explanation',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          rehabRepositoryProvider.overrideWithValue(_FakeRehabRepository()),
+          recoveryRepositoryProvider
+              .overrideWithValue(_FakeRecoveryRepository()),
+        ],
+        child: const MaterialApp(home: Scaffold(body: ActionsPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('rehab-today-records-section')),
+        findsOneWidget);
+    expect(find.text('康复阶段说明'), findsNothing);
   });
 
   test('RehabSummary uses amountValue for walking totals', () {

@@ -83,16 +83,27 @@ void main() {
     );
   });
 
-  test('foreground service sends one due reminder and does not loop', () {
+  test('foreground service enters overdue state and repeats gently', () {
     final service = File(
       'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/PostureCountdownService.kt',
     ).readAsStringSync();
 
     expect(service, contains('startForeground'));
     expect(service, contains('TICK_INTERVAL_MILLIS = 15_000L'));
+    expect(service, contains('REPEAT_REMINDER_INTERVAL_MILLIS = 180_000L'));
     expect(service, contains('reminderShown'));
     expect(service, contains('if (!state.reminderShown)'));
-    expect(service, contains('stopSelf()'));
+    expect(service, contains('lastReminderAtMillis'));
+    expect(service, contains('"overdue" to overdue'));
+    expect(service, contains('"status" to if (overdue) "overdue"'));
+    final dueBranch = service.substring(
+      service.indexOf('if (now >= state.dueAtMillis)'),
+      service.indexOf('notificationManager.notify',
+              service.indexOf('if (now >= state.dueAtMillis)')) +
+          120,
+    );
+    expect(dueBranch, isNot(contains('stopForeground')));
+    expect(dueBranch, isNot(contains('stopSelf()')));
     expect(service, isNot(contains('BOOT_COMPLETED')));
     expect(service, isNot(contains('zonedSchedule')));
   });
@@ -138,10 +149,10 @@ void main() {
     ).readAsStringSync();
 
     expect(settings, contains('手动倒计时'));
-    expect(settings, contains('到点提醒一次'));
+    expect(settings, contains('持续温和提醒'));
     expect(controller, contains('久坐倒计时中'));
     expect(controller, contains('久站倒计时中'));
-    expect(controller, contains('当前状态不需要久坐/久站倒计时'));
+    expect(controller, contains('当前已休息，坐/站倒计时已停止'));
     expect(settings, isNot(contains('白天节奏')));
     expect(settings, isNot(contains('自动循环提醒')));
     expect(settings, isNot(contains('全天节奏提醒')));

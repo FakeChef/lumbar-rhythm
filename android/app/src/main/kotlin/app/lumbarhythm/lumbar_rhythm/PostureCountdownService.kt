@@ -39,6 +39,7 @@ class PostureCountdownService : Service() {
             dueAtMillis = dueAtMillis,
             reminderMode = reminderMode,
             reminderShown = false,
+            lastReminderAtMillis = null,
         )
 
         ensureChannels(this)
@@ -71,16 +72,34 @@ class PostureCountdownService : Service() {
                     showDueNotification(state.postureType, state.reminderMode)
                     saveState(
                         context = this@PostureCountdownService,
-                        running = false,
+                        running = true,
                         postureType = state.postureType,
                         startedAtMillis = state.startedAtMillis,
                         dueAtMillis = state.dueAtMillis,
                         reminderMode = state.reminderMode,
                         reminderShown = true,
+                        lastReminderAtMillis = now,
+                    )
+                } else if (state.lastReminderAtMillis == null ||
+                    now - state.lastReminderAtMillis >= REPEAT_REMINDER_INTERVAL_MILLIS
+                ) {
+                    showDueNotification(state.postureType, state.reminderMode)
+                    saveState(
+                        context = this@PostureCountdownService,
+                        running = true,
+                        postureType = state.postureType,
+                        startedAtMillis = state.startedAtMillis,
+                        dueAtMillis = state.dueAtMillis,
+                        reminderMode = state.reminderMode,
+                        reminderShown = true,
+                        lastReminderAtMillis = now,
                     )
                 }
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                notificationManager.notify(
+                    ONGOING_NOTIFICATION_ID,
+                    buildOngoingNotification(state.postureType, state.dueAtMillis),
+                )
+                handler.postDelayed(this, TICK_INTERVAL_MILLIS)
                 return
             }
 
@@ -105,6 +124,13 @@ class PostureCountdownService : Service() {
 
     private fun countdownText(postureType: String, dueAtMillis: Long): String {
         val remainingMillis = max(0L, dueAtMillis - System.currentTimeMillis())
+        if (remainingMillis == 0L) {
+            return if (postureType == POSTURE_STANDING) {
+                "久站已到提醒时间，建议现在变换姿势。"
+            } else {
+                "久坐已到提醒时间，建议现在活动一下。"
+            }
+        }
         val minutes = max(1, ceil(remainingMillis / 60000.0).toInt())
         return if (postureType == POSTURE_STANDING) {
             "久站倒计时中，剩余 $minutes 分钟"
@@ -152,6 +178,7 @@ class PostureCountdownService : Service() {
         private const val EXTRA_REMINDER_MODE = "reminderMode"
         private const val EXTRA_STARTED_AT_MILLIS = "startedAtMillis"
         private const val TICK_INTERVAL_MILLIS = 15_000L
+        private const val REPEAT_REMINDER_INTERVAL_MILLIS = 180_000L
         private const val PREFS = "posture_countdown"
         private const val COUNTDOWN_CHANNEL_ID = "lumbar_rhythm_posture_countdown"
         private const val SOFT_CHANNEL_ID = "lumbar_rhythm_soft_reminders_v2"
@@ -198,6 +225,7 @@ class PostureCountdownService : Service() {
                 dueAtMillis = current.dueAtMillis,
                 reminderMode = current.reminderMode,
                 reminderShown = current.reminderShown,
+                lastReminderAtMillis = current.lastReminderAtMillis,
             )
             val intent = Intent(context, PostureCountdownService::class.java).apply {
                 action = ACTION_STOP
@@ -207,7 +235,9 @@ class PostureCountdownService : Service() {
 
         fun getState(context: Context): Map<String, Any?> {
             val state = readState(context)
-            val remainingSeconds = if (state.running && state.dueAtMillis != null) {
+            val overdue = state.running && state.dueAtMillis != null &&
+                System.currentTimeMillis() >= state.dueAtMillis
+            val remainingSeconds = if (state.running && state.dueAtMillis != null && !overdue) {
                 max(0L, (state.dueAtMillis - System.currentTimeMillis()) / 1000L).toInt()
             } else {
                 0
@@ -218,6 +248,8 @@ class PostureCountdownService : Service() {
                 "remainingSeconds" to remainingSeconds,
                 "dueAtMillis" to state.dueAtMillis,
                 "startedAtMillis" to state.startedAtMillis,
+                "overdue" to overdue,
+                "status" to if (overdue) "overdue" else if (state.running) "running" else "stopped",
             )
         }
 
@@ -288,6 +320,8 @@ class PostureCountdownService : Service() {
                 dueAtMillis = dueAtMillis,
                 reminderMode = prefs.getString(EXTRA_REMINDER_MODE, MODE_SOFT) ?: MODE_SOFT,
                 reminderShown = prefs.getBoolean("reminderShown", false),
+                lastReminderAtMillis = prefs.getLong("lastReminderAtMillis", 0L)
+                    .takeIf { it > 0L },
             )
         }
 
@@ -299,6 +333,7 @@ class PostureCountdownService : Service() {
             dueAtMillis: Long?,
             reminderMode: String,
             reminderShown: Boolean,
+            lastReminderAtMillis: Long?,
         ) {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putBoolean("running", running)
@@ -307,6 +342,7 @@ class PostureCountdownService : Service() {
                 .putLong("dueAtMillis", dueAtMillis ?: 0L)
                 .putString(EXTRA_REMINDER_MODE, reminderMode)
                 .putBoolean("reminderShown", reminderShown)
+                .putLong("lastReminderAtMillis", lastReminderAtMillis ?: 0L)
                 .apply()
         }
     }
@@ -319,4 +355,5 @@ data class CountdownState(
     val dueAtMillis: Long?,
     val reminderMode: String,
     val reminderShown: Boolean,
+    val lastReminderAtMillis: Long?,
 )
