@@ -294,8 +294,8 @@ void main() {
       find.byKey(ValueKey('rehab-activity-trend-chart-${breathing.id}')),
       findsOneWidget,
     );
-    for (var index = 0; index < 7; index++) {
-      final day = today.subtract(Duration(days: 6 - index));
+    for (final offset in [6, 2, 1, 0]) {
+      final day = today.subtract(Duration(days: offset));
       expect(
         find.byKey(
           ValueKey('rehab-trend-date-${day.year}-${day.month}-${day.day}'),
@@ -303,6 +303,16 @@ void main() {
         findsWidgets,
       );
     }
+    final hiddenWeekTick = today.subtract(const Duration(days: 5));
+    expect(
+      find.byKey(
+        ValueKey(
+          'rehab-trend-date-${hiddenWeekTick.year}-${hiddenWeekTick.month}-${hiddenWeekTick.day}',
+        ),
+      ),
+      findsNothing,
+    );
+    expect(find.textContaining('/'), findsNothing);
     expect(find.text('今日康复动作记录'), findsNothing);
     expect(find.text('这段时间还没有康复活动记录。'), findsNothing);
     expect(find.text('记录天数'), findsNothing);
@@ -335,7 +345,7 @@ void main() {
       find.byKey(ValueKey('rehab-activity-trend-chart-${breathing.id}')),
       findsOneWidget,
     );
-    for (final offset in [29, 28, 21, 14, 7, 0]) {
+    for (final offset in [29, 9, 2, 1, 0]) {
       final day = today.subtract(Duration(days: offset));
       expect(
         find.byKey(
@@ -353,6 +363,7 @@ void main() {
       ),
       findsNothing,
     );
+    expect(find.textContaining('/'), findsNothing);
     expect(find.text('今日康复动作记录'), findsNothing);
     expect(find.text('康复记录总次数'), findsNothing);
     expect(find.text('今日坐姿状态'), findsNothing);
@@ -563,6 +574,24 @@ void main() {
     expect(find.text('2026年6月1日'), findsOneWidget);
     expect(find.text('患者昵称（可选）'), findsOneWidget);
     expect(find.text('昵称只保存在本地，用于今日页称呼；不要求真实姓名。'), findsOneWidget);
+    expect(find.text('康复阶段说明'), findsOneWidget);
+    expect(find.text('了解术后记录节奏的分期逻辑'), findsOneWidget);
+    expect(find.text('第1阶段（0-4周）'), findsNothing);
+    expect(find.text('第2阶段（4-8周）'), findsNothing);
+    expect(find.text('第3阶段（8-12周）'), findsNothing);
+    expect(find.text('第4阶段（12周后）'), findsNothing);
+
+    await tester.tap(find.text('康复阶段说明'));
+    await tester.pumpAndSettle();
+    expect(find.text('第1阶段（0-4周）'), findsOneWidget);
+    expect(find.text('第2阶段（4-8周）'), findsOneWidget);
+    expect(find.text('第3阶段（8-12周）'), findsOneWidget);
+    expect(find.text('第4阶段（12周后）'), findsOneWidget);
+    expect(
+      find.text('以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。'),
+      findsOneWidget,
+    );
+
     await tester.enterText(find.byType(TextFormField).first, '小林');
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
@@ -880,7 +909,8 @@ void main() {
   });
 
   test('app copy avoids unsupported medical promise wording', () {
-    const fixedDisclaimer = '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
+    const allowedReportDisclaimer = '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
+    const allowedPhaseDisclaimer = '以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。';
     const forbidden = [
       '治疗',
       '治愈',
@@ -899,7 +929,10 @@ void main() {
         .where((file) => file.path.endsWith('.dart'));
 
     for (final file in libFiles) {
-      final text = file.readAsStringSync().replaceAll(fixedDisclaimer, '');
+      final text = file
+          .readAsStringSync()
+          .replaceAll(allowedReportDisclaimer, '')
+          .replaceAll(allowedPhaseDisclaimer, '');
       for (final word in forbidden) {
         expect(text, isNot(contains(word)),
             reason: '${file.path} contains $word');

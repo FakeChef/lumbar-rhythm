@@ -547,6 +547,8 @@ class SettingsPage extends ConsumerWidget {
                       ),
                       onChanged: (value) => nickname = value,
                     ),
+                    const SizedBox(height: 12),
+                    const _RecoveryPhaseExplanationTile(),
                     if (surgeryDate == null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
@@ -665,6 +667,108 @@ class SettingsPage extends ConsumerWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _RecoveryPhaseExplanationTile extends StatelessWidget {
+  const _RecoveryPhaseExplanationTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          title: Text(
+            '康复阶段说明',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          subtitle: const Text('了解术后记录节奏的分期逻辑'),
+          children: const [
+            _RecoveryPhaseParagraph(
+              text:
+                  '本康复计划基于现代运动医学的“组织愈合生理周期（Tissue Healing Phases）”科学构建。人体修复并非线性过程，而是经历炎症消退、组织增生、胶原纤维重塑到功能成熟的四个生物学阶段。',
+            ),
+            _RecoveryPhaseParagraph(
+              text: '我们将其科学划分为四个阶段，目的是让您的康复节奏与身体的修复节奏高度同步：',
+            ),
+            _RecoveryPhaseParagraph(
+              title: '第1阶段（0-4周）',
+              text: '急性愈合与神经唤醒。聚焦炎症期管理，通过神经唤醒保护受损组织，防止早期过度负荷导致的二次损伤。',
+            ),
+            _RecoveryPhaseParagraph(
+              title: '第2阶段（4-8周）',
+              text: '运动控制与动态稳定。针对组织增生期，重点在于通过科学运动，将零散的纤维转化为有序的受控力量。',
+            ),
+            _RecoveryPhaseParagraph(
+              title: '第3阶段（8-12周）',
+              text: '功能性负荷进阶。对应组织重塑成熟期，通过功能性负荷训练，提升胶原纤维的强度与韧性，重建关节承重能力。',
+            ),
+            _RecoveryPhaseParagraph(
+              title: '第4阶段（12周后）',
+              text: '高负荷恢复。针对组织功能成熟期，由受控训练全面过渡至自主运动，助您回归正常生活与运动状态。',
+            ),
+            _RecoveryPhaseParagraph(
+              text:
+                  '这套分期体系不仅是为了确保生理修复的安全性，更是在每一个生理窗口期提供对应的心理与行动支持，帮您稳步找回身体的掌控权。',
+            ),
+            _RecoveryPhaseParagraph(
+              isFootnote: true,
+              text: '以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecoveryPhaseParagraph extends StatelessWidget {
+  const _RecoveryPhaseParagraph({
+    required this.text,
+    this.title,
+    this.isFootnote = false,
+  });
+
+  final String? title;
+  final String text;
+  final bool isFootnote;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = this.title;
+    final color =
+        isFootnote ? Theme.of(context).colorScheme.onSurfaceVariant : null;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (title != null) ...[
+            Text(
+              title,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 2),
+          ],
+          Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: color,
+                  height: 1.35,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }

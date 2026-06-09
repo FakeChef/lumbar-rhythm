@@ -453,13 +453,13 @@ void main() {
   });
 
   test('reminder diagnostics do not add medical judgment copy', () {
-    final source =
-        File(
-          'lib/core/notifications/notification_service.dart',
-        ).readAsStringSync() +
-        File(
-          'lib/features/settings/presentation/settings_page.dart',
-        ).readAsStringSync();
+    final source = (File(
+              'lib/core/notifications/notification_service.dart',
+            ).readAsStringSync() +
+            File(
+              'lib/features/settings/presentation/settings_page.dart',
+            ).readAsStringSync())
+        .replaceAll('以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。', '');
     const forbidden = ['诊断', '治疗', '治愈', '复发判断', '医疗建议'];
 
     for (final word in forbidden) {
