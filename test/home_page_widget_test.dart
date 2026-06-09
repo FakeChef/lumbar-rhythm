@@ -407,6 +407,18 @@ void main() {
       lessThanOrEqualTo(800),
     );
   });
+
+  testWidgets('today summary metric cards avoid narrow viewport overflow',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(393, 851));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpApp(
+      tester,
+      child: const Scaffold(body: HomePage()),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<void> _scrollDown(WidgetTester tester) async {
