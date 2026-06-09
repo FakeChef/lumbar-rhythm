@@ -228,7 +228,7 @@ class _MiniMetricGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
-        childAspectRatio: 2.7,
+        childAspectRatio: 2.45,
       ),
       itemBuilder: (context, index) => _MiniMetricTile(
         key: const ValueKey('today-posture-summary-metric'),

@@ -10,6 +10,7 @@ import '../../../core/widgets/header_action_button.dart';
 import '../../actions/domain/action_item.dart';
 import '../application/daily_report_controller.dart';
 import '../domain/daily_report.dart';
+import 'report_chart_axis.dart';
 
 const reportDisclaimerText = '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
 
@@ -239,8 +240,7 @@ class _ActivityTrendReportSection extends StatelessWidget {
         subtitle: '按实际记录过的康复活动查看趋势',
         child: trends.isEmpty
             ? const _EmptyHint(
-                text:
-                    '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+                text: '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
               )
             : Column(
                 children: [
@@ -360,7 +360,15 @@ class _RehabActivityDateAxis extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tickIndexes = _dateTickIndexes(days);
+    final tickIndexes = buildActivityTrendTickIndexes(
+      days: [
+        for (final day in days)
+          ActivityTrendAxisDay(
+            date: day.day,
+            hasActivity: day.value > 0,
+          ),
+      ],
+    );
     return SizedBox(
       height: 22,
       child: LayoutBuilder(
@@ -373,12 +381,12 @@ class _RehabActivityDateAxis extends StatelessWidget {
             children: [
               for (final index in tickIndexes)
                 Positioned(
-                  left: ((availableWidth * index / denominator) -
-                          labelWidth / 2)
-                      .clamp(0, availableWidth - labelWidth),
+                  left:
+                      ((availableWidth * index / denominator) - labelWidth / 2)
+                          .clamp(0, availableWidth - labelWidth),
                   width: labelWidth,
                   child: Text(
-                    _formatDateLabel(days[index].day),
+                    formatActivityTrendTickLabel(days[index].day),
                     key: ValueKey(
                       'rehab-trend-date-${days[index].day.year}-${days[index].day.month}-${days[index].day.day}',
                     ),
@@ -393,18 +401,6 @@ class _RehabActivityDateAxis extends StatelessWidget {
         },
       ),
     );
-  }
-
-  List<int> _dateTickIndexes(List<_ActivityTrendDay> days) {
-    if (days.length <= 7) {
-      return [for (var index = 0; index < days.length; index++) index];
-    }
-    final lastIndex = days.length - 1;
-    final indexes = <int>{0};
-    for (var index = lastIndex; index >= 0; index -= 7) {
-      indexes.add(index);
-    }
-    return indexes.toList()..sort();
   }
 }
 
@@ -789,10 +785,6 @@ String _actionNameFor(DailyReport report, int actionId) {
 
 String _formatNumber(double value) {
   return value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(1);
-}
-
-String _formatDateLabel(DateTime value) {
-  return '${value.month}/${value.day}';
 }
 
 String _formatClock(DateTime value) {
