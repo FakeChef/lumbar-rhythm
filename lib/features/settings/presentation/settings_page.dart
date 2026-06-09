@@ -220,6 +220,9 @@ class SettingsPage extends ConsumerWidget {
                       .read(_settingsTestReminderFeedbackProvider.notifier)
                       .state = message;
                 },
+                onDiagnosticsPressed: () {
+                  _showReminderDiagnosticsDialog(context, ref, settings);
+                },
               ),
               const ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -855,6 +858,7 @@ class _ReminderSettingsSection extends StatelessWidget {
     required this.onExactOneMinuteTestPressed,
     required this.onAlarmClockOneMinuteTestPressed,
     required this.onPendingPressed,
+    required this.onDiagnosticsPressed,
   });
 
   final ReminderSettings settings;
@@ -879,6 +883,7 @@ class _ReminderSettingsSection extends StatelessWidget {
   final VoidCallback onExactOneMinuteTestPressed;
   final VoidCallback onAlarmClockOneMinuteTestPressed;
   final VoidCallback onPendingPressed;
+  final VoidCallback onDiagnosticsPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -969,6 +974,17 @@ class _ReminderSettingsSection extends StatelessWidget {
           leading: Icon(Icons.check_circle_outline),
           title: Text('自动保存'),
           subtitle: Text('以上设置会立即保存到本地数据库。'),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.bug_report_outlined),
+          title: const Text('提醒诊断'),
+          subtitle: const Text('检查通知权限、通道、立即提醒和 10 秒定时提醒。'),
+          trailing: IconButton(
+            tooltip: '提醒诊断',
+            icon: const Icon(Icons.chevron_right),
+            onPressed: onDiagnosticsPressed,
+          ),
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
@@ -1149,6 +1165,235 @@ class _ReminderDebugPanel extends StatelessWidget {
               ),
         ),
       ),
+    );
+  }
+}
+
+Future<void> _showReminderDiagnosticsDialog(
+  BuildContext context,
+  WidgetRef ref,
+  ReminderSettings settings,
+) async {
+  await ref.read(notificationServiceProvider).refreshReminderDiagnostics();
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (context) => _ReminderDiagnosticsDialog(settings: settings),
+  );
+}
+
+class _ReminderDiagnosticsDialog extends ConsumerWidget {
+  const _ReminderDiagnosticsDialog({required this.settings});
+
+  final ReminderSettings settings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final debugState = ref.watch(reminderDebugStateProvider);
+    final channelId = channelIdForReminderMode(settings.reminderMode);
+    return AlertDialog(
+      title: const Text('提醒诊断'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _DiagnosticLine(
+                label: '当前提醒模式', value: settings.reminderMode.label),
+            _DiagnosticLine(label: '当前 channel id', value: channelId),
+            _DiagnosticLine(
+              label: '通知权限状态',
+              value: _formatDiagnosticBool(
+                debugState.notificationsEnabled,
+                trueText: '已允许',
+                falseText: '未允许',
+              ),
+            ),
+            _DiagnosticLine(
+              label: '精确提醒状态',
+              value: _formatDiagnosticBool(
+                debugState.exactNotificationsAvailable,
+                trueText: '可用',
+                falseText: '不可用',
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '如果测试提醒没有声音，请检查系统设置中的通知权限、通知频道声音、勿扰模式和电池限制。',
+            ),
+            const SizedBox(height: 16),
+            _DiagnosticButton(
+              icon: Icons.verified_outlined,
+              label: '检查并请求通知权限',
+              onPressed: () => _requestDiagnosticPermission(context, ref),
+            ),
+            _DiagnosticButton(
+              icon: Icons.send_outlined,
+              label: '发送立即测试提醒',
+              onPressed: () => _runDiagnosticAction(
+                context: context,
+                ref: ref,
+                action: () => ref
+                    .read(notificationServiceProvider)
+                    .showImmediateDiagnosticReminder(
+                      reminderMode: settings.reminderMode,
+                    ),
+                successMessage: '已发送立即测试提醒',
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.timer_10_outlined,
+              label: '10 秒后测试提醒',
+              onPressed: () => _runDiagnosticAction(
+                context: context,
+                ref: ref,
+                action: () => ref
+                    .read(notificationServiceProvider)
+                    .scheduleTenSecondDiagnosticReminder(
+                      reminderMode: settings.reminderMode,
+                    ),
+                successMessage: '已安排 10 秒后提醒',
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.vibration_outlined,
+              label: '测试震动提醒',
+              onPressed: () => _runDiagnosticAction(
+                context: context,
+                ref: ref,
+                action: () => ref
+                    .read(notificationServiceProvider)
+                    .showVibrationDiagnosticReminder(),
+                successMessage: '已发送立即测试提醒',
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.notifications_active_outlined,
+              label: '测试响铃提醒',
+              onPressed: () => _runDiagnosticAction(
+                context: context,
+                ref: ref,
+                action: () => ref
+                    .read(notificationServiceProvider)
+                    .showAlarmDiagnosticReminder(),
+                successMessage: '已发送立即测试提醒',
+              ),
+            ),
+            if (debugState.lastErrorMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '错误：${debugState.lastErrorMessage}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DiagnosticLine extends StatelessWidget {
+  const _DiagnosticLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text('$label：$value'),
+    );
+  }
+}
+
+class _DiagnosticButton extends StatelessWidget {
+  const _DiagnosticButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: OutlinedButton.icon(
+        icon: Icon(icon),
+        label: Text(label),
+        onPressed: onPressed,
+      ),
+    );
+  }
+}
+
+String _formatDiagnosticBool(
+  bool? value, {
+  required String trueText,
+  required String falseText,
+}) {
+  if (value == null) {
+    return '未知';
+  }
+  return value ? trueText : falseText;
+}
+
+Future<void> _requestDiagnosticPermission(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final granted =
+        await ref.read(notificationServiceProvider).requestPermissions();
+    await ref.read(notificationServiceProvider).refreshReminderDiagnostics();
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(granted ? '通知权限已允许' : '通知权限未允许，请先开启'),
+      ),
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(content: Text('检查通知权限失败，请稍后重试。')),
+    );
+  }
+}
+
+Future<void> _runDiagnosticAction({
+  required BuildContext context,
+  required WidgetRef ref,
+  required Future<bool> Function() action,
+  required String successMessage,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final ok = await action();
+    await ref.read(notificationServiceProvider).refreshReminderDiagnostics();
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(ok ? successMessage : '通知权限未允许，请先开启'),
+      ),
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(content: Text('提醒测试失败，请检查系统通知设置。')),
     );
   }
 }

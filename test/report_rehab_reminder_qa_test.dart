@@ -665,6 +665,72 @@ void main() {
         notificationService.oneMinuteTestReminderModes, [ReminderMode.alarm]);
   });
 
+  testWidgets('settings page exposes reminder diagnostics actions',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final notificationService = _FakeNotificationService();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          reminderSettingsRepositoryProvider.overrideWithValue(
+            const _FakeReminderSettingsRepository(
+              ReminderSettings(
+                remindersEnabled: true,
+                sittingIntervalMinutes: 45,
+                standingIntervalMinutes: 30,
+                reminderMode: ReminderMode.vibration,
+              ),
+            ),
+          ),
+          recoveryRepositoryProvider
+              .overrideWithValue(_FakeRecoveryRepository()),
+          notificationServiceProvider.overrideWithValue(notificationService),
+        ],
+        child: const MaterialApp(home: Scaffold(body: SettingsPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('提醒诊断'), 300.0);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('提醒诊断'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('当前提醒模式：震动提醒'), findsOneWidget);
+    expect(
+      find.text(
+        '当前 channel id：lumbar_rhythm_vibration_reminders_v2',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('检查并请求通知权限'), findsOneWidget);
+    expect(find.text('发送立即测试提醒'), findsOneWidget);
+    expect(find.text('10 秒后测试提醒'), findsOneWidget);
+    expect(find.text('测试震动提醒'), findsOneWidget);
+    expect(find.text('测试响铃提醒'), findsOneWidget);
+
+    await tester.tap(find.text('检查并请求通知权限'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('发送立即测试提醒'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('10 秒后测试提醒'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('测试震动提醒'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('测试响铃提醒'));
+    await tester.pumpAndSettle();
+
+    expect(notificationService.permissionRequests, 1);
+    expect(
+        notificationService.diagnosticImmediateModes, [ReminderMode.vibration]);
+    expect(
+        notificationService.tenSecondDiagnosticModes, [ReminderMode.vibration]);
+    expect(notificationService.vibrationDiagnosticCount, 1);
+    expect(notificationService.alarmDiagnosticCount, 1);
+  });
+
   testWidgets('rehab log sheet accepts an initial past record date',
       (tester) async {
     await tester.pumpWidget(
@@ -932,7 +998,8 @@ void main() {
       final text = file
           .readAsStringSync()
           .replaceAll(allowedReportDisclaimer, '')
-          .replaceAll(allowedPhaseDisclaimer, '');
+          .replaceAll(allowedPhaseDisclaimer, '')
+          .replaceAll('提醒诊断', '');
       for (final word in forbidden) {
         expect(text, isNot(contains(word)),
             reason: '${file.path} contains $word');
@@ -1229,6 +1296,25 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 class _FakeNotificationService extends NotificationService {
   final testReminderModes = <ReminderMode>[];
   final oneMinuteTestReminderModes = <ReminderMode>[];
+  final diagnosticImmediateModes = <ReminderMode>[];
+  final tenSecondDiagnosticModes = <ReminderMode>[];
+  int permissionRequests = 0;
+  int vibrationDiagnosticCount = 0;
+  int alarmDiagnosticCount = 0;
+
+  @override
+  Future<bool> requestPermissions() async {
+    permissionRequests += 1;
+    return true;
+  }
+
+  @override
+  Future<ReminderDebugState> refreshReminderDiagnostics() async {
+    return const ReminderDebugState(
+      notificationsEnabled: true,
+      exactNotificationsAvailable: null,
+    );
+  }
 
   @override
   Future<bool> showReminderNow({
@@ -1257,6 +1343,34 @@ class _FakeNotificationService extends NotificationService {
         ReminderScheduleDiagnosticMode.inexactAllowWhileIdle,
   }) async {
     oneMinuteTestReminderModes.add(reminderMode);
+    return true;
+  }
+
+  @override
+  Future<bool> showImmediateDiagnosticReminder({
+    ReminderMode reminderMode = ReminderMode.soft,
+  }) async {
+    diagnosticImmediateModes.add(reminderMode);
+    return true;
+  }
+
+  @override
+  Future<bool> scheduleTenSecondDiagnosticReminder({
+    ReminderMode reminderMode = ReminderMode.soft,
+  }) async {
+    tenSecondDiagnosticModes.add(reminderMode);
+    return true;
+  }
+
+  @override
+  Future<bool> showVibrationDiagnosticReminder() async {
+    vibrationDiagnosticCount += 1;
+    return true;
+  }
+
+  @override
+  Future<bool> showAlarmDiagnosticReminder() async {
+    alarmDiagnosticCount += 1;
     return true;
   }
 

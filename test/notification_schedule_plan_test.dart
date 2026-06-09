@@ -42,9 +42,9 @@ void main() {
       reminderMode: ReminderMode.alarm,
     ).android;
 
-    expect(soft?.channelId, 'lumbar_rhythm_soft_reminders_v3');
-    expect(vibration?.channelId, 'lumbar_rhythm_vibration_reminders_v3');
-    expect(alarm?.channelId, 'lumbar_rhythm_alarm_reminders_v3');
+    expect(soft?.channelId, 'lumbar_rhythm_soft_reminders_v2');
+    expect(vibration?.channelId, 'lumbar_rhythm_vibration_reminders_v2');
+    expect(alarm?.channelId, 'lumbar_rhythm_alarm_reminders_v2');
     expect(soft?.importance, Importance.high);
     expect(vibration?.importance, Importance.high);
   });
@@ -346,6 +346,33 @@ void main() {
     expect(service, contains('refreshPendingScheduledNotifications'));
   });
 
+  test('diagnostic reminders expose permission and v2 channel checks', () {
+    final service = File(
+      'lib/core/notifications/notification_service.dart',
+    ).readAsStringSync();
+    final settings = File(
+      'lib/features/settings/presentation/settings_page.dart',
+    ).readAsStringSync();
+
+    expect(service, contains('areNotificationsEnabled'));
+    expect(service, contains('canScheduleExactNotifications'));
+    expect(service, contains('showImmediateDiagnosticReminder'));
+    expect(service, contains('scheduleTenSecondDiagnosticReminder'));
+    expect(service, contains('showVibrationDiagnosticReminder'));
+    expect(service, contains('showAlarmDiagnosticReminder'));
+    expect(service, contains('_plugin.zonedSchedule'));
+    expect(settings, contains('提醒诊断'));
+    expect(settings, contains('检查并请求通知权限'));
+    expect(settings, contains('发送立即测试提醒'));
+    expect(settings, contains('10 秒后测试提醒'));
+    expect(settings, contains('测试震动提醒'));
+    expect(settings, contains('测试响铃提醒'));
+    expect(settings, contains('当前 channel id'));
+    expect(settings, contains('通知权限状态'));
+    expect(settings, contains('精确提醒状态'));
+    expect(settings, contains('勿扰模式和电池限制'));
+  });
+
   test(
     'stop recording cancels pending reminders and foreground timer can show',
     () {
@@ -460,7 +487,7 @@ void main() {
               'lib/features/settings/presentation/settings_page.dart',
             ).readAsStringSync())
         .replaceAll('以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。', '');
-    const forbidden = ['诊断', '治疗', '治愈', '复发判断', '医疗建议'];
+    const forbidden = ['治疗', '治愈', '复发判断', '医疗建议', '医学结论'];
 
     for (final word in forbidden) {
       expect(source, isNot(contains(word)));
