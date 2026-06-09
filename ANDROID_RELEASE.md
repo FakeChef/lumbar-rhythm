@@ -18,6 +18,10 @@ Successful outputs:
 - APK: `build/app/outputs/flutter-apk/app-release.apk`
 - AAB: `build/app/outputs/bundle/release/app-release.aab`
 
+Do not commit APK files to Git after packaging. For direct testing
+distribution, upload the APK to a GitHub Release. Local developers can rebuild
+the APK from source when needed.
+
 ## Release signing
 
 The Android Gradle config reads release signing settings from:
@@ -52,6 +56,7 @@ release build pipeline can still be verified locally.
 
 - Back up the keystore and passwords safely before publishing.
 - Do not commit `android/key.properties` or any `.jks` / `.keystore` files.
+- Do not `git add` APK files. APKs are release artifacts, not repository files.
 - The same release identity must be kept for future updates.
 - For Google Play, upload the AAB after signing is configured.
-- For direct testing distribution, use the APK.
+- For direct testing distribution, upload the APK to GitHub Releases.

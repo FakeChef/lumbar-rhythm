@@ -100,4 +100,15 @@ flutter pub get
 flutter run
 ```
 
+## 测试包获取方式
+
+测试 APK 不再提交到 Git 仓库。需要安装测试包时，请从 GitHub Releases
+下载对应版本的 APK。
+
+本地开发者也可以在项目根目录运行以下命令自行构建：
+
+```bash
+flutter build apk --release
+```
+
 本仓库不接入广告、统计、登录、云服务 SDK。后续开发应继续保持本地优先和医疗边界。
