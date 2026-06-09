@@ -96,6 +96,13 @@ class ReminderDebugState {
     this.lastPostureReminderType,
     this.lastPostureReminderSessionStartedAt,
     this.lastPostureReminderPending,
+    this.foregroundWatcherActive,
+    this.foregroundDueAt,
+    this.foregroundFiredAt,
+    this.lifecycleCatchupFiredAt,
+    this.lastPostureReminderDueAt,
+    this.lastPostureReminderTriggeredBy,
+    this.lastHybridReminderError,
   });
 
   final DateTime? lastImmediateTestAt;
@@ -120,6 +127,13 @@ class ReminderDebugState {
   final PostureType? lastPostureReminderType;
   final DateTime? lastPostureReminderSessionStartedAt;
   final bool? lastPostureReminderPending;
+  final bool? foregroundWatcherActive;
+  final DateTime? foregroundDueAt;
+  final DateTime? foregroundFiredAt;
+  final DateTime? lifecycleCatchupFiredAt;
+  final DateTime? lastPostureReminderDueAt;
+  final String? lastPostureReminderTriggeredBy;
+  final String? lastHybridReminderError;
 
   ReminderDebugState copyWith({
     DateTime? lastImmediateTestAt,
@@ -144,6 +158,13 @@ class ReminderDebugState {
     PostureType? lastPostureReminderType,
     DateTime? lastPostureReminderSessionStartedAt,
     bool? lastPostureReminderPending,
+    bool? foregroundWatcherActive,
+    DateTime? foregroundDueAt,
+    DateTime? foregroundFiredAt,
+    DateTime? lifecycleCatchupFiredAt,
+    DateTime? lastPostureReminderDueAt,
+    String? lastPostureReminderTriggeredBy,
+    String? lastHybridReminderError,
   }) {
     return ReminderDebugState(
       lastImmediateTestAt: lastImmediateTestAt ?? this.lastImmediateTestAt,
@@ -184,6 +205,17 @@ class ReminderDebugState {
               this.lastPostureReminderSessionStartedAt,
       lastPostureReminderPending:
           lastPostureReminderPending ?? this.lastPostureReminderPending,
+      foregroundWatcherActive:
+          foregroundWatcherActive ?? this.foregroundWatcherActive,
+      foregroundDueAt: foregroundDueAt ?? this.foregroundDueAt,
+      foregroundFiredAt: foregroundFiredAt ?? this.foregroundFiredAt,
+      lifecycleCatchupFiredAt:
+          lifecycleCatchupFiredAt ?? this.lifecycleCatchupFiredAt,
+      lastPostureReminderDueAt:
+          lastPostureReminderDueAt ?? this.lastPostureReminderDueAt,
+      lastPostureReminderTriggeredBy:
+          lastPostureReminderTriggeredBy ?? this.lastPostureReminderTriggeredBy,
+      lastHybridReminderError: lastHybridReminderError,
     );
   }
 }
@@ -250,6 +282,51 @@ class NotificationService {
 
   void recordError(Object error) {
     _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+  }
+
+  void updateHybridReminderState({
+    required bool foregroundWatcherActive,
+    DateTime? foregroundDueAt,
+    PostureType? postureType,
+    DateTime? sessionStartedAt,
+  }) {
+    _updateDebug(
+      _debugState.copyWith(
+        foregroundWatcherActive: foregroundWatcherActive,
+        foregroundDueAt: foregroundDueAt,
+        lastPostureReminderDueAt: foregroundDueAt,
+        lastPostureReminderType: postureType,
+        lastPostureReminderSessionStartedAt: sessionStartedAt,
+        lastHybridReminderError: null,
+      ),
+    );
+  }
+
+  void recordHybridReminderFired({
+    required String triggeredBy,
+    required DateTime firedAt,
+    required PostureType postureType,
+    required DateTime sessionStartedAt,
+    required DateTime dueAt,
+  }) {
+    _updateDebug(
+      _debugState.copyWith(
+        foregroundFiredAt: triggeredBy == 'foregroundWatcher' ? firedAt : null,
+        lifecycleCatchupFiredAt:
+            triggeredBy == 'lifecycleCatchup' ? firedAt : null,
+        lastPostureReminderTriggeredBy: triggeredBy,
+        lastPostureReminderType: postureType,
+        lastPostureReminderSessionStartedAt: sessionStartedAt,
+        lastPostureReminderDueAt: dueAt,
+        lastHybridReminderError: null,
+      ),
+    );
+  }
+
+  void recordHybridReminderError(Object error) {
+    _updateDebug(
+      _debugState.copyWith(lastHybridReminderError: error.toString()),
+    );
   }
 
   Future<void> initialize() async {

@@ -369,7 +369,11 @@ void main() {
     expect(settings, contains('检查并请求通知权限'));
     expect(settings, contains('发送立即测试提醒'));
     expect(settings, contains('10 秒后测试提醒'));
-    expect(settings, contains('今日页 1 分钟久坐链路测试'));
+    expect(settings, contains('1 分钟真实久坐提醒测试'));
+    expect(settings, contains('foregroundWatcherActive'));
+    expect(settings, contains('lastPostureReminderTriggeredBy'));
+    expect(service, contains('updateHybridReminderState'));
+    expect(service, contains('recordHybridReminderFired'));
     expect(settings, contains('最近一次真实坐站提醒'));
     expect(settings, contains('测试震动提醒'));
     expect(settings, contains('测试响铃提醒'));
@@ -391,8 +395,10 @@ void main() {
 
       expect(postureController, contains('showPostureDueReminder'));
       expect(postureController, contains('postureReminderStatusProvider'));
-      expect(postureController, contains('_foregroundReminderSessionId'));
-      expect(postureController, contains('_startForegroundMonitor(session);'));
+      expect(postureController, contains('_foregroundReminderSessionKey'));
+      expect(
+          postureController, contains('_configureForegroundWatcher(session)'));
+      expect(postureController, contains('handleAppResumed'));
       expect(postureController, contains('await _scheduleFor(session)'));
       expect(
         postureController,
@@ -421,12 +427,14 @@ void main() {
 
       expect(
         postureController,
-        contains('session.id == _foregroundReminderSessionId'),
+        contains('sessionKey == _foregroundReminderSessionKey'),
       );
       expect(
         postureController,
-        contains('_foregroundReminderSessionId = session.id'),
+        contains('_foregroundReminderSessionKey = sessionKey'),
       );
+      expect(postureController, contains('lifecycleCatchup'));
+      expect(postureController, contains('foregroundWatcher'));
       expect(postureController, contains('settings.standingIntervalMinutes'));
       expect(postureController, contains('settings.sittingIntervalMinutes'));
       expect(postureController, contains('showPostureDueReminder'));

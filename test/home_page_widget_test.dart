@@ -205,7 +205,11 @@ void main() {
     expect(notificationService.postureReminderChannels,
         [NotificationService.vibrationChannelId]);
     expect(postureRepository.openSession?.type, PostureType.sitting);
-    expect(find.textContaining('久坐提醒已安排'), findsOneWidget);
+    expect(notificationService.foregroundWatcherActive, isTrue);
+    expect(notificationService.foregroundWatcherPostures.last,
+        PostureType.sitting);
+    expect(find.textContaining('久坐提醒已开启'), findsOneWidget);
+    expect(find.textContaining('预计约'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('today-posture-standing')));
     await tester.pumpAndSettle();
@@ -219,7 +223,10 @@ void main() {
     ]);
     expect(postureRepository.openSession?.type, PostureType.standing);
     expect(rehabRepository.addedLogs, isEmpty);
-    expect(find.textContaining('久站提醒已安排'), findsOneWidget);
+    expect(notificationService.foregroundWatcherActive, isTrue);
+    expect(notificationService.foregroundWatcherPostures.last,
+        PostureType.standing);
+    expect(find.textContaining('久站提醒已开启'), findsOneWidget);
   });
 
   testWidgets('walking cancels posture reminder without scheduling',
@@ -240,6 +247,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(notificationService.scheduledPostures, [PostureType.sitting]);
     expect(notificationService.cancelAllCount, greaterThanOrEqualTo(1));
+    expect(notificationService.foregroundWatcherActive, isFalse);
     expect(postureRepository.openSession?.type, PostureType.walking);
     expect(rehabRepository.addedLogs.single.source, 'posture_session');
   });
@@ -260,6 +268,8 @@ void main() {
 
     expect(notificationService.scheduledPostures, isEmpty);
     expect(notificationService.cancelAllCount, greaterThanOrEqualTo(1));
+    expect(notificationService.foregroundWatcherActive, isFalse);
+    expect(find.textContaining('提醒未开启'), findsOneWidget);
   });
 
   testWidgets('posture switch keeps record and records scheduling failures',
@@ -338,6 +348,8 @@ void main() {
       expect(notificationService.duePostures, [posture]);
       expect(notificationService.cancelledPostures, [posture]);
       expect(notificationService.scheduledPostures, [posture]);
+      expect(notificationService.foregroundWatcherActive, isTrue);
+      expect(notificationService.hybridTriggeredBy, ['foregroundWatcher']);
       expect(container.read(postureReminderStatusProvider), isNotNull);
       container.dispose();
     }
@@ -373,13 +385,184 @@ void main() {
     expect(notificationService.duePostures, [PostureType.sitting]);
     expect(notificationService.cancelledPostures, isEmpty);
 
-    await tester.pump(const Duration(seconds: 10));
+    await tester.pump(postureForegroundReminderCheckInterval);
     await tester.pump();
     expect(
       notificationService.duePostures,
       [PostureType.sitting, PostureType.sitting],
     );
     expect(notificationService.cancelledPostures, [PostureType.sitting]);
+  });
+
+  testWidgets('foreground watcher fires once for an overdue session',
+      (tester) async {
+    final postureRepository = _FakePostureRepository(
+      openSession: _session(PostureType.sitting, minutesAgo: 60),
+    );
+    final notificationService = _FakeNotification();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          postureSessionRepositoryProvider.overrideWithValue(postureRepository),
+          reminderSettingsRepositoryProvider.overrideWithValue(
+            _FakeReminderSettingsRepository(),
+          ),
+          notificationServiceProvider.overrideWithValue(notificationService),
+        ],
+        child: Consumer(
+          builder: (context, ref, child) {
+            ref.watch(postureSessionControllerProvider);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(notificationService.foregroundWatcherActive, isTrue);
+    expect(notificationService.duePostures, [PostureType.sitting]);
+    expect(notificationService.hybridTriggeredBy, ['foregroundWatcher']);
+
+    await tester.pump(postureForegroundReminderCheckInterval);
+    await tester.pump();
+
+    expect(notificationService.duePostures, [PostureType.sitting]);
+  });
+
+  testWidgets('foreground watcher does not fire before due time',
+      (tester) async {
+    final postureRepository = _FakePostureRepository(
+      openSession: _session(PostureType.sitting, minutesAgo: 10),
+    );
+    final notificationService = _FakeNotification();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          postureSessionRepositoryProvider.overrideWithValue(postureRepository),
+          reminderSettingsRepositoryProvider.overrideWithValue(
+            _FakeReminderSettingsRepository(),
+          ),
+          notificationServiceProvider.overrideWithValue(notificationService),
+        ],
+        child: Consumer(
+          builder: (context, ref, child) {
+            ref.watch(postureSessionControllerProvider);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(postureForegroundReminderCheckInterval);
+
+    expect(notificationService.foregroundWatcherActive, isTrue);
+    expect(notificationService.duePostures, isEmpty);
+    expect(notificationService.hybridTriggeredBy, isEmpty);
+  });
+
+  test('app resume catchup fires overdue posture reminder once', () async {
+    final postureRepository = _FakePostureRepository(
+      openSession: _session(PostureType.sitting, minutesAgo: 60),
+    );
+    final notificationService = _FakeNotification(dueResults: [false, true]);
+    final container = ProviderContainer(
+      overrides: [
+        postureSessionRepositoryProvider.overrideWithValue(postureRepository),
+        reminderSettingsRepositoryProvider.overrideWithValue(
+          _FakeReminderSettingsRepository(),
+        ),
+        notificationServiceProvider.overrideWithValue(notificationService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(postureSessionControllerProvider.future);
+    await Future<void>.delayed(Duration.zero);
+    await container
+        .read(postureSessionControllerProvider.notifier)
+        .handleAppResumed();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      notificationService.duePostures,
+      [PostureType.sitting, PostureType.sitting],
+    );
+    expect(notificationService.hybridTriggeredBy, ['lifecycleCatchup']);
+    expect(
+      container.read(postureReminderStatusProvider),
+      '刚刚补发了一条久坐提醒。',
+    );
+
+    await container
+        .read(postureSessionControllerProvider.notifier)
+        .handleAppResumed();
+
+    expect(
+      notificationService.duePostures,
+      [PostureType.sitting, PostureType.sitting],
+    );
+  });
+
+  test('app resume catchup does not fire before due time', () async {
+    final postureRepository = _FakePostureRepository(
+      openSession: _session(PostureType.standing, minutesAgo: 10),
+    );
+    final notificationService = _FakeNotification();
+    final container = ProviderContainer(
+      overrides: [
+        postureSessionRepositoryProvider.overrideWithValue(postureRepository),
+        reminderSettingsRepositoryProvider.overrideWithValue(
+          _FakeReminderSettingsRepository(),
+        ),
+        notificationServiceProvider.overrideWithValue(notificationService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(postureSessionControllerProvider.future);
+    await container
+        .read(postureSessionControllerProvider.notifier)
+        .handleAppResumed();
+
+    expect(notificationService.duePostures, isEmpty);
+    expect(notificationService.hybridTriggeredBy, isEmpty);
+  });
+
+  test('one minute sitting diagnostic starts hybrid reminder chain', () async {
+    final postureRepository = _FakePostureRepository();
+    final notificationService = _FakeNotification();
+    final container = ProviderContainer(
+      overrides: [
+        postureSessionRepositoryProvider.overrideWithValue(postureRepository),
+        reminderSettingsRepositoryProvider.overrideWithValue(
+          _FakeReminderSettingsRepository(),
+        ),
+        notificationServiceProvider.overrideWithValue(notificationService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(postureSessionControllerProvider.future);
+    await container
+        .read(postureSessionControllerProvider.notifier)
+        .startTodaySittingChainTest();
+
+    expect(postureRepository.openSession?.type, PostureType.sitting);
+    expect(notificationService.scheduledPostures, [PostureType.sitting]);
+    expect(
+        notificationService.scheduledDelays.single, const Duration(minutes: 1));
+    expect(notificationService.foregroundWatcherActive, isTrue);
+    expect(
+        notificationService.foregroundDueAts.single.difference(
+          postureRepository.openSession!.startedAt,
+        ),
+        const Duration(minutes: 1));
+    expect(
+      container.read(postureReminderStatusProvider),
+      contains('预计约 1 分钟后提醒'),
+    );
   });
 
   testWidgets('hides recovery overview quick entries and threshold row',
@@ -639,9 +822,14 @@ class _FakeNotification extends NotificationService {
   final scheduledPostures = <PostureType?>[];
   final postureReminderModes = <ReminderMode>[];
   final postureReminderChannels = <String>[];
+  final scheduledDelays = <Duration>[];
   final duePostures = <PostureType>[];
   final dueModes = <ReminderMode>[];
   final cancelledPostures = <PostureType>[];
+  final foregroundWatcherPostures = <PostureType?>[];
+  final foregroundDueAts = <DateTime>[];
+  final hybridTriggeredBy = <String>[];
+  bool foregroundWatcherActive = false;
   int cancelAllCount = 0;
   final Completer<void> _firstScheduleCompleter = Completer<void>();
   var _scheduleCalls = 0;
@@ -715,6 +903,7 @@ class _FakeNotification extends NotificationService {
       throw StateError('schedule failed');
     }
     scheduledPostures.add(postureType);
+    scheduledDelays.add(delay);
     postureReminderModes.add(mode);
     postureReminderChannels.add(channelIdForReminderMode(mode));
     return true;
@@ -746,6 +935,31 @@ class _FakeNotification extends NotificationService {
   @override
   void recordError(Object error) {
     lastRecordedError = error.toString();
+  }
+
+  @override
+  void updateHybridReminderState({
+    required bool foregroundWatcherActive,
+    DateTime? foregroundDueAt,
+    PostureType? postureType,
+    DateTime? sessionStartedAt,
+  }) {
+    this.foregroundWatcherActive = foregroundWatcherActive;
+    foregroundWatcherPostures.add(postureType);
+    if (foregroundDueAt != null) {
+      foregroundDueAts.add(foregroundDueAt);
+    }
+  }
+
+  @override
+  void recordHybridReminderFired({
+    required String triggeredBy,
+    required DateTime firedAt,
+    required PostureType postureType,
+    required DateTime sessionStartedAt,
+    required DateTime dueAt,
+  }) {
+    hybridTriggeredBy.add(triggeredBy);
   }
 }
 

@@ -687,6 +687,9 @@ void main() {
           recoveryRepositoryProvider
               .overrideWithValue(_FakeRecoveryRepository()),
           notificationServiceProvider.overrideWithValue(notificationService),
+          postureSessionRepositoryProvider.overrideWithValue(
+            _FakePostureRepository(const []),
+          ),
         ],
         child: const MaterialApp(home: Scaffold(body: SettingsPage())),
       ),
@@ -708,7 +711,7 @@ void main() {
     expect(find.text('检查并请求通知权限'), findsOneWidget);
     expect(find.text('发送立即测试提醒'), findsOneWidget);
     expect(find.text('10 秒后测试提醒'), findsOneWidget);
-    expect(find.text('今日页 1 分钟久坐链路测试'), findsOneWidget);
+    expect(find.text('1 分钟真实久坐提醒测试'), findsOneWidget);
     expect(find.text('最近一次真实坐站提醒：'), findsOneWidget);
     expect(find.text('测试震动提醒'), findsOneWidget);
     expect(find.text('测试响铃提醒'), findsOneWidget);
@@ -719,7 +722,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('10 秒后测试提醒'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('今日页 1 分钟久坐链路测试'));
+    await tester.tap(find.text('1 分钟真实久坐提醒测试'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('测试震动提醒'));
     await tester.pumpAndSettle();
@@ -1388,6 +1391,34 @@ class _FakeNotificationService extends NotificationService {
     postureReminderModes.add(mode);
     postureReminderDelays.add(delay);
     return true;
+  }
+
+  @override
+  Future<bool> scheduleNextReminders({
+    required bool enabled,
+    required int sittingIntervalMinutes,
+    required int standingIntervalMinutes,
+    int walkingIntervalMinutes = 10,
+    ReminderMode reminderMode = ReminderMode.soft,
+    PostureType? currentPosture,
+    DateTime? currentSessionStartedAt,
+  }) async {
+    if (!enabled ||
+        currentPosture == null ||
+        currentPosture == PostureType.walking ||
+        currentPosture == PostureType.resting) {
+      return false;
+    }
+    return schedulePostureReminder(
+      postureType: currentPosture,
+      delay: Duration(
+        minutes: currentPosture == PostureType.standing
+            ? standingIntervalMinutes
+            : sittingIntervalMinutes,
+      ),
+      mode: reminderMode,
+      sessionStartedAt: currentSessionStartedAt ?? DateTime.now(),
+    );
   }
 
   @override

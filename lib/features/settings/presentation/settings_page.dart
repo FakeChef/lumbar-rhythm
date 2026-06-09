@@ -1142,10 +1142,14 @@ class _ReminderDebugPanel extends StatelessWidget {
       'notificationId: ${debugState.lastNotificationId ?? '-'}',
       'reminderMode: ${debugState.lastReminderMode?.label ?? '-'}',
       'channelId: ${debugState.lastChannelId ?? '-'}',
-      'foregroundDueAt: ${_formatClockMinuteFromDate(debugState.lastForegroundTimerDueAt)}',
-      'foregroundFiredAt: ${_formatClockMinuteFromDate(debugState.lastForegroundTimerFiredAt)}',
+      'foregroundWatcherActive: ${debugState.foregroundWatcherActive ?? '-'}',
+      'foregroundDueAt: ${_formatClockMinuteFromDate(debugState.foregroundDueAt)}',
+      'foregroundFiredAt: ${_formatClockMinuteFromDate(debugState.foregroundFiredAt)}',
+      'lifecycleCatchupFiredAt: ${_formatClockMinuteFromDate(debugState.lifecycleCatchupFiredAt)}',
       'scheduledAt: ${_formatClockMinuteFromDate(debugState.lastLocalScheduleRequestedAt)}',
       'dueAt: ${_formatClockMinuteFromDate(debugState.lastLocalScheduleDueAt)}',
+      'lastPostureReminderDueAt: ${_formatClockMinuteFromDate(debugState.lastPostureReminderDueAt)}',
+      'lastPostureReminderTriggeredBy: ${debugState.lastPostureReminderTriggeredBy ?? '-'}',
       'postureType: ${debugState.lastPostureReminderType?.name ?? '-'}',
       'postureSessionStartedAt: ${_formatClockMinuteFromDate(debugState.lastPostureReminderSessionStartedAt)}',
       'posturePending: ${debugState.lastPostureReminderPending ?? '-'}',
@@ -1156,6 +1160,8 @@ class _ReminderDebugPanel extends StatelessWidget {
       'pending: ${debugState.pendingNotificationCount ?? 0} ${debugState.pendingNotificationIds}',
       if (debugState.lastErrorMessage != null)
         'error: ${debugState.lastErrorMessage}',
+      if (debugState.lastHybridReminderError != null)
+        'hybridError: ${debugState.lastHybridReminderError}',
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(56, 0, 0, 8),
@@ -1253,7 +1259,7 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             const Text(
-              '如果测试提醒没有声音，请检查系统设置中的通知权限、通知频道声音、勿扰模式和电池限制。',
+              '部分安卓系统可能延迟后台提醒，打开 App 时会自动补发到期提醒。若测试提醒没有声音，请检查系统设置中的通知权限、通知频道声音、勿扰模式和电池限制。',
             ),
             const SizedBox(height: 16),
             _DiagnosticButton(
@@ -1291,7 +1297,7 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
             ),
             _DiagnosticButton(
               icon: Icons.event_seat_outlined,
-              label: '今日页 1 分钟久坐链路测试',
+              label: '1 分钟真实久坐提醒测试',
               onPressed: () => _runDiagnosticAction(
                 context: context,
                 ref: ref,
@@ -1301,7 +1307,7 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
                       .startTodaySittingChainTest();
                   return true;
                 },
-                successMessage: '已安排今日页 1 分钟久坐链路测试',
+                successMessage: '已开启 1 分钟真实久坐提醒测试',
               ),
             ),
             _DiagnosticButton(
