@@ -21,7 +21,13 @@ void main() {
     for (final section in ['cloud-backup', 'device-transfer']) {
       expect(dataExtractionRules, contains('<$section>'));
     }
-    for (final domain in ['root', 'file', 'database', 'sharedpref', 'external']) {
+    for (final domain in [
+      'root',
+      'file',
+      'database',
+      'sharedpref',
+      'external'
+    ]) {
       expect(dataExtractionRules, contains('domain="$domain" path="."'));
     }
   });

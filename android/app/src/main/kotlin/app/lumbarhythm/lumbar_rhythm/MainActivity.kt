@@ -1,14 +1,17 @@
 package app.lumbarhythm.lumbar_rhythm
 
 import android.content.ContentValues
+import android.content.Intent
 import android.os.Build
 import android.provider.MediaStore
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val galleryChannel = "lumbar_rhythm/gallery"
+    private val postureCountdownChannel = "lumbar_rhythm/posture_countdown"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -37,6 +40,78 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            postureCountdownChannel,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startPostureCountdown" -> {
+                    val postureType = call.argument<String>("postureType")
+                    val durationSeconds = call.argument<Int>("durationSeconds")?.toLong()
+                    val reminderMode = call.argument<String>("reminderMode") ?: "soft"
+                    val startedAtMillis = call.argument<Long>("startedAtMillis")
+                        ?: call.argument<Int>("startedAtMillis")?.toLong()
+
+                    if (
+                        postureType.isNullOrBlank() ||
+                        durationSeconds == null ||
+                        durationSeconds <= 0 ||
+                        startedAtMillis == null
+                    ) {
+                        result.error("invalid_args", "Missing countdown arguments.", null)
+                        return@setMethodCallHandler
+                    }
+
+                    try {
+                        PostureCountdownService.ensureChannels(applicationContext)
+                        PostureCountdownService.startCountdown(
+                            context = applicationContext,
+                            postureType = postureType,
+                            durationSeconds = durationSeconds,
+                            reminderMode = reminderMode,
+                            startedAtMillis = startedAtMillis,
+                        )
+                        result.success(null)
+                    } catch (error: Exception) {
+                        result.error("start_failed", error.message, null)
+                    }
+                }
+                "stopPostureCountdown" -> {
+                    try {
+                        PostureCountdownService.stopCountdown(applicationContext)
+                        result.success(null)
+                    } catch (error: Exception) {
+                        result.error("stop_failed", error.message, null)
+                    }
+                }
+                "getPostureCountdownState" -> {
+                    result.success(PostureCountdownService.getState(applicationContext))
+                }
+                "openNotificationSettings" -> {
+                    try {
+                        openNotificationSettings()
+                        result.success(true)
+                    } catch (error: Exception) {
+                        result.error("open_settings_failed", error.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun openNotificationSettings() {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            }
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = android.net.Uri.parse("package:$packageName")
+            }
+        }
+        startActivity(intent)
     }
 
     private fun savePngToGallery(bytes: ByteArray, fileName: String): android.net.Uri? {

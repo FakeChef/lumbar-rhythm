@@ -20,13 +20,10 @@ class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   static const _intervalOptions = [15, 30, 45, 60, 90, 120];
-  static const _walkingIntervalOptions = [3, 5, 10, 15, 20, 30];
-  static const _daytimePhaseOptions = [3, 5, 10, 15, 20, 30, 45, 60];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsState = ref.watch(reminderSettingsControllerProvider);
-    final reminderDebugState = ref.watch(reminderDebugStateProvider);
     final testReminderFeedback =
         ref.watch(_settingsTestReminderFeedbackProvider);
     final testReminderSending = testReminderFeedback?.startsWith('正在') ?? false;
@@ -72,9 +69,6 @@ class SettingsPage extends ConsumerWidget {
               _ReminderSettingsSection(
                 settings: settings,
                 intervalOptions: _intervalOptions,
-                walkingIntervalOptions: _walkingIntervalOptions,
-                daytimePhaseOptions: _daytimePhaseOptions,
-                debugState: reminderDebugState,
                 testReminderFeedback: testReminderFeedback,
                 testReminderSending: testReminderSending,
                 onRemindersEnabledChanged: (value) {
@@ -88,40 +82,11 @@ class SettingsPage extends ConsumerWidget {
                       .read(reminderSettingsControllerProvider.notifier)
                       .setSittingIntervalMinutes(value);
                 },
-                onWalkingIntervalChanged: (value) {
+                onStandingIntervalChanged: (value) {
                   if (value == null) return;
                   ref
                       .read(reminderSettingsControllerProvider.notifier)
-                      .setWalkingIntervalMinutes(value);
-                },
-                onDaytimeLoopEnabledChanged: (value) {
-                  ref
-                      .read(reminderSettingsControllerProvider.notifier)
-                      .setDaytimeLoopEnabled(value);
-                },
-                onDaytimeStartChanged: (value) {
-                  if (value == null) return;
-                  ref
-                      .read(reminderSettingsControllerProvider.notifier)
-                      .setDaytimeStartMinutes(value);
-                },
-                onDaytimeEndChanged: (value) {
-                  if (value == null) return;
-                  ref
-                      .read(reminderSettingsControllerProvider.notifier)
-                      .setDaytimeEndMinutes(value);
-                },
-                onDaytimeSittingChanged: (value) {
-                  if (value == null) return;
-                  ref
-                      .read(reminderSettingsControllerProvider.notifier)
-                      .setDaytimeSittingMinutes(value);
-                },
-                onDaytimeWalkingChanged: (value) {
-                  if (value == null) return;
-                  ref
-                      .read(reminderSettingsControllerProvider.notifier)
-                      .setDaytimeWalkingMinutes(value);
+                      .setStandingIntervalMinutes(value);
                 },
                 onReminderModeChanged: (value) {
                   if (value == null) return;
@@ -148,74 +113,6 @@ class SettingsPage extends ConsumerWidget {
                   if (!context.mounted) return;
                   final message = sent ? '已立即发送测试提醒' : '立即测试提醒没有发出';
                   messenger.showSnackBar(SnackBar(content: Text(message)));
-                  ref
-                      .read(_settingsTestReminderFeedbackProvider.notifier)
-                      .state = message;
-                },
-                onForegroundTestPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  ref
-                      .read(_settingsTestReminderFeedbackProvider.notifier)
-                      .state = '正在安排 10 秒前台测试';
-                  final scheduled = await ref
-                      .read(notificationServiceProvider)
-                      .scheduleForegroundTimerTestReminder(
-                        reminderMode: settings.reminderMode,
-                        onFired: (shown) {
-                          if (!context.mounted) return;
-                          final firedMessage = shown
-                              ? '10 秒前台测试提醒已触发'
-                              : '10 秒前台测试触发失败，请检查系统通知设置';
-                          messenger.showSnackBar(
-                            SnackBar(content: Text(firedMessage)),
-                          );
-                          ref
-                              .read(
-                                _settingsTestReminderFeedbackProvider.notifier,
-                              )
-                              .state = firedMessage;
-                        },
-                      );
-                  if (!context.mounted) return;
-                  final message = scheduled ? '已安排 10 秒前台测试' : '10 秒前台测试没有安排成功';
-                  messenger.showSnackBar(SnackBar(content: Text(message)));
-                  ref
-                      .read(_settingsTestReminderFeedbackProvider.notifier)
-                      .state = message;
-                },
-                onOneMinuteTestPressed: () async {
-                  await _runScheduleDiagnostic(
-                    context: context,
-                    ref: ref,
-                    settings: settings,
-                    mode: ReminderScheduleDiagnosticMode.inexactAllowWhileIdle,
-                  );
-                },
-                onExactOneMinuteTestPressed: () async {
-                  await _runScheduleDiagnostic(
-                    context: context,
-                    ref: ref,
-                    settings: settings,
-                    mode: ReminderScheduleDiagnosticMode.exactAllowWhileIdle,
-                  );
-                },
-                onAlarmClockOneMinuteTestPressed: () async {
-                  await _runScheduleDiagnostic(
-                    context: context,
-                    ref: ref,
-                    settings: settings,
-                    mode: ReminderScheduleDiagnosticMode.alarmClock,
-                  );
-                },
-                onPendingPressed: () async {
-                  final debug = await ref
-                      .read(notificationServiceProvider)
-                      .refreshPendingScheduledNotifications();
-                  if (!context.mounted) return;
-                  final message =
-                      '当前待触发提醒：${debug.pendingNotificationCount ?? 0} 个';
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text(message)));
                   ref
                       .read(_settingsTestReminderFeedbackProvider.notifier)
                       .state = message;
@@ -475,7 +372,7 @@ class SettingsPage extends ConsumerWidget {
     if (confirmed != true) return;
 
     await ref.read(localDataRepositoryProvider).deleteAllLocalData();
-    await ref.read(notificationServiceProvider).cancelScheduledReminders();
+    await ref.read(notificationServiceProvider).stopPostureCountdown();
     _refreshLocalDataProviders(ref);
 
     if (!context.mounted) return;
@@ -838,51 +735,25 @@ class _ReminderSettingsSection extends StatelessWidget {
   const _ReminderSettingsSection({
     required this.settings,
     required this.intervalOptions,
-    required this.walkingIntervalOptions,
-    required this.daytimePhaseOptions,
-    required this.debugState,
     required this.testReminderFeedback,
     required this.testReminderSending,
     required this.onRemindersEnabledChanged,
     required this.onSittingIntervalChanged,
-    required this.onWalkingIntervalChanged,
-    required this.onDaytimeLoopEnabledChanged,
-    required this.onDaytimeStartChanged,
-    required this.onDaytimeEndChanged,
-    required this.onDaytimeSittingChanged,
-    required this.onDaytimeWalkingChanged,
+    required this.onStandingIntervalChanged,
     required this.onReminderModeChanged,
     required this.onTestReminderPressed,
-    required this.onForegroundTestPressed,
-    required this.onOneMinuteTestPressed,
-    required this.onExactOneMinuteTestPressed,
-    required this.onAlarmClockOneMinuteTestPressed,
-    required this.onPendingPressed,
     required this.onDiagnosticsPressed,
   });
 
   final ReminderSettings settings;
   final List<int> intervalOptions;
-  final List<int> walkingIntervalOptions;
-  final List<int> daytimePhaseOptions;
-  final ReminderDebugState debugState;
   final String? testReminderFeedback;
   final bool testReminderSending;
   final ValueChanged<bool> onRemindersEnabledChanged;
   final ValueChanged<int?> onSittingIntervalChanged;
-  final ValueChanged<int?> onWalkingIntervalChanged;
-  final ValueChanged<bool> onDaytimeLoopEnabledChanged;
-  final ValueChanged<int?> onDaytimeStartChanged;
-  final ValueChanged<int?> onDaytimeEndChanged;
-  final ValueChanged<int?> onDaytimeSittingChanged;
-  final ValueChanged<int?> onDaytimeWalkingChanged;
+  final ValueChanged<int?> onStandingIntervalChanged;
   final ValueChanged<ReminderMode?> onReminderModeChanged;
   final VoidCallback onTestReminderPressed;
-  final VoidCallback onForegroundTestPressed;
-  final VoidCallback onOneMinuteTestPressed;
-  final VoidCallback onExactOneMinuteTestPressed;
-  final VoidCallback onAlarmClockOneMinuteTestPressed;
-  final VoidCallback onPendingPressed;
   final VoidCallback onDiagnosticsPressed;
 
   @override
@@ -907,50 +778,11 @@ class _ReminderSettingsSection extends StatelessWidget {
         ),
         _IntervalTile(
           icon: Icons.accessibility_new_outlined,
-          title: '走动提醒间隔',
-          value: settings.walkingIntervalMinutes,
-          options: walkingIntervalOptions,
+          title: '久站提醒间隔',
+          value: settings.standingIntervalMinutes,
+          options: intervalOptions,
           onChanged:
-              settings.remindersEnabled ? onWalkingIntervalChanged : null,
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: settings.daytimeLoopEnabled,
-          onChanged: onDaytimeLoopEnabledChanged,
-          secondary: const Icon(Icons.wb_sunny_outlined),
-          title: const Text('白天节奏'),
-          subtitle:
-              const Text('白天节奏会在指定时间段内循环提醒：坐一段时间后走动，走动一段时间后坐下休息。你可以随时停止。'),
-        ),
-        _ClockMinuteTile(
-          icon: Icons.play_circle_outline,
-          title: '开始时间',
-          value: settings.daytimeStartMinutes,
-          options: const [8 * 60, 9 * 60, 10 * 60],
-          onChanged: settings.daytimeLoopEnabled ? onDaytimeStartChanged : null,
-        ),
-        _ClockMinuteTile(
-          icon: Icons.stop_circle_outlined,
-          title: '结束时间',
-          value: settings.daytimeEndMinutes,
-          options: const [17 * 60, 18 * 60, 19 * 60],
-          onChanged: settings.daytimeLoopEnabled ? onDaytimeEndChanged : null,
-        ),
-        _IntervalTile(
-          icon: Icons.event_seat_outlined,
-          title: '坐姿阶段',
-          value: settings.daytimeSittingMinutes,
-          options: daytimePhaseOptions,
-          onChanged:
-              settings.daytimeLoopEnabled ? onDaytimeSittingChanged : null,
-        ),
-        _IntervalTile(
-          icon: Icons.directions_walk_outlined,
-          title: '走动阶段',
-          value: settings.daytimeWalkingMinutes,
-          options: daytimePhaseOptions,
-          onChanged:
-              settings.daytimeLoopEnabled ? onDaytimeWalkingChanged : null,
+              settings.remindersEnabled ? onStandingIntervalChanged : null,
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
@@ -972,14 +804,16 @@ class _ReminderSettingsSection extends StatelessWidget {
         const ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.check_circle_outline),
-          title: Text('自动保存'),
-          subtitle: Text('以上设置会立即保存到本地数据库。'),
+          title: Text('手动倒计时'),
+          subtitle: Text(
+            '坐姿或站姿提醒采用手动倒计时：点击“我在坐”或“我在站”后开始计时，到点提醒一次；切换为走路或休息后自动停止。',
+          ),
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.bug_report_outlined),
           title: const Text('提醒诊断'),
-          subtitle: const Text('检查通知权限、通道、立即提醒和 10 秒定时提醒。'),
+          subtitle: const Text('检查通知权限、发送测试提醒，或打开系统通知设置。'),
           trailing: IconButton(
             tooltip: '提醒诊断',
             icon: const Icon(Icons.chevron_right),
@@ -999,82 +833,6 @@ class _ReminderSettingsSection extends StatelessWidget {
                 : null,
           ),
         ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.timer_10_outlined),
-          title: const Text('10 秒前台测试'),
-          subtitle: Text(
-              '验证 App 打开时的主提醒路径：10 秒后由前台计时器发送一条${settings.reminderMode.label}。'),
-          trailing: IconButton(
-            tooltip: '10 秒前台测试',
-            icon: const Icon(Icons.play_arrow_outlined),
-            onPressed: settings.remindersEnabled && !testReminderSending
-                ? onForegroundTestPressed
-                : null,
-          ),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.schedule_outlined),
-          title: const Text('1 分钟定时测试：inexactAllowWhileIdle'),
-          subtitle: const Text('Android 后台定时辅助路径，可能受系统调度影响。'),
-          trailing: IconButton(
-            tooltip: '1 分钟定时测试：inexactAllowWhileIdle',
-            icon: const Icon(Icons.timer_outlined),
-            onPressed: settings.remindersEnabled && !testReminderSending
-                ? onOneMinuteTestPressed
-                : null,
-          ),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.schedule_send_outlined),
-          title: const Text('1 分钟定时测试：exactAllowWhileIdle'),
-          subtitle: const Text('仅用于排查；若系统或权限不支持，会显示错误。'),
-          trailing: IconButton(
-            tooltip: '1 分钟定时测试：exactAllowWhileIdle',
-            icon: const Icon(Icons.timer_outlined),
-            onPressed: settings.remindersEnabled && !testReminderSending
-                ? onExactOneMinuteTestPressed
-                : null,
-          ),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.alarm_outlined),
-          title: const Text('1 分钟定时测试：alarmClock'),
-          subtitle: const Text('仅用于排查；不会把 App 默认改成闹钟应用。'),
-          trailing: IconButton(
-            tooltip: '1 分钟定时测试：alarmClock',
-            icon: const Icon(Icons.timer_outlined),
-            onPressed: settings.remindersEnabled && !testReminderSending
-                ? onAlarmClockOneMinuteTestPressed
-                : null,
-          ),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.fact_check_outlined),
-          title: const Text('查看待触发提醒'),
-          subtitle: Text(
-            '当前待触发提醒：${debugState.pendingNotificationCount ?? 0} 个',
-          ),
-          trailing: IconButton(
-            tooltip: '查看待触发提醒',
-            icon: const Icon(Icons.refresh_outlined),
-            onPressed: onPendingPressed,
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(56, 0, 0, 8),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '如果定时测试没有弹出，但 pending 消失，说明系统已处理该定时提醒，但本机可能未展示；正式提醒会以前台 Timer 为主。',
-            ),
-          ),
-        ),
-        _ReminderDebugPanel(debugState: debugState),
         if (testReminderFeedback != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(56, 0, 0, 8),
@@ -1131,44 +889,6 @@ class _IntervalTile extends StatelessWidget {
   }
 }
 
-class _ReminderDebugPanel extends StatelessWidget {
-  const _ReminderDebugPanel({required this.debugState});
-
-  final ReminderDebugState debugState;
-
-  @override
-  Widget build(BuildContext context) {
-    final lines = [
-      'notificationId: ${debugState.lastNotificationId ?? '-'}',
-      'reminderMode: ${debugState.lastReminderMode?.label ?? '-'}',
-      'channelId: ${debugState.lastChannelId ?? '-'}',
-      'foregroundDueAt: ${_formatClockMinuteFromDate(debugState.lastForegroundTimerDueAt)}',
-      'foregroundFiredAt: ${_formatClockMinuteFromDate(debugState.lastForegroundTimerFiredAt)}',
-      'scheduledAt: ${_formatClockMinuteFromDate(debugState.lastLocalScheduleRequestedAt)}',
-      'dueAt: ${_formatClockMinuteFromDate(debugState.lastLocalScheduleDueAt)}',
-      'scheduledMode: ${debugState.lastScheduledModeUsed ?? '-'}',
-      'scheduleResult: ${debugState.lastScheduleModeResult ?? '-'}',
-      'pendingBefore: ${debugState.scheduledPendingBefore ?? '-'}',
-      'pendingAfter: ${debugState.scheduledPendingAfter ?? '-'}',
-      'pending: ${debugState.pendingNotificationCount ?? 0} ${debugState.pendingNotificationIds}',
-      if (debugState.lastErrorMessage != null)
-        'error: ${debugState.lastErrorMessage}',
-    ];
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(56, 0, 0, 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          lines.join('\n'),
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-        ),
-      ),
-    );
-  }
-}
-
 Future<void> _showReminderDiagnosticsDialog(
   BuildContext context,
   WidgetRef ref,
@@ -1190,7 +910,6 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final debugState = ref.watch(reminderDebugStateProvider);
-    final channelId = channelIdForReminderMode(settings.reminderMode);
     return AlertDialog(
       title: const Text('提醒诊断'),
       content: SingleChildScrollView(
@@ -1200,7 +919,6 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
           children: [
             _DiagnosticLine(
                 label: '当前提醒模式', value: settings.reminderMode.label),
-            _DiagnosticLine(label: '当前 channel id', value: channelId),
             _DiagnosticLine(
               label: '通知权限状态',
               value: _formatDiagnosticBool(
@@ -1209,17 +927,9 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
                 falseText: '未允许',
               ),
             ),
-            _DiagnosticLine(
-              label: '精确提醒状态',
-              value: _formatDiagnosticBool(
-                debugState.exactNotificationsAvailable,
-                trueText: '可用',
-                falseText: '不可用',
-              ),
-            ),
             const SizedBox(height: 12),
             const Text(
-              '如果测试提醒没有声音，请检查系统设置中的通知权限、通知频道声音、勿扰模式和电池限制。',
+              '若测试提醒没有声音，请检查系统设置中的通知权限、通知频道声音、勿扰模式和电池限制。',
             ),
             const SizedBox(height: 16),
             _DiagnosticButton(
@@ -1242,41 +952,15 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
               ),
             ),
             _DiagnosticButton(
-              icon: Icons.timer_10_outlined,
-              label: '10 秒后测试提醒',
+              icon: Icons.settings_outlined,
+              label: '打开系统通知设置',
               onPressed: () => _runDiagnosticAction(
                 context: context,
                 ref: ref,
                 action: () => ref
                     .read(notificationServiceProvider)
-                    .scheduleTenSecondDiagnosticReminder(
-                      reminderMode: settings.reminderMode,
-                    ),
-                successMessage: '已安排 10 秒后提醒',
-              ),
-            ),
-            _DiagnosticButton(
-              icon: Icons.vibration_outlined,
-              label: '测试震动提醒',
-              onPressed: () => _runDiagnosticAction(
-                context: context,
-                ref: ref,
-                action: () => ref
-                    .read(notificationServiceProvider)
-                    .showVibrationDiagnosticReminder(),
-                successMessage: '已发送立即测试提醒',
-              ),
-            ),
-            _DiagnosticButton(
-              icon: Icons.notifications_active_outlined,
-              label: '测试响铃提醒',
-              onPressed: () => _runDiagnosticAction(
-                context: context,
-                ref: ref,
-                action: () => ref
-                    .read(notificationServiceProvider)
-                    .showAlarmDiagnosticReminder(),
-                successMessage: '已发送立即测试提醒',
+                    .openNotificationSettings(),
+                successMessage: '已打开系统通知设置',
               ),
             ),
             if (debugState.lastErrorMessage != null) ...[
@@ -1396,82 +1080,6 @@ Future<void> _runDiagnosticAction({
       const SnackBar(content: Text('提醒测试失败，请检查系统通知设置。')),
     );
   }
-}
-
-Future<void> _runScheduleDiagnostic({
-  required BuildContext context,
-  required WidgetRef ref,
-  required ReminderSettings settings,
-  required ReminderScheduleDiagnosticMode mode,
-}) async {
-  final messenger = ScaffoldMessenger.of(context);
-  ref.read(_settingsTestReminderFeedbackProvider.notifier).state =
-      '正在安排 1 分钟定时测试：${mode.label}';
-  final scheduled = await ref
-      .read(notificationServiceProvider)
-      .scheduleOneMinuteSittingTestReminder(
-        reminderMode: settings.reminderMode,
-        diagnosticMode: mode,
-      );
-  if (!context.mounted) return;
-  final debug = ref.read(reminderDebugStateProvider);
-  final dueAt = debug.lastLocalScheduleDueAt;
-  final result = debug.lastScheduleModeResult ?? '已请求安排，等待 pending 确认。';
-  final message = scheduled
-      ? '已安排 1 分钟定时测试：${mode.label}，预计 ${_formatClockMinuteFromDate(dueAt)} 触发。$result'
-      : '1 分钟定时测试：${mode.label} 没有安排成功';
-  messenger.showSnackBar(SnackBar(content: Text(message)));
-  ref.read(_settingsTestReminderFeedbackProvider.notifier).state = message;
-}
-
-class _ClockMinuteTile extends StatelessWidget {
-  const _ClockMinuteTile({
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.options,
-    required this.onChanged,
-  });
-
-  final IconData icon;
-  final String title;
-  final int value;
-  final List<int> options;
-  final ValueChanged<int?>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Text('当前为 ${_formatClockMinute(value)}'),
-      trailing: DropdownButton<int>(
-        value: value,
-        onChanged: onChanged,
-        items: [
-          for (final option in options)
-            DropdownMenuItem(
-              value: option,
-              child: Text(_formatClockMinute(option)),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-String _formatClockMinute(int value) {
-  final hour = value ~/ 60;
-  final minute = value.remainder(60);
-  return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
-}
-
-String _formatClockMinuteFromDate(DateTime? value) {
-  if (value == null) {
-    return '-';
-  }
-  return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 }
 
 class _InfoDialog extends StatelessWidget {

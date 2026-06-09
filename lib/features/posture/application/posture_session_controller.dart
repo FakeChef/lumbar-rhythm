@@ -8,6 +8,7 @@ import '../../actions/application/posture_reminder_rehab_link.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../reports/application/daily_report_controller.dart';
 import '../../settings/data/reminder_settings_repository.dart';
+import '../../settings/domain/reminder_settings.dart';
 import '../data/posture_session_repository.dart';
 import '../domain/posture_session.dart';
 
@@ -22,22 +23,18 @@ final postureSessionControllerProvider =
 
 final postureReminderStatusProvider = StateProvider<String?>((ref) => null);
 
+const postureCountdownRefreshInterval = Duration(seconds: 15);
+
 class PostureSessionController extends AsyncNotifier<PostureSession?> {
-  Timer? _foregroundTimer;
-  int? _foregroundReminderSessionId;
-  int? _foregroundReminderAttemptSessionId;
-  int _scheduleRequestVersion = 0;
-  Future<void> _scheduleQueue = Future<void>.value();
+  Timer? _countdownStatusTimer;
 
   @override
   Future<PostureSession?> build() async {
-    ref.onDispose(() => _foregroundTimer?.cancel());
+    ref.onDispose(() => _countdownStatusTimer?.cancel());
     final session =
         await ref.watch(postureSessionRepositoryProvider).loadOpenSession();
-    _startForegroundMonitor(session);
-    if (session != null) {
-      unawaited(_scheduleFor(session));
-    }
+    await _refreshCountdownStatus(session);
+    _configureCountdownStatusRefresh(session);
     return session;
   }
 
@@ -49,12 +46,33 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     return switchTo(PostureType.walking);
   }
 
+  Future<void> startStanding() {
+    return switchTo(PostureType.standing);
+  }
+
   Future<void> stopCurrent() {
     return endCurrent();
   }
 
+  Future<void> startTodaySittingChainTest() async {
+    final settings = await ref.read(reminderSettingsRepositoryProvider).load();
+    final session = await ref.read(postureSessionRepositoryProvider).switchTo(
+          type: PostureType.sitting,
+          sittingThresholdMinutes: 1,
+          standingThresholdMinutes: settings.standingIntervalMinutes,
+          walkingThresholdMinutes: settings.walkingIntervalMinutes,
+        );
+    state = AsyncData(session);
+    await _startCountdownFor(session, settings, sittingIntervalMinutes: 1);
+    ref.invalidate(dailyReportControllerProvider);
+    notifyAppDataChanged(ref);
+  }
+
   Future<void> switchTo(PostureType type) async {
-    if (type != PostureType.sitting && type != PostureType.walking) {
+    if (type != PostureType.sitting &&
+        type != PostureType.standing &&
+        type != PostureType.walking &&
+        type != PostureType.resting) {
       return;
     }
     final settings = await ref.read(reminderSettingsRepositoryProvider).load();
@@ -72,15 +90,17 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
             .recordSittingBreak(createdAt: DateTime.now());
       } catch (_) {
         // The posture switch is the primary action; rehab link failures should
-        // not block reminder cancellation or the current session update.
+        // not block countdown cancellation or the current session update.
       }
     }
     state = AsyncData(session);
-    ref.read(postureReminderStatusProvider.notifier).state = null;
     ref.invalidate(dailyReportControllerProvider);
     notifyAppDataChanged(ref);
-    _startForegroundMonitor(session);
-    await _scheduleFor(session);
+    if (type == PostureType.sitting || type == PostureType.standing) {
+      await _startCountdownFor(session, settings);
+    } else {
+      await _stopCountdownForNonTimedPosture();
+    }
   }
 
   Future<void> endCurrent() async {
@@ -91,119 +111,140 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
           walkingThresholdMinutes: settings.walkingIntervalMinutes,
         );
     state = const AsyncData(null);
-    ref.read(postureReminderStatusProvider.notifier).state = null;
+    ref.read(postureReminderStatusProvider.notifier).state = '当前状态不需要久坐/久站倒计时。';
     notifyAppDataChanged(ref);
-    _stopForegroundMonitor();
-    await _scheduleFor(null);
+    _stopCountdownStatusRefresh();
+    await ref.read(notificationServiceProvider).stopPostureCountdown();
   }
 
   Future<void> rescheduleForCurrent() async {
-    await _scheduleFor(state.valueOrNull);
+    final session = state.valueOrNull;
+    final settings = await ref.read(reminderSettingsRepositoryProvider).load();
+    if (session == null ||
+        session.type == PostureType.walking ||
+        session.type == PostureType.resting) {
+      await _stopCountdownForNonTimedPosture();
+      return;
+    }
+    await _startCountdownFor(session, settings);
   }
 
-  Future<void> _scheduleFor(PostureSession? session) {
-    final version = ++_scheduleRequestVersion;
-    final next = _scheduleQueue.then(
-      (_) => _runLatestScheduleFor(session, version),
+  Future<void> handleAppResumed() async {
+    final session = state.valueOrNull ??
+        await ref.read(postureSessionRepositoryProvider).loadOpenSession();
+    await _refreshCountdownStatus(session);
+    _configureCountdownStatusRefresh(session);
+  }
+
+  Future<void> _startCountdownFor(
+    PostureSession session,
+    ReminderSettings settings, {
+    int? sittingIntervalMinutes,
+    int? standingIntervalMinutes,
+  }) async {
+    if (!settings.remindersEnabled) {
+      await ref.read(notificationServiceProvider).stopPostureCountdown();
+      ref.read(postureReminderStatusProvider.notifier).state = '提醒未开启，可在设置中打开。';
+      _stopCountdownStatusRefresh();
+      return;
+    }
+
+    final intervalMinutes = session.type == PostureType.standing
+        ? standingIntervalMinutes ?? settings.standingIntervalMinutes
+        : sittingIntervalMinutes ?? settings.sittingIntervalMinutes;
+    final startedAt = DateTime.now();
+    final started =
+        await ref.read(notificationServiceProvider).startPostureCountdown(
+              postureType: session.type,
+              duration: Duration(minutes: intervalMinutes),
+              reminderMode: settings.reminderMode,
+              startedAt: startedAt,
+            );
+    if (!started) {
+      ref.read(postureReminderStatusProvider.notifier).state =
+          '倒计时启动失败，请检查系统通知权限。';
+      _stopCountdownStatusRefresh();
+      return;
+    }
+    final dueAt = startedAt.add(Duration(minutes: intervalMinutes));
+    ref.read(postureReminderStatusProvider.notifier).state =
+        _countdownRunningMessage(session.type, dueAt);
+    _configureCountdownStatusRefresh(session);
+  }
+
+  Future<void> _stopCountdownForNonTimedPosture() async {
+    await ref.read(notificationServiceProvider).stopPostureCountdown();
+    ref.read(postureReminderStatusProvider.notifier).state = '当前状态不需要久坐/久站倒计时。';
+    _stopCountdownStatusRefresh();
+  }
+
+  void _configureCountdownStatusRefresh(PostureSession? session) {
+    _countdownStatusTimer?.cancel();
+    if (session == null ||
+        (session.type != PostureType.sitting &&
+            session.type != PostureType.standing)) {
+      return;
+    }
+    _countdownStatusTimer = Timer.periodic(
+      postureCountdownRefreshInterval,
+      (_) => unawaited(_refreshCountdownStatus(state.valueOrNull)),
     );
-    _scheduleQueue = next.catchError((_) {});
-    return next;
   }
 
-  Future<void> _runLatestScheduleFor(
-    PostureSession? session,
-    int version,
-  ) async {
-    if (version != _scheduleRequestVersion) {
-      return;
-    }
-    try {
-      final settings =
-          await ref.read(reminderSettingsRepositoryProvider).load();
-      if (version != _scheduleRequestVersion) {
-        return;
-      }
-      await ref.read(notificationServiceProvider).scheduleNextReminders(
-            enabled: settings.remindersEnabled,
-            sittingIntervalMinutes: settings.sittingIntervalMinutes,
-            standingIntervalMinutes: settings.standingIntervalMinutes,
-            walkingIntervalMinutes: settings.walkingIntervalMinutes,
-            reminderMode: settings.reminderMode,
-            currentPosture: session?.type,
-            currentSessionStartedAt: session?.startedAt,
-          );
-    } catch (error) {
-      ref.read(notificationServiceProvider).recordError(error);
-      // Posture changes remain saved even if the platform cannot schedule.
-    }
+  void _stopCountdownStatusRefresh() {
+    _countdownStatusTimer?.cancel();
+    _countdownStatusTimer = null;
   }
 
-  void _startForegroundMonitor(PostureSession? session) {
-    _foregroundTimer?.cancel();
-    _foregroundReminderSessionId = null;
-    _foregroundReminderAttemptSessionId = null;
+  Future<void> _refreshCountdownStatus(PostureSession? session) async {
     if (session == null ||
         (session.type != PostureType.sitting &&
-            session.type != PostureType.walking)) {
-      return;
-    }
-    _foregroundTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      unawaited(_checkForegroundReminder());
-    });
-    unawaited(_checkForegroundReminder(session));
-  }
-
-  void _stopForegroundMonitor() {
-    _foregroundTimer?.cancel();
-    _foregroundTimer = null;
-    _foregroundReminderSessionId = null;
-    _foregroundReminderAttemptSessionId = null;
-  }
-
-  Future<void> _checkForegroundReminder([PostureSession? currentSession]) async {
-    final session = currentSession ?? state.valueOrNull;
-    if (session == null ||
-        session.id == _foregroundReminderSessionId ||
-        session.id == _foregroundReminderAttemptSessionId ||
-        (session.type != PostureType.sitting &&
-            session.type != PostureType.walking)) {
+            session.type != PostureType.standing)) {
+      ref.read(postureReminderStatusProvider.notifier).state =
+          '当前状态不需要久坐/久站倒计时。';
       return;
     }
     final settings = await ref.read(reminderSettingsRepositoryProvider).load();
     if (!settings.remindersEnabled) {
+      ref.read(postureReminderStatusProvider.notifier).state = '提醒未开启，可在设置中打开。';
       return;
     }
-    final threshold = Duration(
-      minutes: session.type == PostureType.walking
-          ? settings.walkingIntervalMinutes
-          : settings.sittingIntervalMinutes,
+    final countdown =
+        await ref.read(notificationServiceProvider).getPostureCountdownState();
+    if (countdown.postureType == session.type && countdown.dueAt != null) {
+      final message = countdown.running
+          ? _countdownRunningMessage(session.type, countdown.dueAt!)
+          : _countdownDueMessage(session.type);
+      ref.read(postureReminderStatusProvider.notifier).state = message;
+      return;
+    }
+    ref.read(postureReminderStatusProvider.notifier).state =
+        _countdownRunningMessage(
+      session.type,
+      session.startedAt.add(
+        Duration(
+          minutes: session.type == PostureType.standing
+              ? settings.standingIntervalMinutes
+              : settings.sittingIntervalMinutes,
+        ),
+      ),
     );
-    if (DateTime.now().difference(session.startedAt) < threshold) {
-      return;
+  }
+
+  String _countdownRunningMessage(PostureType type, DateTime dueAt) {
+    final remaining = dueAt.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      return _countdownDueMessage(type);
     }
-    _foregroundReminderAttemptSessionId = session.id;
-    var shown = false;
-    try {
-      shown =
-          await ref.read(notificationServiceProvider).showPostureDueReminder(
-                posture: session.type,
-                reminderMode: settings.reminderMode,
-              );
-      if (shown) {
-        _foregroundReminderSessionId = session.id;
-        await ref
-            .read(notificationServiceProvider)
-            .cancelScheduledReminderForPosture(session.type);
-      }
-    } finally {
-      if (_foregroundReminderAttemptSessionId == session.id) {
-        _foregroundReminderAttemptSessionId = null;
-      }
-    }
-    ref.read(postureReminderStatusProvider.notifier).state = shown
-        ? (session.type == PostureType.walking
-            ? '走动提醒已触发，可以坐下休息一下。'
-            : '久坐提醒已触发，可以起身走一走。')
-        : '提醒触发失败，请检查系统通知设置。';
+    final minutes = (remaining.inSeconds / 60).ceil();
+    return type == PostureType.standing
+        ? '久站倒计时中，剩余约 $minutes 分钟。'
+        : '久坐倒计时中，剩余约 $minutes 分钟。';
+  }
+
+  String _countdownDueMessage(PostureType type) {
+    return type == PostureType.standing
+        ? '久站已到提醒时间，建议现在变换姿势。'
+        : '久坐已到提醒时间，建议现在活动一下。';
   }
 }

@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/notifications/notification_service.dart';
 import '../core/theme/app_theme.dart';
-import '../features/posture/data/posture_session_repository.dart';
+import '../features/posture/application/posture_session_controller.dart';
 import '../features/settings/data/reminder_settings_repository.dart';
 import '../features/shell/presentation/main_shell.dart';
 
@@ -17,13 +17,31 @@ class LumbarRhythmApp extends ConsumerStatefulWidget {
   ConsumerState<LumbarRhythmApp> createState() => _LumbarRhythmAppState();
 }
 
-class _LumbarRhythmAppState extends ConsumerState<LumbarRhythmApp> {
+class _LumbarRhythmAppState extends ConsumerState<LumbarRhythmApp>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_initializeNotifications());
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+    unawaited(
+      ref.read(postureSessionControllerProvider.notifier).handleAppResumed(),
+    );
   }
 
   Future<void> _initializeNotifications() async {
@@ -36,17 +54,6 @@ class _LumbarRhythmAppState extends ConsumerState<LumbarRhythmApp> {
       if (settings.remindersEnabled) {
         await notificationService.requestPermissions();
       }
-      final openSession =
-          await ref.read(postureSessionRepositoryProvider).loadOpenSession();
-      await notificationService.scheduleNextReminders(
-        enabled: settings.remindersEnabled,
-        sittingIntervalMinutes: settings.sittingIntervalMinutes,
-        standingIntervalMinutes: settings.standingIntervalMinutes,
-        walkingIntervalMinutes: settings.walkingIntervalMinutes,
-        reminderMode: settings.reminderMode,
-        currentPosture: openSession?.type,
-        currentSessionStartedAt: openSession?.startedAt,
-      );
     } catch (error) {
       notificationService.recordError(error);
       // Notification setup should never prevent the app from opening.

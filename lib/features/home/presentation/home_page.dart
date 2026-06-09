@@ -51,7 +51,6 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   PostureType _selectedPosture = PostureType.sitting;
-  bool _daytimeLoopActive = false;
 
   @override
   Widget build(BuildContext context) {
@@ -98,8 +97,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                   _PostureSwitchSection(
                     activeType: session?.type,
                     selectedType: _selectedPosture,
-                    isDaytimeLoopActive: _daytimeLoopActive,
-                    daytimeLoopEnabled: settings.daytimeLoopEnabled,
                     onSwitchPosture: (type) async {
                       setState(() => _selectedPosture = type);
                       await ref
@@ -108,30 +105,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ref.invalidate(_homeTodayOverviewProvider);
                     },
                     onStop: () async {
-                      setState(() => _daytimeLoopActive = false);
                       await ref
                           .read(postureSessionControllerProvider.notifier)
                           .stopCurrent();
-                      ref.invalidate(_homeTodayOverviewProvider);
-                    },
-                    onStartLoop: () async {
-                      setState(() {
-                        _daytimeLoopActive = true;
-                        _selectedPosture = PostureType.sitting;
-                      });
-                      await ref
-                          .read(postureSessionControllerProvider.notifier)
-                          .startSitting();
-                      ref.invalidate(_homeTodayOverviewProvider);
-                    },
-                    onNextLoopPhase: () async {
-                      final next = session?.type == PostureType.sitting
-                          ? PostureType.walking
-                          : PostureType.sitting;
-                      setState(() => _selectedPosture = next);
-                      await ref
-                          .read(postureSessionControllerProvider.notifier)
-                          .switchTo(next);
                       ref.invalidate(_homeTodayOverviewProvider);
                     },
                   ),
@@ -336,10 +312,11 @@ class _PostureStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = session;
     final activeType = current?.type;
-    final displayType =
-        activeType == PostureType.sitting || activeType == PostureType.walking
-            ? activeType!
-            : selectedPosture;
+    final displayType = activeType == PostureType.sitting ||
+            activeType == PostureType.standing ||
+            activeType == PostureType.walking
+        ? activeType!
+        : selectedPosture;
     final duration = current?.durationAt(now) ?? Duration.zero;
     final durationText = current == null ? '00:00' : _formatDuration(duration);
     final greetingText = _recoveryGreeting(profile, now);
@@ -466,8 +443,9 @@ class _PostureStatusCard extends StatelessWidget {
   String _displayLabel(PostureType type) {
     return switch (type) {
       PostureType.sitting => '我在坐',
+      PostureType.standing => '我在站',
       PostureType.walking => '我在走',
-      PostureType.standing || PostureType.resting => '暂未开始',
+      PostureType.resting => '暂未开始',
     };
   }
 
@@ -564,22 +542,14 @@ class _PostureSwitchSection extends StatelessWidget {
   const _PostureSwitchSection({
     required this.activeType,
     required this.selectedType,
-    required this.isDaytimeLoopActive,
-    required this.daytimeLoopEnabled,
     required this.onSwitchPosture,
     required this.onStop,
-    required this.onStartLoop,
-    required this.onNextLoopPhase,
   });
 
   final PostureType? activeType;
   final PostureType selectedType;
-  final bool isDaytimeLoopActive;
-  final bool daytimeLoopEnabled;
   final ValueChanged<PostureType> onSwitchPosture;
   final VoidCallback onStop;
-  final VoidCallback onStartLoop;
-  final VoidCallback onNextLoopPhase;
 
   @override
   Widget build(BuildContext context) {
@@ -589,45 +559,21 @@ class _PostureSwitchSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (isDaytimeLoopActive) ...[
-              FilledButton.icon(
-                key: const ValueKey('today-cycle-next-phase'),
-                onPressed: onNextLoopPhase,
-                icon: const Icon(Icons.skip_next_outlined),
-                label: const Text('切到下一阶段'),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                key: const ValueKey('today-posture-stop'),
-                onPressed: onStop,
-                icon: const Icon(Icons.stop_circle_outlined),
-                label: const Text('停止循环'),
-              ),
-            ] else ...[
-              _PostureActionGrid(
-                activeType: activeType,
-                selectedType: selectedType,
-                isTiming: activeType == PostureType.sitting ||
-                    activeType == PostureType.walking,
-                onSwitchPosture: onSwitchPosture,
-              ),
-              const SizedBox(height: 10),
-              if (activeType == PostureType.sitting ||
-                  activeType == PostureType.walking)
-                OutlinedButton.icon(
-                  key: const ValueKey('today-posture-stop'),
-                  onPressed: onStop,
-                  icon: const Icon(Icons.stop_circle_outlined),
-                  label: const Text('停止记录'),
-                )
-              else
-                OutlinedButton.icon(
-                  key: const ValueKey('today-daytime-cycle-start'),
-                  onPressed: daytimeLoopEnabled ? onStartLoop : null,
-                  icon: const Icon(Icons.repeat_outlined),
-                  label: const Text('开启白天节奏'),
-                ),
-            ],
+            _PostureActionGrid(
+              activeType: activeType,
+              selectedType: selectedType,
+              isTiming: activeType == PostureType.sitting ||
+                  activeType == PostureType.standing ||
+                  activeType == PostureType.walking,
+              onSwitchPosture: onSwitchPosture,
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const ValueKey('today-posture-stop'),
+              onPressed: onStop,
+              icon: const Icon(Icons.self_improvement_outlined),
+              label: const Text('休息'),
+            ),
           ],
         ),
       ),
@@ -650,7 +596,12 @@ class _PostureActionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primaryPostures = [PostureType.sitting, PostureType.walking];
+    const primaryPostures = [
+      PostureType.sitting,
+      PostureType.standing,
+      PostureType.walking,
+      PostureType.resting,
+    ];
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -659,7 +610,7 @@ class _PostureActionGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 3.1,
+        childAspectRatio: 2.6,
       ),
       itemBuilder: (context, index) {
         final type = primaryPostures[index];
@@ -736,14 +687,16 @@ class _PostureActionButton extends StatelessWidget {
     if (isTiming) {
       return switch (type) {
         PostureType.sitting => '切换到坐',
+        PostureType.standing => '切换到站',
         PostureType.walking => '切换到走',
-        PostureType.standing || PostureType.resting => '暂未开始',
+        PostureType.resting => '休息',
       };
     }
     return switch (type) {
       PostureType.sitting => '我在坐',
+      PostureType.standing => '我在站',
       PostureType.walking => '我在走',
-      PostureType.standing || PostureType.resting => '暂未开始',
+      PostureType.resting => '休息',
     };
   }
 

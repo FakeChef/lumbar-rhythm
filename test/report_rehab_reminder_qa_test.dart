@@ -563,8 +563,9 @@ void main() {
     expect(find.text('坐站提醒'), findsOneWidget);
     expect(find.text('该记录一下今天的状态了'), findsOneWidget);
     expect(find.widgetWithText(SwitchListTile, '夜间勿扰'), findsNothing);
-    expect(find.text('白天节奏'), findsOneWidget);
-    expect(find.textContaining('循环提醒'), findsOneWidget);
+    expect(find.text('手动倒计时'), findsOneWidget);
+    expect(find.textContaining('到点提醒一次'), findsOneWidget);
+    expect(find.text('白天节奏'), findsNothing);
 
     await tester.tap(find.text('昵称与手术日期'));
     await tester.pumpAndSettle();
@@ -650,19 +651,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(notificationService.testReminderModes, [ReminderMode.alarm]);
-
-    await tester.scrollUntilVisible(
-      find.text('1 分钟定时测试：inexactAllowWhileIdle'),
-      300.0,
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('1 分钟定时测试：inexactAllowWhileIdle'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('1 分钟定时测试：inexactAllowWhileIdle'));
-    await tester.pumpAndSettle();
-
-    expect(
-        notificationService.oneMinuteTestReminderModes, [ReminderMode.alarm]);
+    expect(find.textContaining('1 分钟定时测试'), findsNothing);
   });
 
   testWidgets('settings page exposes reminder diagnostics actions',
@@ -687,6 +676,9 @@ void main() {
           recoveryRepositoryProvider
               .overrideWithValue(_FakeRecoveryRepository()),
           notificationServiceProvider.overrideWithValue(notificationService),
+          postureSessionRepositoryProvider.overrideWithValue(
+            _FakePostureRepository(const []),
+          ),
         ],
         child: const MaterialApp(home: Scaffold(body: SettingsPage())),
       ),
@@ -699,36 +691,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('当前提醒模式：震动提醒'), findsOneWidget);
-    expect(
-      find.text(
-        '当前 channel id：lumbar_rhythm_vibration_reminders_v2',
-      ),
-      findsOneWidget,
-    );
     expect(find.text('检查并请求通知权限'), findsOneWidget);
     expect(find.text('发送立即测试提醒'), findsOneWidget);
-    expect(find.text('10 秒后测试提醒'), findsOneWidget);
-    expect(find.text('测试震动提醒'), findsOneWidget);
-    expect(find.text('测试响铃提醒'), findsOneWidget);
+    expect(find.text('打开系统通知设置'), findsOneWidget);
+    expect(find.text('10 秒后测试提醒'), findsNothing);
+    expect(find.text('1 分钟真实久坐提醒测试'), findsNothing);
 
     await tester.tap(find.text('检查并请求通知权限'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('发送立即测试提醒'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('10 秒后测试提醒'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('测试震动提醒'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('测试响铃提醒'));
+    await tester.tap(find.text('打开系统通知设置'));
     await tester.pumpAndSettle();
 
     expect(notificationService.permissionRequests, 1);
     expect(
         notificationService.diagnosticImmediateModes, [ReminderMode.vibration]);
-    expect(
-        notificationService.tenSecondDiagnosticModes, [ReminderMode.vibration]);
-    expect(notificationService.vibrationDiagnosticCount, 1);
-    expect(notificationService.alarmDiagnosticCount, 1);
+    expect(notificationService.openSettingsCount, 1);
+    expect(notificationService.testReminderModes, isEmpty);
   });
 
   testWidgets('rehab log sheet accepts an initial past record date',
@@ -1298,9 +1278,13 @@ class _FakeNotificationService extends NotificationService {
   final oneMinuteTestReminderModes = <ReminderMode>[];
   final diagnosticImmediateModes = <ReminderMode>[];
   final tenSecondDiagnosticModes = <ReminderMode>[];
+  final postureReminderTypes = <PostureType>[];
+  final postureReminderModes = <ReminderMode>[];
+  final postureReminderDelays = <Duration>[];
   int permissionRequests = 0;
   int vibrationDiagnosticCount = 0;
   int alarmDiagnosticCount = 0;
+  int openSettingsCount = 0;
 
   @override
   Future<bool> requestPermissions() async {
@@ -1363,6 +1347,49 @@ class _FakeNotificationService extends NotificationService {
   }
 
   @override
+  Future<bool> schedulePostureReminder({
+    required PostureType postureType,
+    required Duration delay,
+    required ReminderMode mode,
+    required DateTime sessionStartedAt,
+    ReminderScheduleDiagnosticMode diagnosticMode =
+        ReminderScheduleDiagnosticMode.inexactAllowWhileIdle,
+  }) async {
+    postureReminderTypes.add(postureType);
+    postureReminderModes.add(mode);
+    postureReminderDelays.add(delay);
+    return true;
+  }
+
+  @override
+  Future<bool> scheduleNextReminders({
+    required bool enabled,
+    required int sittingIntervalMinutes,
+    required int standingIntervalMinutes,
+    int walkingIntervalMinutes = 10,
+    ReminderMode reminderMode = ReminderMode.soft,
+    PostureType? currentPosture,
+    DateTime? currentSessionStartedAt,
+  }) async {
+    if (!enabled ||
+        currentPosture == null ||
+        currentPosture == PostureType.walking ||
+        currentPosture == PostureType.resting) {
+      return false;
+    }
+    return schedulePostureReminder(
+      postureType: currentPosture,
+      delay: Duration(
+        minutes: currentPosture == PostureType.standing
+            ? standingIntervalMinutes
+            : sittingIntervalMinutes,
+      ),
+      mode: reminderMode,
+      sessionStartedAt: currentSessionStartedAt ?? DateTime.now(),
+    );
+  }
+
+  @override
   Future<bool> showVibrationDiagnosticReminder() async {
     vibrationDiagnosticCount += 1;
     return true;
@@ -1371,6 +1398,12 @@ class _FakeNotificationService extends NotificationService {
   @override
   Future<bool> showAlarmDiagnosticReminder() async {
     alarmDiagnosticCount += 1;
+    return true;
+  }
+
+  @override
+  Future<bool> openNotificationSettings() async {
+    openSettingsCount += 1;
     return true;
   }
 
