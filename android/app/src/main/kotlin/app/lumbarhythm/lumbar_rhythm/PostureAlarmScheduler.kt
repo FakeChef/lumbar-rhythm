@@ -39,23 +39,56 @@ object PostureAlarmScheduler {
         durationSeconds: Long,
         reminderMode: String,
         startedAtMillis: Long,
-    ) {
+    ): Map<String, Any?> {
         cancelAlarm(context)
         ensureChannels(context)
+        if (!canScheduleExactAlarmsValue(context)) {
+            return mapOf(
+                "success" to false,
+                "code" to "exact_alarm_not_allowed",
+                "message" to "\u7cfb\u7edf\u672a\u5141\u8bb8\u95f9\u949f\u548c\u63d0\u9192\u6743\u9650",
+            )
+        }
         val dueAtMillis = startedAtMillis + durationSeconds * 1000L
-        saveState(
-            context = context,
-            scheduled = true,
-            postureType = postureType,
-            startedAtMillis = startedAtMillis,
-            dueAtMillis = dueAtMillis,
-            reminderMode = reminderMode,
-        )
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarmManager.setAlarmClock(
-            AlarmManager.AlarmClockInfo(dueAtMillis, showIntent(context, postureType)),
-            alarmIntent(context),
+        return try {
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(dueAtMillis, showIntent(context, postureType)),
+                alarmIntent(context),
+            )
+            saveState(
+                context = context,
+                scheduled = true,
+                postureType = postureType,
+                startedAtMillis = startedAtMillis,
+                dueAtMillis = dueAtMillis,
+                reminderMode = reminderMode,
+            )
+            mapOf(
+                "success" to true,
+                "code" to "ok",
+                "message" to "\u7cfb\u7edf\u63d0\u9192\u5df2\u542f\u52a8",
+            )
+        } catch (error: SecurityException) {
+            mapOf(
+                "success" to false,
+                "code" to "security_exception",
+                "message" to "\u7cfb\u7edf\u6743\u9650\u9650\u5236\uff1a${error.message ?: ""}",
+            )
+        } catch (error: Exception) {
+            mapOf(
+                "success" to false,
+                "code" to "start_alarm_failed",
+                "message" to (error.message ?: "\u7cfb\u7edf\u63d0\u9192\u542f\u52a8\u5931\u8d25"),
+            )
+        }
+    }
+
+    fun canScheduleExactAlarms(context: Context): Map<String, Any> {
+        return mapOf(
+            "canScheduleExactAlarms" to canScheduleExactAlarmsValue(context),
+            "sdkInt" to Build.VERSION.SDK_INT,
         )
     }
 
@@ -170,6 +203,14 @@ object PostureAlarmScheduler {
                 vibrationPattern = longArrayOf(0, 450, 180, 450)
             },
         )
+    }
+
+    private fun canScheduleExactAlarmsValue(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return true
+        }
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        return alarmManager.canScheduleExactAlarms()
     }
 
     private fun showDueNotification(context: Context, postureType: String, reminderMode: String) {

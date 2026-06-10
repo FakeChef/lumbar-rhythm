@@ -2,6 +2,7 @@ package app.lumbarhythm.lumbar_rhythm
 
 import android.content.ContentValues
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.provider.Settings
@@ -124,16 +125,22 @@ class MainActivity : FlutterActivity() {
                     }
 
                     try {
-                        PostureAlarmScheduler.startAlarm(
+                        val response = PostureAlarmScheduler.startAlarm(
                             context = applicationContext,
                             postureType = postureType,
                             durationSeconds = durationSeconds,
                             reminderMode = reminderMode,
                             startedAtMillis = startedAtMillis,
                         )
-                        result.success(null)
+                        result.success(response)
                     } catch (error: Exception) {
-                        result.error("start_alarm_failed", error.message, null)
+                        result.success(
+                            mapOf(
+                                "success" to false,
+                                "code" to "start_alarm_failed",
+                                "message" to (error.message ?: "Alarm start failed."),
+                            ),
+                        )
                     }
                 }
                 "cancelPostureAlarm" -> {
@@ -146,6 +153,12 @@ class MainActivity : FlutterActivity() {
                 }
                 "getPostureAlarmState" -> {
                     result.success(PostureAlarmScheduler.getState(applicationContext))
+                }
+                "canScheduleExactAlarms" -> {
+                    result.success(PostureAlarmScheduler.canScheduleExactAlarms(applicationContext))
+                }
+                "openExactAlarmSettings" -> {
+                    result.success(openExactAlarmSettings())
                 }
                 else -> result.notImplemented()
             }
@@ -163,6 +176,25 @@ class MainActivity : FlutterActivity() {
             }
         }
         startActivity(intent)
+    }
+
+    private fun openExactAlarmSettings(): Boolean {
+        val exactAlarmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = Uri.parse("package:$packageName")
+            }
+        } else {
+            null
+        }
+        val fallbackIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:$packageName")
+        }
+        val intent = exactAlarmIntent?.takeIf {
+            it.resolveActivity(packageManager) != null
+        } ?: fallbackIntent
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+        return true
     }
 
     private fun savePngToGallery(bytes: ByteArray, fileName: String): android.net.Uri? {

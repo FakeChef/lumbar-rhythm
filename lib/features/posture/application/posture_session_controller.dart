@@ -161,8 +161,10 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
               startedAt: startedAt,
             );
     if (!started) {
-      ref.read(postureReminderStatusProvider.notifier).state =
-          '系统提醒启动失败，请检查通知权限。';
+      final debugState = ref.read(notificationServiceProvider).debugState;
+      ref.read(postureReminderStatusProvider.notifier).state = debugState
+              .lastCountdownFailureMessage ??
+          '\u7cfb\u7edf\u63d0\u9192\u542f\u52a8\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002';
       _stopCountdownStatusRefresh();
       return;
     }

@@ -927,6 +927,10 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
                 falseText: '未允许',
               ),
             ),
+            _DiagnosticLine(
+              label: '\u95f9\u949f\u548c\u63d0\u9192\u6743\u9650',
+              value: _formatExactAlarmPermission(debugState),
+            ),
             const SizedBox(height: 12),
             const Text(
               '若测试提醒没有声音，请检查系统设置中的通知权限、通知频道声音、勿扰模式和电池限制。',
@@ -936,6 +940,36 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
               icon: Icons.verified_outlined,
               label: '检查并请求通知权限',
               onPressed: () => _requestDiagnosticPermission(context, ref),
+            ),
+            _DiagnosticButton(
+              icon: Icons.alarm_add_outlined,
+              label:
+                  '\u6253\u5f00\u95f9\u949f\u548c\u63d0\u9192\u6743\u9650\u8bbe\u7f6e',
+              onPressed: () => _runDiagnosticAction(
+                context: context,
+                ref: ref,
+                action: () => ref
+                    .read(notificationServiceProvider)
+                    .openExactAlarmSettings(),
+                successMessage:
+                    '\u5df2\u6253\u5f00\u95f9\u949f\u548c\u63d0\u9192\u6743\u9650\u8bbe\u7f6e',
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.timer_outlined,
+              label:
+                  '\u6d4b\u8bd5\u4eca\u65e5\u9875\u5012\u8ba1\u65f6\u94fe\u8def',
+              onPressed: () => _runDiagnosticAction(
+                context: context,
+                ref: ref,
+                action: () => ref
+                    .read(notificationServiceProvider)
+                    .scheduleTodaySittingChainTest(
+                      reminderMode: settings.reminderMode,
+                    ),
+                successMessage:
+                    '\u4eca\u65e5\u9875\u5012\u8ba1\u65f6\u94fe\u8def\u5df2\u542f\u52a8',
+              ),
             ),
             _DiagnosticButton(
               icon: Icons.send_outlined,
@@ -963,6 +997,16 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
                 successMessage: '已打开系统通知设置',
               ),
             ),
+            if (debugState.lastCountdownFailureCode != null ||
+                debugState.lastCountdownFailureMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '最近一次倒计时失败：${debugState.lastCountdownFailureCode ?? 'unknown'} / ${debugState.lastCountdownFailureMessage ?? '无详细信息'}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+              ),
+            ],
             if (debugState.lastErrorMessage != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -1033,6 +1077,18 @@ String _formatDiagnosticBool(
     return '未知';
   }
   return value ? trueText : falseText;
+}
+
+String _formatExactAlarmPermission(ReminderDebugState debugState) {
+  final sdkInt = debugState.exactAlarmSdkInt;
+  if (sdkInt != null && sdkInt < 31) {
+    return '\u4e0d\u9002\u7528';
+  }
+  return _formatDiagnosticBool(
+    debugState.exactAlarmAllowed,
+    trueText: '\u5df2\u5f00\u542f',
+    falseText: '\u672a\u5f00\u542f',
+  );
 }
 
 Future<void> _requestDiagnosticPermission(

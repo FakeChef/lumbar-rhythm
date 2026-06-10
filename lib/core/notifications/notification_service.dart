@@ -143,6 +143,10 @@ class ReminderDebugState {
     this.lastScheduleModeResult,
     this.notificationsEnabled,
     this.exactNotificationsAvailable,
+    this.exactAlarmAllowed,
+    this.exactAlarmSdkInt,
+    this.lastCountdownFailureCode,
+    this.lastCountdownFailureMessage,
     this.lastPostureReminderType,
     this.lastPostureReminderSessionStartedAt,
     this.lastPostureReminderPending,
@@ -168,6 +172,10 @@ class ReminderDebugState {
   final String? lastScheduleModeResult;
   final bool? notificationsEnabled;
   final bool? exactNotificationsAvailable;
+  final bool? exactAlarmAllowed;
+  final int? exactAlarmSdkInt;
+  final String? lastCountdownFailureCode;
+  final String? lastCountdownFailureMessage;
   final PostureType? lastPostureReminderType;
   final DateTime? lastPostureReminderSessionStartedAt;
   final bool? lastPostureReminderPending;
@@ -193,6 +201,10 @@ class ReminderDebugState {
     String? lastScheduleModeResult,
     bool? notificationsEnabled,
     bool? exactNotificationsAvailable,
+    bool? exactAlarmAllowed,
+    int? exactAlarmSdkInt,
+    String? lastCountdownFailureCode,
+    String? lastCountdownFailureMessage,
     PostureType? lastPostureReminderType,
     DateTime? lastPostureReminderSessionStartedAt,
     bool? lastPostureReminderPending,
@@ -230,6 +242,10 @@ class ReminderDebugState {
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       exactNotificationsAvailable:
           exactNotificationsAvailable ?? this.exactNotificationsAvailable,
+      exactAlarmAllowed: exactAlarmAllowed ?? this.exactAlarmAllowed,
+      exactAlarmSdkInt: exactAlarmSdkInt ?? this.exactAlarmSdkInt,
+      lastCountdownFailureCode: lastCountdownFailureCode,
+      lastCountdownFailureMessage: lastCountdownFailureMessage,
       lastPostureReminderType:
           lastPostureReminderType ?? this.lastPostureReminderType,
       lastPostureReminderSessionStartedAt:
@@ -241,6 +257,28 @@ class ReminderDebugState {
           lastPostureReminderDueAt ?? this.lastPostureReminderDueAt,
     );
   }
+}
+
+class ExactAlarmPermissionState {
+  const ExactAlarmPermissionState({
+    required this.canScheduleExactAlarms,
+    required this.sdkInt,
+  });
+
+  final bool canScheduleExactAlarms;
+  final int? sdkInt;
+
+  factory ExactAlarmPermissionState.fromMap(Map<Object?, Object?> map) {
+    return ExactAlarmPermissionState(
+      canScheduleExactAlarms: map['canScheduleExactAlarms'] == true,
+      sdkInt: map['sdkInt'] is int ? map['sdkInt'] as int : null,
+    );
+  }
+
+  static const allowed = ExactAlarmPermissionState(
+    canScheduleExactAlarms: true,
+    sdkInt: null,
+  );
 }
 
 enum ReminderScheduleDiagnosticMode {
@@ -327,24 +365,45 @@ class NotificationService {
         );
         return false;
       }
+      final exactAlarmState = await getExactAlarmPermissionState();
+      if (!exactAlarmState.canScheduleExactAlarms) {
+        _updateDebug(
+          _debugState.copyWith(
+            lastErrorMessage:
+                '\u7cfb\u7edf\u672a\u5141\u8bb8\u95f9\u949f\u548c\u63d0\u9192\u6743\u9650\uff0c\u8bf7\u5f00\u542f\u540e\u518d\u4f7f\u7528\u5012\u8ba1\u65f6\u63d0\u9192\u3002',
+            lastCountdownFailureCode: 'exact_alarm_not_allowed',
+            lastCountdownFailureMessage:
+                '\u7cfb\u7edf\u672a\u5141\u8bb8\u95f9\u949f\u548c\u63d0\u9192\u6743\u9650\uff0c\u8bf7\u5f00\u542f\u540e\u518d\u4f7f\u7528\u5012\u8ba1\u65f6\u63d0\u9192\u3002',
+          ),
+        );
+        return false;
+      }
+      final arguments = {
+        'postureType': postureType.name,
+        'durationSeconds': duration.inSeconds,
+        'reminderMode': reminderMode.name,
+        'startedAtMillis': startedAt.millisecondsSinceEpoch,
+      };
       await _postureCountdownChannel.invokeMethod<void>(
         'startPostureCountdown',
-        {
-          'postureType': postureType.name,
-          'durationSeconds': duration.inSeconds,
-          'reminderMode': reminderMode.name,
-          'startedAtMillis': startedAt.millisecondsSinceEpoch,
-        },
+        arguments,
       );
-      await _postureAlarmChannel.invokeMethod<void>(
-        'startPostureAlarm',
-        {
-          'postureType': postureType.name,
-          'durationSeconds': duration.inSeconds,
-          'reminderMode': reminderMode.name,
-          'startedAtMillis': startedAt.millisecondsSinceEpoch,
-        },
-      );
+      final alarmStartResult = await _postureAlarmChannel
+          .invokeMapMethod<Object?, Object?>('startPostureAlarm', arguments);
+      if (alarmStartResult?['success'] == false) {
+        final code =
+            alarmStartResult?['code']?.toString() ?? 'start_alarm_failed';
+        final message = alarmStartResult?['message']?.toString() ??
+            '\u7cfb\u7edf\u63d0\u9192\u542f\u52a8\u5931\u8d25';
+        _updateDebug(
+          _debugState.copyWith(
+            lastErrorMessage: message,
+            lastCountdownFailureCode: code,
+            lastCountdownFailureMessage: message,
+          ),
+        );
+        return false;
+      }
       final dueAt = startedAt.add(duration);
       _updateDebug(
         _debugState.copyWith(
@@ -434,6 +493,38 @@ class NotificationService {
     }
   }
 
+  Future<ExactAlarmPermissionState> getExactAlarmPermissionState() async {
+    try {
+      final state = await _postureAlarmChannel
+          .invokeMapMethod<Object?, Object?>('canScheduleExactAlarms');
+      final parsed = state == null
+          ? ExactAlarmPermissionState.allowed
+          : ExactAlarmPermissionState.fromMap(state);
+      _updateDebug(
+        _debugState.copyWith(
+          exactAlarmAllowed: parsed.canScheduleExactAlarms,
+          exactAlarmSdkInt: parsed.sdkInt,
+        ),
+      );
+      return parsed;
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return ExactAlarmPermissionState.allowed;
+    }
+  }
+
+  Future<bool> openExactAlarmSettings() async {
+    try {
+      final opened = await _postureAlarmChannel.invokeMethod<bool>(
+        'openExactAlarmSettings',
+      );
+      return opened ?? false;
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return false;
+    }
+  }
+
   void recordError(Object error) {
     _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
   }
@@ -495,6 +586,7 @@ class NotificationService {
   Future<ReminderDebugState> refreshReminderDiagnostics() async {
     await areNotificationsEnabled();
     await canScheduleExactNotifications();
+    await getExactAlarmPermissionState();
     return _debugState;
   }
 

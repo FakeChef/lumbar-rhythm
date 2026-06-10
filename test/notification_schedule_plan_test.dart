@@ -136,12 +136,29 @@ void main() {
     expect(service, contains('startPostureAlarm'));
     expect(service, contains('cancelPostureAlarm'));
     expect(service, contains('getPostureAlarmState'));
+    expect(service, contains('canScheduleExactAlarms'));
+    expect(service, contains('openExactAlarmSettings'));
     expect(activity, contains('startPostureCountdown'));
     expect(activity, contains('stopPostureCountdown'));
     expect(activity, contains('getPostureCountdownState'));
     expect(activity, contains('startPostureAlarm'));
     expect(activity, contains('cancelPostureAlarm'));
     expect(activity, contains('getPostureAlarmState'));
+    expect(activity, contains('canScheduleExactAlarms'));
+    expect(activity, contains('openExactAlarmSettings'));
+  });
+
+  test(
+      'settings diagnostics exposes exact alarm status and countdown chain test',
+      () {
+    final settings = File(
+      'lib/features/settings/presentation/settings_page.dart',
+    ).readAsStringSync();
+
+    expect(settings, contains('_formatExactAlarmPermission'));
+    expect(settings, contains('openExactAlarmSettings'));
+    expect(settings, contains('scheduleTodaySittingChainTest'));
+    expect(settings, contains('lastCountdownFailureCode'));
   });
 
   test('real posture reminder path no longer schedules pending notifications',

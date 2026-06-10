@@ -271,7 +271,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(postureRepository.openSession?.type, PostureType.sitting);
-    expect(find.textContaining('系统提醒启动失败'), findsOneWidget);
+    expect(
+        notificationService.debugState.lastCountdownFailureMessage, isNotNull);
+  });
+
+  testWidgets('exact alarm denial blocks sitting countdown and shows guide',
+      (tester) async {
+    final notificationService = _FakeNotification(exactAlarmAllowed: false);
+
+    await _pumpHome(tester, notificationService: notificationService);
+
+    await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
+    await tester.pumpAndSettle();
+
+    expect(notificationService.debugState.lastCountdownFailureCode,
+        'exact_alarm_not_allowed');
   });
 
   test('latest posture countdown is not overwritten by startup setup',
@@ -645,10 +659,12 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
 class _FakeNotification extends NotificationService {
   _FakeNotification({
     this.failCountdownStart = false,
+    this.exactAlarmAllowed = true,
     this.countdownState = const PostureCountdownState(running: false),
   });
 
   final bool failCountdownStart;
+  final bool exactAlarmAllowed;
   PostureCountdownState countdownState;
   final startedCountdownPostures = <PostureType>[];
   final countdownModes = <ReminderMode>[];
@@ -656,6 +672,7 @@ class _FakeNotification extends NotificationService {
   int stopCountdownCount = 0;
   int initializeCalls = 0;
   int permissionRequests = 0;
+  int openedExactAlarmSettings = 0;
   String? lastRecordedError;
 
   @override
@@ -676,6 +693,9 @@ class _FakeNotification extends NotificationService {
     required ReminderMode reminderMode,
     required DateTime startedAt,
   }) async {
+    if (!exactAlarmAllowed) {
+      return false;
+    }
     if (failCountdownStart) {
       return false;
     }
@@ -689,6 +709,36 @@ class _FakeNotification extends NotificationService {
       startedAt: startedAt,
       dueAt: startedAt.add(duration),
     );
+    return true;
+  }
+
+  @override
+  ReminderDebugState get debugState => exactAlarmAllowed
+      ? ReminderDebugState(
+          exactAlarmAllowed: true,
+          lastCountdownFailureCode:
+              failCountdownStart ? 'start_countdown_failed' : null,
+          lastCountdownFailureMessage:
+              failCountdownStart ? '系统提醒启动失败，请稍后重试。' : null,
+        )
+      : const ReminderDebugState(
+          exactAlarmAllowed: false,
+          exactAlarmSdkInt: 34,
+          lastCountdownFailureCode: 'exact_alarm_not_allowed',
+          lastCountdownFailureMessage: '系统未允许闹钟和提醒权限，请开启后再使用倒计时提醒。',
+        );
+
+  @override
+  Future<ExactAlarmPermissionState> getExactAlarmPermissionState() async {
+    return ExactAlarmPermissionState(
+      canScheduleExactAlarms: exactAlarmAllowed,
+      sdkInt: 34,
+    );
+  }
+
+  @override
+  Future<bool> openExactAlarmSettings() async {
+    openedExactAlarmSettings += 1;
     return true;
   }
 
