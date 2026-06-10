@@ -153,24 +153,28 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
         ? standingIntervalMinutes ?? settings.standingIntervalMinutes
         : sittingIntervalMinutes ?? settings.sittingIntervalMinutes;
     final startedAt = DateTime.now();
-    final started =
+    final startResult =
         await ref.read(notificationServiceProvider).startPostureCountdown(
               postureType: session.type,
               duration: Duration(minutes: intervalMinutes),
               reminderMode: settings.reminderMode,
               startedAt: startedAt,
             );
-    if (!started) {
-      final debugState = ref.read(notificationServiceProvider).debugState;
-      ref.read(postureReminderStatusProvider.notifier).state = debugState
-              .lastCountdownFailureMessage ??
-          '\u7cfb\u7edf\u63d0\u9192\u542f\u52a8\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002';
+    if (!startResult.success) {
+      ref.read(postureReminderStatusProvider.notifier).state =
+          startResult.code == 'notification_permission_missing'
+              ? '通知权限未开启，请到设置中允许通知。'
+              : '倒计时启动失败，请到设置页进行提醒检测。';
       _stopCountdownStatusRefresh();
       return;
     }
-    final dueAt = startedAt.add(Duration(minutes: intervalMinutes));
+    final dueAt =
+        startResult.dueAt ?? startedAt.add(Duration(minutes: intervalMinutes));
+    final runningMessage = _countdownRunningMessage(session.type, dueAt);
     ref.read(postureReminderStatusProvider.notifier).state =
-        '${_countdownRunningMessage(session.type, dueAt)} 系统提醒已开启。';
+        startResult.mode == 'foregroundService'
+            ? '$runningMessage ${startResult.message}'
+            : runningMessage;
     _configureCountdownStatusRefresh(session);
   }
 

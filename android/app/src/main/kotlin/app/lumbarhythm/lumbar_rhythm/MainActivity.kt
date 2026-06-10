@@ -134,11 +134,14 @@ class MainActivity : FlutterActivity() {
                         )
                         result.success(response)
                     } catch (error: Exception) {
+                        val dueAtMillis = startedAtMillis + durationSeconds * 1000L
                         result.success(
                             mapOf(
                                 "success" to false,
+                                "mode" to "none",
                                 "code" to "start_alarm_failed",
                                 "message" to (error.message ?: "Alarm start failed."),
+                                "dueAtMillis" to dueAtMillis,
                             ),
                         )
                     }
@@ -179,22 +182,22 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun openExactAlarmSettings(): Boolean {
-        val exactAlarmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                data = Uri.parse("package:$packageName")
-            }
-        } else {
-            null
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return false
         }
-        val fallbackIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
             data = Uri.parse("package:$packageName")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        val intent = exactAlarmIntent?.takeIf {
-            it.resolveActivity(packageManager) != null
-        } ?: fallbackIntent
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(intent)
-        return true
+        if (intent.resolveActivity(packageManager) == null) {
+            return false
+        }
+        return try {
+            startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun savePngToGallery(bytes: ByteArray, fileName: String): android.net.Uri? {

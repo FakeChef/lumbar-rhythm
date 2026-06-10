@@ -42,13 +42,6 @@ object PostureAlarmScheduler {
     ): Map<String, Any?> {
         cancelAlarm(context)
         ensureChannels(context)
-        if (!canScheduleExactAlarmsValue(context)) {
-            return mapOf(
-                "success" to false,
-                "code" to "exact_alarm_not_allowed",
-                "message" to "\u7cfb\u7edf\u672a\u5141\u8bb8\u95f9\u949f\u548c\u63d0\u9192\u6743\u9650",
-            )
-        }
         val dueAtMillis = startedAtMillis + durationSeconds * 1000L
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -67,20 +60,26 @@ object PostureAlarmScheduler {
             )
             mapOf(
                 "success" to true,
+                "mode" to "alarmClock",
                 "code" to "ok",
                 "message" to "\u7cfb\u7edf\u63d0\u9192\u5df2\u542f\u52a8",
+                "dueAtMillis" to dueAtMillis,
             )
         } catch (error: SecurityException) {
             mapOf(
                 "success" to false,
+                "mode" to "none",
                 "code" to "security_exception",
                 "message" to "\u7cfb\u7edf\u6743\u9650\u9650\u5236\uff1a${error.message ?: ""}",
+                "dueAtMillis" to dueAtMillis,
             )
         } catch (error: Exception) {
             mapOf(
                 "success" to false,
+                "mode" to "none",
                 "code" to "start_alarm_failed",
                 "message" to (error.message ?: "\u7cfb\u7edf\u63d0\u9192\u542f\u52a8\u5931\u8d25"),
+                "dueAtMillis" to dueAtMillis,
             )
         }
     }

@@ -192,6 +192,8 @@ void main() {
       reminderSettingsRepository: _FakeReminderSettingsRepository(
         ReminderSettings.defaults.copyWith(
           reminderMode: ReminderMode.vibration,
+          sittingIntervalMinutes: 15,
+          standingIntervalMinutes: 30,
         ),
       ),
     );
@@ -201,6 +203,8 @@ void main() {
     expect(notificationService.startedCountdownPostures,
         contains(PostureType.sitting));
     expect(notificationService.countdownModes, [ReminderMode.vibration]);
+    expect(
+        notificationService.countdownDurations, [const Duration(minutes: 15)]);
     expect(postureRepository.openSession?.type, PostureType.sitting);
     expect(find.textContaining('久坐倒计时中'), findsOneWidget);
 
@@ -210,6 +214,8 @@ void main() {
         contains(PostureType.standing));
     expect(notificationService.countdownModes,
         [ReminderMode.vibration, ReminderMode.vibration]);
+    expect(notificationService.countdownDurations,
+        [const Duration(minutes: 15), const Duration(minutes: 30)]);
     expect(postureRepository.openSession?.type, PostureType.standing);
     expect(rehabRepository.addedLogs, isEmpty);
     expect(find.textContaining('久站倒计时中'), findsOneWidget);
@@ -271,11 +277,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(postureRepository.openSession?.type, PostureType.sitting);
-    expect(
-        notificationService.debugState.lastCountdownFailureMessage, isNotNull);
+    expect(find.textContaining('倒计时启动失败，请到设置页进行提醒检测。'), findsOneWidget);
   });
 
-  testWidgets('exact alarm denial blocks sitting countdown and shows guide',
+  testWidgets('alarm failure falls back to foreground countdown',
       (tester) async {
     final notificationService = _FakeNotification(exactAlarmAllowed: false);
 
@@ -284,8 +289,51 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
     await tester.pumpAndSettle();
 
-    expect(notificationService.debugState.lastCountdownFailureCode,
-        'exact_alarm_not_allowed');
+    expect(notificationService.startedCountdownPostures, [PostureType.sitting]);
+    expect(find.textContaining('久坐倒计时中'), findsOneWidget);
+    expect(find.textContaining('通知栏倒计时模式'), findsOneWidget);
+    expect(find.textContaining('闹钟和提醒权限'), findsNothing);
+  });
+
+  testWidgets('missing notification permission shows permission message',
+      (tester) async {
+    final postureRepository = _FakePostureRepository();
+    final notificationService = _FakeNotification(permissionGranted: false);
+
+    await _pumpHome(
+      tester,
+      postureRepository: postureRepository,
+      notificationService: notificationService,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
+    await tester.pumpAndSettle();
+
+    expect(postureRepository.openSession?.type, PostureType.sitting);
+    expect(notificationService.startedCountdownPostures, isEmpty);
+    expect(find.textContaining('通知权限未开启，请到设置中允许通知。'), findsOneWidget);
+    expect(find.textContaining('系统提醒启动失败，请检查通知权限'), findsNothing);
+  });
+
+  testWidgets('alarm and foreground failures show diagnostic prompt',
+      (tester) async {
+    final postureRepository = _FakePostureRepository();
+    final notificationService = _FakeNotification(
+      exactAlarmAllowed: false,
+      foregroundFallbackSucceeds: false,
+    );
+
+    await _pumpHome(
+      tester,
+      postureRepository: postureRepository,
+      notificationService: notificationService,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
+    await tester.pumpAndSettle();
+
+    expect(postureRepository.openSession?.type, PostureType.sitting);
+    expect(find.textContaining('倒计时启动失败，请到设置页进行提醒检测。'), findsOneWidget);
   });
 
   test('latest posture countdown is not overwritten by startup setup',
@@ -486,7 +534,7 @@ void main() {
 
     expect(find.textContaining('今天是术后第'), findsOneWidget);
     expect(find.byKey(const ValueKey('today-rhythm-timer')), findsOneWidget);
-    expect(find.text('我在坐'), findsWidgets);
+    expect(find.text('我在坐着'), findsWidgets);
     expect(find.byKey(const ValueKey('today-posture-walking')), findsNothing);
     expect(find.text('今日最长坐姿'), findsOneWidget);
     expect(find.text('今日最长走动'), findsOneWidget);
@@ -660,11 +708,15 @@ class _FakeNotification extends NotificationService {
   _FakeNotification({
     this.failCountdownStart = false,
     this.exactAlarmAllowed = true,
+    this.permissionGranted = true,
+    this.foregroundFallbackSucceeds = true,
     this.countdownState = const PostureCountdownState(running: false),
   });
 
   final bool failCountdownStart;
   final bool exactAlarmAllowed;
+  final bool permissionGranted;
+  final bool foregroundFallbackSucceeds;
   PostureCountdownState countdownState;
   final startedCountdownPostures = <PostureType>[];
   final countdownModes = <ReminderMode>[];
@@ -683,21 +735,31 @@ class _FakeNotification extends NotificationService {
   @override
   Future<bool> requestPermissions() async {
     permissionRequests++;
-    return true;
+    return permissionGranted;
   }
 
   @override
-  Future<bool> startPostureCountdown({
+  Future<PostureCountdownStartResult> startPostureCountdown({
     required PostureType postureType,
     required Duration duration,
     required ReminderMode reminderMode,
     required DateTime startedAt,
   }) async {
-    if (!exactAlarmAllowed) {
-      return false;
+    if (!permissionGranted) {
+      return const PostureCountdownStartResult(
+        success: false,
+        mode: 'none',
+        code: 'notification_permission_missing',
+        message: '通知权限未开启，请到设置中允许通知。',
+      );
     }
     if (failCountdownStart) {
-      return false;
+      return const PostureCountdownStartResult(
+        success: false,
+        mode: 'none',
+        code: 'native_start_failed',
+        message: '倒计时启动失败，请到设置页进行提醒检测。',
+      );
     }
     startedCountdownPostures.add(postureType);
     countdownModes.add(reminderMode);
@@ -709,24 +771,42 @@ class _FakeNotification extends NotificationService {
       startedAt: startedAt,
       dueAt: startedAt.add(duration),
     );
-    return true;
+    if (!exactAlarmAllowed && foregroundFallbackSucceeds) {
+      return PostureCountdownStartResult(
+        success: true,
+        mode: 'foregroundService',
+        code: 'fallback_foreground_service',
+        message: '系统闹钟权限不可用，已使用通知栏倒计时模式。',
+        dueAt: startedAt.add(duration),
+      );
+    }
+    if (!exactAlarmAllowed) {
+      return PostureCountdownStartResult(
+        success: false,
+        mode: 'none',
+        code: 'native_start_failed',
+        message: '倒计时启动失败，请到设置页进行提醒检测。',
+        dueAt: startedAt.add(duration),
+      );
+    }
+    return PostureCountdownStartResult(
+      success: true,
+      mode: 'alarmClock',
+      code: 'ok',
+      message: '系统闹钟倒计时已启动',
+      dueAt: startedAt.add(duration),
+    );
   }
 
   @override
-  ReminderDebugState get debugState => exactAlarmAllowed
-      ? ReminderDebugState(
-          exactAlarmAllowed: true,
-          lastCountdownFailureCode:
-              failCountdownStart ? 'start_countdown_failed' : null,
-          lastCountdownFailureMessage:
-              failCountdownStart ? '系统提醒启动失败，请稍后重试。' : null,
-        )
-      : const ReminderDebugState(
-          exactAlarmAllowed: false,
-          exactAlarmSdkInt: 34,
-          lastCountdownFailureCode: 'exact_alarm_not_allowed',
-          lastCountdownFailureMessage: '系统未允许闹钟和提醒权限，请开启后再使用倒计时提醒。',
-        );
+  ReminderDebugState get debugState => ReminderDebugState(
+        exactAlarmAllowed: exactAlarmAllowed,
+        exactAlarmSdkInt: 34,
+        lastCountdownFailureCode:
+            failCountdownStart ? 'native_start_failed' : null,
+        lastCountdownFailureMessage:
+            failCountdownStart ? '倒计时启动失败，请到设置页进行提醒检测。' : null,
+      );
 
   @override
   Future<ExactAlarmPermissionState> getExactAlarmPermissionState() async {

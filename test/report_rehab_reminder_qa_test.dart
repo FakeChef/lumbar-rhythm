@@ -733,9 +733,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(find.text('提醒诊断'), 300.0);
+    await tester.scrollUntilVisible(find.text('提醒检测'), 300.0);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('提醒诊断'));
+    await tester.tap(find.byTooltip('提醒检测'));
     await tester.pumpAndSettle();
 
     expect(find.text('当前提醒模式：震动提醒'), findsOneWidget);
@@ -1027,7 +1027,7 @@ void main() {
           .readAsStringSync()
           .replaceAll(allowedReportDisclaimer, '')
           .replaceAll(allowedPhaseDisclaimer, '')
-          .replaceAll('提醒诊断', '');
+          .replaceAll('提醒检测', '');
       for (final word in forbidden) {
         expect(text, isNot(contains(word)),
             reason: '${file.path} contains $word');

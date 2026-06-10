@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/data/app_data_refresh.dart';
-import '../../../core/notifications/notification_service.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../actions/domain/action_item.dart';
 import '../domain/stage_encouragement_messages.dart';
@@ -93,9 +92,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                         overviewState.valueOrNull?.hasMarkedDiscomfort ?? false,
                     selectedPosture: _selectedPosture,
                     reminderStatus: reminderStatus,
-                    onOpenExactAlarmSettings: () => ref
-                        .read(notificationServiceProvider)
-                        .openExactAlarmSettings(),
                   ),
                   const SizedBox(height: 8),
                   _PostureSwitchSection(
@@ -302,7 +298,6 @@ class _PostureStatusCard extends StatelessWidget {
     required this.hasMarkedDiscomfort,
     required this.selectedPosture,
     required this.reminderStatus,
-    required this.onOpenExactAlarmSettings,
   });
 
   final RecoveryProfile? profile;
@@ -312,7 +307,6 @@ class _PostureStatusCard extends StatelessWidget {
   final bool hasMarkedDiscomfort;
   final PostureType selectedPosture;
   final String? reminderStatus;
-  final VoidCallback onOpenExactAlarmSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -428,13 +422,7 @@ class _PostureStatusCard extends StatelessWidget {
                 message: timerState?.message ?? '未计时',
                 suggestion: reminderStatus ??
                     timerState?.suggestion ??
-                    '选择坐或走，开始今天的坐走节奏。',
-                actionLabel: _needsExactAlarmPermission(reminderStatus)
-                    ? '\u53bb\u5f00\u542f'
-                    : null,
-                onActionPressed: _needsExactAlarmPermission(reminderStatus)
-                    ? onOpenExactAlarmSettings
-                    : null,
+                    '选择坐或站，开始今天的坐站节奏。',
               ),
             ],
           ),
@@ -469,10 +457,6 @@ class _PostureStatusCard extends StatelessWidget {
       SittingStandingTimerTone.redOrange => const Color(0xFFC77972),
       SittingStandingTimerTone.green => const Color(0xFF6F9B82),
     };
-  }
-
-  bool _needsExactAlarmPermission(String? message) {
-    return message?.contains('闹钟和提醒权限') ?? false;
   }
 
   String _formatDuration(Duration duration) {
@@ -513,14 +497,10 @@ class _TimerInfoPanel extends StatelessWidget {
   const _TimerInfoPanel({
     required this.message,
     required this.suggestion,
-    this.actionLabel,
-    this.onActionPressed,
   });
 
   final String message;
   final String suggestion;
-  final String? actionLabel;
-  final VoidCallback? onActionPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -551,17 +531,6 @@ class _TimerInfoPanel extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            if (actionLabel != null && onActionPressed != null) ...[
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.center,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.alarm_add_outlined, size: 18),
-                  label: Text(actionLabel!),
-                  onPressed: onActionPressed,
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -594,8 +563,7 @@ class _PostureSwitchSection extends StatelessWidget {
               activeType: activeType,
               selectedType: selectedType,
               isTiming: activeType == PostureType.sitting ||
-                  activeType == PostureType.standing ||
-                  activeType == PostureType.walking,
+                  activeType == PostureType.standing,
               onSwitchPosture: onSwitchPosture,
             ),
             const SizedBox(height: 10),
@@ -722,8 +690,8 @@ class _PostureActionButton extends StatelessWidget {
       };
     }
     return switch (type) {
-      PostureType.sitting => '我在坐',
-      PostureType.standing => '我在站',
+      PostureType.sitting => '我在坐着',
+      PostureType.standing => '我在站着',
       PostureType.walking => '我在走',
       PostureType.resting => '休息',
     };

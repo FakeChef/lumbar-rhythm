@@ -68,6 +68,7 @@ class PostureCountdownService : Service() {
             val now = System.currentTimeMillis()
             if (now >= state.dueAtMillis) {
                 if (!state.reminderShown) {
+                    showDueNotification(state.postureType, state.reminderMode)
                     markDue(this@PostureCountdownService)
                     saveState(
                         context = this@PostureCountdownService,
@@ -102,6 +103,28 @@ class PostureCountdownService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(openAppIntent())
             .build()
+
+    private fun showDueNotification(postureType: String, reminderMode: String) {
+        val isStanding = postureType == POSTURE_STANDING
+        val title = if (isStanding) "该变换姿势了" else "该活动一下了"
+        val body = if (isStanding) {
+            "已经连续站了一段时间，建议坐下或走动放松一下。"
+        } else {
+            "已经连续坐了一段时间，建议起身活动一下。"
+        }
+        val id = if (isStanding) STANDING_DUE_NOTIFICATION_ID else SITTING_DUE_NOTIFICATION_ID
+        val notification = NotificationCompat.Builder(this, reminderChannelId(reminderMode))
+            .setSmallIcon(R.drawable.ic_stat_notification)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setContentIntent(openAppIntent())
+            .build()
+        notificationManager.notify(id, notification)
+    }
 
     private fun countdownText(postureType: String, dueAtMillis: Long): String {
         val remainingMillis = max(0L, dueAtMillis - System.currentTimeMillis())
@@ -145,6 +168,8 @@ class PostureCountdownService : Service() {
         private const val MODE_VIBRATION = "vibration"
         private const val MODE_ALARM = "alarm"
         private const val ONGOING_NOTIFICATION_ID = 301
+        private const val SITTING_DUE_NOTIFICATION_ID = 302
+        private const val STANDING_DUE_NOTIFICATION_ID = 303
 
         private val handler = Handler(Looper.getMainLooper())
 

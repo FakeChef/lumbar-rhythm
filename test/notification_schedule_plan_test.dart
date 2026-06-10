@@ -103,7 +103,7 @@ void main() {
     expect(receiver, isNot(contains('startAlarm(')));
   });
 
-  test('foreground service is countdown display only and does not loop', () {
+  test('foreground service is countdown fallback and does not loop', () {
     final service = File(
       'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/PostureCountdownService.kt',
     ).readAsStringSync();
@@ -112,8 +112,8 @@ void main() {
     expect(service, contains('TICK_INTERVAL_MILLIS = 15_000L'));
     expect(service, contains('reminderShown'));
     expect(service, contains('if (!state.reminderShown)'));
+    expect(service, contains('showDueNotification'));
     expect(service, contains('markDue(this@PostureCountdownService)'));
-    expect(service, isNot(contains('NotificationCompat.PRIORITY_HIGH')));
     expect(service, contains('stopSelf()'));
     expect(service, isNot(contains('BOOT_COMPLETED')));
     expect(service, isNot(contains('zonedSchedule')));
@@ -130,6 +130,9 @@ void main() {
     expect(
         service, contains("MethodChannel('lumbar_rhythm/posture_countdown')"));
     expect(service, contains("MethodChannel('lumbar_rhythm/posture_alarm')"));
+    expect(service, contains('PostureCountdownStartResult'));
+    expect(service, contains('foregroundService'));
+    expect(service, contains('notification_permission_missing'));
     expect(service, contains('startPostureCountdown'));
     expect(service, contains('stopPostureCountdown'));
     expect(service, contains('getPostureCountdownState'));
@@ -148,9 +151,7 @@ void main() {
     expect(activity, contains('openExactAlarmSettings'));
   });
 
-  test(
-      'settings diagnostics exposes exact alarm status and countdown chain test',
-      () {
+  test('settings diagnostics exposes non-blocking countdown chain test', () {
     final settings = File(
       'lib/features/settings/presentation/settings_page.dart',
     ).readAsStringSync();
@@ -158,7 +159,13 @@ void main() {
     expect(settings, contains('_formatExactAlarmPermission'));
     expect(settings, contains('openExactAlarmSettings'));
     expect(settings, contains('scheduleTodaySittingChainTest'));
-    expect(settings, contains('lastCountdownFailureCode'));
+    expect(settings, contains('测试倒计时启动链路'));
+    expect(settings, contains('mode='));
+    expect(settings, contains('code='));
+    expect(settings, contains('message='));
+    expect(settings, contains('dueAt='));
+    expect(settings, contains('当前系统不支持直接打开该设置，请使用通知栏倒计时模式。'));
+    expect(settings, contains('系统闹钟不可用，将使用通知栏倒计时模式'));
   });
 
   test('real posture reminder path no longer schedules pending notifications',
@@ -185,12 +192,15 @@ void main() {
 
     expect(settings, contains('手动倒计时'));
     expect(settings, contains('到点提醒一次'));
+    expect(settings, contains('系统闹钟可用时优先使用'));
+    expect(settings, contains('不可用时自动使用通知栏倒计时模式'));
     expect(controller, contains('久坐倒计时中'));
     expect(controller, contains('久站倒计时中'));
     expect(controller, contains('当前状态不需要久坐/久站倒计时'));
     expect(settings, isNot(contains('白天节奏')));
     expect(settings, isNot(contains('自动循环提醒')));
     expect(settings, isNot(contains('全天节奏提醒')));
+    expect(controller, isNot(contains('系统提醒启动失败，请检查通知权限')));
   });
 
   test('diagnostic UI is simplified for regular users', () {
