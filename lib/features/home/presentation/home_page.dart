@@ -572,7 +572,7 @@ class _PostureSwitchSection extends StatelessWidget {
               key: const ValueKey('today-posture-stop'),
               onPressed: onStop,
               icon: const Icon(Icons.self_improvement_outlined),
-              label: const Text('休息'),
+              label: const Text('我去休息了'),
             ),
           ],
         ),
@@ -599,8 +599,6 @@ class _PostureActionGrid extends StatelessWidget {
     const primaryPostures = [
       PostureType.sitting,
       PostureType.standing,
-      PostureType.walking,
-      PostureType.resting,
     ];
     return GridView.builder(
       shrinkWrap: true,

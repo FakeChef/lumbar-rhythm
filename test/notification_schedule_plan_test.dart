@@ -70,6 +70,8 @@ void main() {
       contains('android.permission.FOREGROUND_SERVICE_SPECIAL_USE'),
     );
     expect(manifest, contains('.PostureCountdownService'));
+    expect(manifest, contains('.PostureAlarmReceiver'));
+    expect(manifest, contains('.PostureAlarmActivity'));
     expect(manifest, contains('android:foregroundServiceType="specialUse"'));
     expect(
         manifest, isNot(contains('android.permission.ACCESS_FINE_LOCATION')));
@@ -83,7 +85,25 @@ void main() {
     );
   });
 
-  test('foreground service sends one due reminder and does not loop', () {
+  test('alarm clock scheduler is the posture reminder wake-up path', () {
+    final scheduler = File(
+      'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/PostureAlarmScheduler.kt',
+    ).readAsStringSync();
+    final receiver = File(
+      'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/PostureAlarmReceiver.kt',
+    ).readAsStringSync();
+
+    expect(scheduler, contains('setAlarmClock'));
+    expect(scheduler, contains('cancelAlarm'));
+    expect(scheduler, contains('setOngoing(true)'));
+    expect(scheduler, contains('setAutoCancel(false)'));
+    expect(scheduler, contains('\\u6211\\u53bb\\u4f11\\u606f\\u4e86'));
+    expect(scheduler, contains('\\u5df2\\u5904\\u7406'));
+    expect(receiver, contains('onAlarmDue'));
+    expect(receiver, isNot(contains('startAlarm(')));
+  });
+
+  test('foreground service is countdown display only and does not loop', () {
     final service = File(
       'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/PostureCountdownService.kt',
     ).readAsStringSync();
@@ -92,6 +112,8 @@ void main() {
     expect(service, contains('TICK_INTERVAL_MILLIS = 15_000L'));
     expect(service, contains('reminderShown'));
     expect(service, contains('if (!state.reminderShown)'));
+    expect(service, contains('markDue(this@PostureCountdownService)'));
+    expect(service, isNot(contains('NotificationCompat.PRIORITY_HIGH')));
     expect(service, contains('stopSelf()'));
     expect(service, isNot(contains('BOOT_COMPLETED')));
     expect(service, isNot(contains('zonedSchedule')));
@@ -107,12 +129,19 @@ void main() {
 
     expect(
         service, contains("MethodChannel('lumbar_rhythm/posture_countdown')"));
+    expect(service, contains("MethodChannel('lumbar_rhythm/posture_alarm')"));
     expect(service, contains('startPostureCountdown'));
     expect(service, contains('stopPostureCountdown'));
     expect(service, contains('getPostureCountdownState'));
+    expect(service, contains('startPostureAlarm'));
+    expect(service, contains('cancelPostureAlarm'));
+    expect(service, contains('getPostureAlarmState'));
     expect(activity, contains('startPostureCountdown'));
     expect(activity, contains('stopPostureCountdown'));
     expect(activity, contains('getPostureCountdownState'));
+    expect(activity, contains('startPostureAlarm'));
+    expect(activity, contains('cancelPostureAlarm'));
+    expect(activity, contains('getPostureAlarmState'));
   });
 
   test('real posture reminder path no longer schedules pending notifications',

@@ -135,19 +135,20 @@ void main() {
     expect(find.text('正在休息'), findsNothing);
   });
 
-  testWidgets('shows sitting standing and walking posture buttons',
+  testWidgets('shows sitting standing and resting posture buttons',
       (tester) async {
     await _pumpHome(tester);
 
-    expect(find.text('我在坐'), findsWidgets);
-    expect(find.text('我在站'), findsWidgets);
-    expect(find.text('我在走'), findsWidgets);
-    expect(find.text('休息'), findsWidgets);
+    expect(find.byKey(const ValueKey('today-posture-sitting')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('today-posture-standing')), findsOneWidget);
+    expect(find.byKey(const ValueKey('today-posture-stop')), findsOneWidget);
+    expect(find.byKey(const ValueKey('today-posture-walking')), findsNothing);
+    expect(find.byKey(const ValueKey('today-posture-resting')), findsNothing);
     expect(find.byKey(const ValueKey('today-add-rehab-log')), findsNothing);
     expect(
         find.byKey(const ValueKey('today-daytime-cycle-start')), findsNothing);
   });
-
   testWidgets('app startup requests notification permission when reminders run',
       (tester) async {
     final notificationService = _FakeNotification();
@@ -214,8 +215,7 @@ void main() {
     expect(find.textContaining('久站倒计时中'), findsOneWidget);
   });
 
-  testWidgets('walking stops posture countdown without scheduling',
-      (tester) async {
+  testWidgets('resting stops posture countdown and alarm', (tester) async {
     final postureRepository = _FakePostureRepository();
     final notificationService = _FakeNotification();
     final rehabRepository = _FakeRehabRepository();
@@ -228,34 +228,15 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('today-posture-walking')));
+    await tester.tap(find.byKey(const ValueKey('today-posture-stop')));
     await tester.pumpAndSettle();
+
     expect(notificationService.startedCountdownPostures, [PostureType.sitting]);
     expect(notificationService.stopCountdownCount, greaterThanOrEqualTo(1));
-    expect(postureRepository.openSession?.type, PostureType.walking);
-    expect(find.text('当前状态不需要久坐/久站倒计时。'), findsOneWidget);
-    expect(rehabRepository.addedLogs.single.source, 'posture_session');
+    expect(postureRepository.openSession, isNull);
+    expect(find.byKey(const ValueKey('today-posture-stop')), findsOneWidget);
+    expect(rehabRepository.addedLogs, isEmpty);
   });
-
-  testWidgets('resting stops posture countdown', (tester) async {
-    final postureRepository = _FakePostureRepository();
-    final notificationService = _FakeNotification();
-    await _pumpHome(
-      tester,
-      postureRepository: postureRepository,
-      notificationService: notificationService,
-    );
-
-    await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('today-posture-resting')));
-    await tester.pumpAndSettle();
-
-    expect(postureRepository.openSession?.type, PostureType.resting);
-    expect(notificationService.stopCountdownCount, greaterThanOrEqualTo(1));
-    expect(find.text('当前状态不需要久坐/久站倒计时。'), findsOneWidget);
-  });
-
   testWidgets('disabled reminders do not start posture countdown',
       (tester) async {
     final notificationService = _FakeNotification();
@@ -290,7 +271,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(postureRepository.openSession?.type, PostureType.sitting);
-    expect(find.textContaining('倒计时启动失败'), findsOneWidget);
+    expect(find.textContaining('系统提醒启动失败'), findsOneWidget);
   });
 
   test('latest posture countdown is not overwritten by startup setup',
@@ -492,7 +473,7 @@ void main() {
     expect(find.textContaining('今天是术后第'), findsOneWidget);
     expect(find.byKey(const ValueKey('today-rhythm-timer')), findsOneWidget);
     expect(find.text('我在坐'), findsWidgets);
-    expect(find.text('我在走'), findsWidgets);
+    expect(find.byKey(const ValueKey('today-posture-walking')), findsNothing);
     expect(find.text('今日最长坐姿'), findsOneWidget);
     expect(find.text('今日最长走动'), findsOneWidget);
     expect(find.text('今日提醒次数'), findsOneWidget);

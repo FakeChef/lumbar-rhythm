@@ -12,6 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val galleryChannel = "lumbar_rhythm/gallery"
     private val postureCountdownChannel = "lumbar_rhythm/posture_countdown"
+    private val postureAlarmChannel = "lumbar_rhythm/posture_alarm"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -95,6 +96,56 @@ class MainActivity : FlutterActivity() {
                     } catch (error: Exception) {
                         result.error("open_settings_failed", error.message, null)
                     }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            postureAlarmChannel,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startPostureAlarm" -> {
+                    val postureType = call.argument<String>("postureType")
+                    val durationSeconds = call.argument<Int>("durationSeconds")?.toLong()
+                    val reminderMode = call.argument<String>("reminderMode") ?: "soft"
+                    val startedAtMillis = call.argument<Long>("startedAtMillis")
+                        ?: call.argument<Int>("startedAtMillis")?.toLong()
+
+                    if (
+                        postureType.isNullOrBlank() ||
+                        durationSeconds == null ||
+                        durationSeconds <= 0 ||
+                        startedAtMillis == null
+                    ) {
+                        result.error("invalid_args", "Missing posture alarm arguments.", null)
+                        return@setMethodCallHandler
+                    }
+
+                    try {
+                        PostureAlarmScheduler.startAlarm(
+                            context = applicationContext,
+                            postureType = postureType,
+                            durationSeconds = durationSeconds,
+                            reminderMode = reminderMode,
+                            startedAtMillis = startedAtMillis,
+                        )
+                        result.success(null)
+                    } catch (error: Exception) {
+                        result.error("start_alarm_failed", error.message, null)
+                    }
+                }
+                "cancelPostureAlarm" -> {
+                    try {
+                        PostureAlarmScheduler.cancelAlarm(applicationContext)
+                        result.success(null)
+                    } catch (error: Exception) {
+                        result.error("cancel_alarm_failed", error.message, null)
+                    }
+                }
+                "getPostureAlarmState" -> {
+                    result.success(PostureAlarmScheduler.getState(applicationContext))
                 }
                 else -> result.notImplemented()
             }

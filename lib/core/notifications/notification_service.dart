@@ -292,6 +292,8 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   static const MethodChannel _postureCountdownChannel =
       MethodChannel('lumbar_rhythm/posture_countdown');
+  static const MethodChannel _postureAlarmChannel =
+      MethodChannel('lumbar_rhythm/posture_alarm');
   final void Function(ReminderDebugState state)? _onDebugStateChanged;
 
   bool _timeZonesInitialized = false;
@@ -334,6 +336,15 @@ class NotificationService {
           'startedAtMillis': startedAt.millisecondsSinceEpoch,
         },
       );
+      await _postureAlarmChannel.invokeMethod<void>(
+        'startPostureAlarm',
+        {
+          'postureType': postureType.name,
+          'durationSeconds': duration.inSeconds,
+          'reminderMode': reminderMode.name,
+          'startedAtMillis': startedAt.millisecondsSinceEpoch,
+        },
+      );
       final dueAt = startedAt.add(duration);
       _updateDebug(
         _debugState.copyWith(
@@ -363,6 +374,9 @@ class NotificationService {
       await _postureCountdownChannel.invokeMethod<void>(
         'stopPostureCountdown',
       );
+      await _postureAlarmChannel.invokeMethod<void>(
+        'cancelPostureAlarm',
+      );
       _updateDebug(
         _debugState.copyWith(
           lastPostureReminderPending: false,
@@ -380,15 +394,31 @@ class NotificationService {
 
   Future<PostureCountdownState> getPostureCountdownState() async {
     try {
-      final state = await _postureCountdownChannel
-          .invokeMapMethod<Object?, Object?>('getPostureCountdownState');
+      final state = await _postureAlarmChannel
+          .invokeMapMethod<Object?, Object?>('getPostureAlarmState');
       if (state == null) {
         return const PostureCountdownState(running: false);
       }
-      return PostureCountdownState.fromMap(state);
+      final scheduled = state['scheduled'] == true;
+      return PostureCountdownState.fromMap({
+        'running': scheduled,
+        'postureType': state['postureType'],
+        'remainingSeconds': state['remainingSeconds'],
+        'dueAtMillis': state['dueAtMillis'],
+        'startedAtMillis': state['startedAtMillis'],
+      });
     } catch (error) {
       _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
-      return const PostureCountdownState(running: false);
+      try {
+        final state = await _postureCountdownChannel
+            .invokeMapMethod<Object?, Object?>('getPostureCountdownState');
+        if (state == null) {
+          return const PostureCountdownState(running: false);
+        }
+        return PostureCountdownState.fromMap(state);
+      } catch (_) {
+        return const PostureCountdownState(running: false);
+      }
     }
   }
 

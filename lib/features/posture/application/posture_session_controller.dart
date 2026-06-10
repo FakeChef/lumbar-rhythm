@@ -111,7 +111,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
           walkingThresholdMinutes: settings.walkingIntervalMinutes,
         );
     state = const AsyncData(null);
-    ref.read(postureReminderStatusProvider.notifier).state = '当前状态不需要久坐/久站倒计时。';
+    ref.read(postureReminderStatusProvider.notifier).state = '当前已休息，坐/站倒计时已停止。';
     notifyAppDataChanged(ref);
     _stopCountdownStatusRefresh();
     await ref.read(notificationServiceProvider).stopPostureCountdown();
@@ -162,19 +162,19 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
             );
     if (!started) {
       ref.read(postureReminderStatusProvider.notifier).state =
-          '倒计时启动失败，请检查系统通知权限。';
+          '系统提醒启动失败，请检查通知权限。';
       _stopCountdownStatusRefresh();
       return;
     }
     final dueAt = startedAt.add(Duration(minutes: intervalMinutes));
     ref.read(postureReminderStatusProvider.notifier).state =
-        _countdownRunningMessage(session.type, dueAt);
+        '${_countdownRunningMessage(session.type, dueAt)} 系统提醒已开启。';
     _configureCountdownStatusRefresh(session);
   }
 
   Future<void> _stopCountdownForNonTimedPosture() async {
     await ref.read(notificationServiceProvider).stopPostureCountdown();
-    ref.read(postureReminderStatusProvider.notifier).state = '当前状态不需要久坐/久站倒计时。';
+    ref.read(postureReminderStatusProvider.notifier).state = '当前已休息，坐/站倒计时已停止。';
     _stopCountdownStatusRefresh();
   }
 

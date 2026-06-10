@@ -68,7 +68,7 @@ class PostureCountdownService : Service() {
             val now = System.currentTimeMillis()
             if (now >= state.dueAtMillis) {
                 if (!state.reminderShown) {
-                    showDueNotification(state.postureType, state.reminderMode)
+                    markDue(this@PostureCountdownService)
                     saveState(
                         context = this@PostureCountdownService,
                         running = false,
@@ -113,24 +113,6 @@ class PostureCountdownService : Service() {
         }
     }
 
-    private fun showDueNotification(postureType: String, reminderMode: String) {
-        val (title, body, id) = if (postureType == POSTURE_STANDING) {
-            Triple("该变换姿势了", "已经连续站了一段时间，建议坐下或走动放松一下。", STANDING_DUE_NOTIFICATION_ID)
-        } else {
-            Triple("该活动一下了", "已经连续坐了一段时间，建议起身活动一下。", SITTING_DUE_NOTIFICATION_ID)
-        }
-        val channelId = reminderChannelId(reminderMode)
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.ic_stat_notification)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(openAppIntent())
-            .build()
-        notificationManager.notify(id, notification)
-    }
-
     private fun openAppIntent(): PendingIntent {
         val intent = packageManager.getLaunchIntentForPackage(packageName)
             ?: Intent(this, MainActivity::class.java)
@@ -163,8 +145,6 @@ class PostureCountdownService : Service() {
         private const val MODE_VIBRATION = "vibration"
         private const val MODE_ALARM = "alarm"
         private const val ONGOING_NOTIFICATION_ID = 301
-        private const val SITTING_DUE_NOTIFICATION_ID = 101
-        private const val STANDING_DUE_NOTIFICATION_ID = 102
 
         private val handler = Handler(Looper.getMainLooper())
 
@@ -205,6 +185,18 @@ class PostureCountdownService : Service() {
             context.stopService(intent)
         }
 
+        fun markDue(context: Context) {
+            val current = readState(context)
+            saveState(
+                context = context,
+                running = false,
+                postureType = current.postureType,
+                startedAtMillis = current.startedAtMillis,
+                dueAtMillis = current.dueAtMillis,
+                reminderMode = current.reminderMode,
+                reminderShown = true,
+            )
+        }
         fun getState(context: Context): Map<String, Any?> {
             val state = readState(context)
             val remainingSeconds = if (state.running && state.dueAtMillis != null) {

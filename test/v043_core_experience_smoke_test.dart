@@ -3,25 +3,21 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('v0.4.3 keeps sit-walk home flow focused', () {
+  test('home keeps manual sit stand rest flow focused', () {
     final home = File('lib/features/home/presentation/home_page.dart')
         .readAsStringSync();
 
     expect(home, contains("ValueKey('today-posture-sitting')"));
-    expect(home, contains("ValueKey('today-posture-walking')"));
+    expect(home, contains("ValueKey('today-posture-standing')"));
     expect(home, contains("ValueKey('today-posture-stop')"));
-    expect(home, contains('我在坐'));
-    expect(home, contains('我在站'));
-    expect(home, contains('我在走'));
-    expect(home, contains('休息'));
-    expect(home, contains('今日提醒次数'));
-    expect(home, contains('今日停止次数'));
-    expect(home, isNot(contains('白天节奏')));
+    final primaryStart = home.indexOf('const primaryPostures = [');
+    final primaryEnd = home.indexOf('];', primaryStart);
+    final primaryPostures = home.substring(primaryStart, primaryEnd);
+    expect(primaryPostures, isNot(contains('PostureType.walking')));
     expect(home, isNot(contains("ValueKey('today-add-rehab-log')")));
     expect(home, isNot(contains('+ 添加康复记录')));
-    expect(home, isNot(contains('我去走动了')));
+    expect(home, isNot(contains('白天节奏')));
   });
-
   test('v0.4.3 moves rehab add entry to rehab tab', () {
     final actions = File('lib/features/actions/presentation/actions_page.dart')
         .readAsStringSync();
