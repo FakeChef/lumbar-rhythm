@@ -33,6 +33,7 @@ class ReminderSettings {
   static const minIntervalMinutes = 15;
   static const maxIntervalMinutes = 120;
   static const intervalStepMinutes = 15;
+  static const testingIntervalMinutes = 1;
 
   static const defaults = ReminderSettings(
     remindersEnabled: true,
@@ -99,6 +100,9 @@ class ReminderSettings {
   }
 
   static int _normalizeInterval(int value) {
+    if (value == testingIntervalMinutes) {
+      return testingIntervalMinutes;
+    }
     final clamped = value.clamp(minIntervalMinutes, maxIntervalMinutes);
     return (clamped / intervalStepMinutes).round() * intervalStepMinutes;
   }

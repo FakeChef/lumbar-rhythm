@@ -613,6 +613,54 @@ void main() {
     expect(find.textContaining('无云端上传'), findsOneWidget);
   });
 
+  testWidgets('settings page saves and restores one minute reminder intervals',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final settingsRepository =
+        _MutableReminderSettingsRepository(ReminderSettings.defaults);
+    final recoveryRepository = _FakeRecoveryRepository();
+
+    Future<void> pumpSettingsPage() {
+      return tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            reminderSettingsRepositoryProvider
+                .overrideWithValue(settingsRepository),
+            recoveryRepositoryProvider.overrideWithValue(recoveryRepository),
+          ],
+          child: const MaterialApp(home: Scaffold(body: SettingsPage())),
+        ),
+      );
+    }
+
+    await pumpSettingsPage();
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 分钟'), findsNothing);
+
+    await tester.tap(find.byType(DropdownButton<int>).first);
+    await tester.pumpAndSettle();
+    expect(find.text('1 分钟'), findsWidgets);
+    await tester.tap(find.text('1 分钟').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButton<int>).at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('1 分钟'), findsWidgets);
+    await tester.tap(find.text('1 分钟').last);
+    await tester.pumpAndSettle();
+
+    expect(settingsRepository.settings.sittingIntervalMinutes, 1);
+    expect(settingsRepository.settings.standingIntervalMinutes, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await pumpSettingsPage();
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 分钟'), findsNWidgets(2));
+  });
   testWidgets('settings page test reminder uses selected mode', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));

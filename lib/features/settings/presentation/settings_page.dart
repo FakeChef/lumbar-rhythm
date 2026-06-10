@@ -19,7 +19,7 @@ final _settingsTestReminderFeedbackProvider =
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
-  static const _intervalOptions = [15, 30, 45, 60, 90, 120];
+  static const _intervalOptions = [1, 15, 30, 45, 60, 90, 120];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
