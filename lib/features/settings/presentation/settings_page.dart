@@ -806,7 +806,7 @@ class _ReminderSettingsSection extends StatelessWidget {
           leading: Icon(Icons.check_circle_outline),
           title: Text('手动倒计时'),
           subtitle: Text(
-            '坐姿或站姿提醒采用手动倒计时：系统闹钟可用时优先使用；不可用时自动使用通知栏倒计时模式。点击“我在坐着”或“我在站着”后开始计时，到点提醒一次；点击“我去休息了”后停止。',
+            '坐姿或站姿提醒采用前台倒计时会话：点击“我在坐着”或“我在站着”后开始计时，到点提醒一次；准时提醒权限未开启时会继续倒计时，但提醒可能延迟；点击“我去休息了”后停止。',
           ),
         ),
         ListTile(
@@ -928,12 +928,30 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
               ),
             ),
             _DiagnosticLine(
-              label: '系统闹钟检测',
+              label: '准时提醒权限',
               value: _formatExactAlarmPermission(debugState),
+            ),
+            _DiagnosticLine(
+              label: 'active session',
+              value: debugState.lastPostureReminderType == null
+                  ? '无'
+                  : '有 / ${debugState.lastPostureReminderType!.name}',
+            ),
+            _DiagnosticLine(
+              label: 'expectedEndTimeMillis',
+              value: debugState.lastPostureReminderDueAt == null
+                  ? '无'
+                  : '${debugState.lastPostureReminderDueAt!.millisecondsSinceEpoch}',
+            ),
+            _DiagnosticLine(
+              label: '剩余时间',
+              value: debugState.activeReminderRemainingSeconds == null
+                  ? '无'
+                  : '${debugState.activeReminderRemainingSeconds} 秒',
             ),
             const SizedBox(height: 12),
             const Text(
-              '普通通知测试只验证 App 通知权限；坐/站倒计时会先尝试系统闹钟，失败时自动使用通知栏倒计时模式。若测试提醒没有声音，请检查系统通知频道、勿扰模式和电池限制。',
+              '普通通知测试只验证 App 通知权限；坐/站倒计时使用前台倒计时会话，到点由 Android AlarmManager 触发。若锁屏后仍无法提醒，请将 Lumbar Rhythm 加入电池优化白名单，并允许后台运行。',
             ),
             const SizedBox(height: 16),
             _DiagnosticButton(
@@ -943,26 +961,68 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
             ),
             _DiagnosticButton(
               icon: Icons.alarm_add_outlined,
-              label: '尝试打开系统闹钟设置',
+              label: '尝试打开准时提醒权限设置',
               onPressed: () => _runDiagnosticAction(
                 context: context,
                 ref: ref,
                 action: () => ref
                     .read(notificationServiceProvider)
                     .openExactAlarmSettings(),
-                successMessage: '已尝试打开系统闹钟设置',
-                failureMessage: '当前系统不支持直接打开该设置，请使用通知栏倒计时模式。',
+                successMessage: '已尝试打开准时提醒权限设置',
+                failureMessage: '当前系统不支持直接打开该设置，提醒将继续以前台倒计时模式运行，但可能延迟。',
               ),
             ),
             _DiagnosticButton(
               icon: Icons.timer_outlined,
-              label: '测试倒计时启动链路',
+              label: '10 秒前台倒计时测试',
               onPressed: () => _runCountdownChainDiagnostic(
                 context,
                 ref,
                 settings,
+                duration: const Duration(seconds: 10),
               ),
             ),
+            _DiagnosticButton(
+              icon: Icons.timer_3_outlined,
+              label: '30 秒前台倒计时测试',
+              onPressed: () => _runCountdownChainDiagnostic(
+                context,
+                ref,
+                settings,
+                duration: const Duration(seconds: 30),
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.lock_outline,
+              label: '1 分钟锁屏测试',
+              onPressed: () => _runCountdownChainDiagnostic(
+                context,
+                ref,
+                settings,
+                duration: const Duration(minutes: 1),
+                extraMessage: '点击后请立即锁屏，等待 1 分钟，确认是否提醒。',
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.home_outlined,
+              label: '3 分钟后台测试',
+              onPressed: () => _runCountdownChainDiagnostic(
+                context,
+                ref,
+                settings,
+                duration: const Duration(minutes: 3),
+                extraMessage: '点击后请返回桌面或切到其他 App，等待 3 分钟，确认是否提醒。',
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.cancel_outlined,
+              label: '取消测试',
+              onPressed: () => _runCancelCountdownDiagnostic(context, ref),
+            ),
+            const Text(
+                '重启恢复测试：启动 3 分钟倒计时，关闭并重新打开 App，今日页应恢复 active session；若已过期，应显示到期状态。'),
+            const SizedBox(height: 6),
+            const Text('真实 45 分钟验收测试：仅在短测试全部通过后执行一次。'),
             _DiagnosticButton(
               icon: Icons.send_outlined,
               label: '发送立即测试提醒',
@@ -1083,12 +1143,12 @@ String _formatDiagnosticBool(
 String _formatExactAlarmPermission(ReminderDebugState debugState) {
   final sdkInt = debugState.exactAlarmSdkInt;
   if (sdkInt != null && sdkInt < 31) {
-    return '不适用，将使用通知栏倒计时模式';
+    return '不适用，前台倒计时仍可运行';
   }
   return _formatDiagnosticBool(
     debugState.exactAlarmAllowed,
-    trueText: '系统闹钟可用',
-    falseText: '系统闹钟不可用，将使用通知栏倒计时模式',
+    trueText: '准时提醒权限可用',
+    falseText: '准时提醒权限未开启，提醒可能延迟',
   );
 }
 
@@ -1143,19 +1203,24 @@ Future<void> _runDiagnosticAction({
 Future<void> _runCountdownChainDiagnostic(
   BuildContext context,
   WidgetRef ref,
-  ReminderSettings settings,
-) async {
+  ReminderSettings settings, {
+  Duration duration = const Duration(minutes: 1),
+  String? extraMessage,
+}) async {
   final messenger = ScaffoldMessenger.of(context);
   try {
     final result = await ref
         .read(notificationServiceProvider)
-        .scheduleTodaySittingChainTest(reminderMode: settings.reminderMode);
+        .scheduleTodaySittingChainTest(
+          reminderMode: settings.reminderMode,
+          duration: duration,
+        );
     await ref.read(notificationServiceProvider).refreshReminderDiagnostics();
     if (!context.mounted) return;
     messenger.showSnackBar(
       SnackBar(
         content: Text(
-          'mode=${result.mode} / code=${result.code} / message=${result.message} / dueAt=${_formatDiagnosticDateTime(result.dueAt)}',
+          '${extraMessage == null ? '' : '$extraMessage '}mode=${result.mode} / code=${result.code} / message=${result.message} / dueAt=${_formatDiagnosticDateTime(result.dueAt)}',
         ),
       ),
     );
@@ -1163,6 +1228,32 @@ Future<void> _runCountdownChainDiagnostic(
     if (!context.mounted) return;
     messenger.showSnackBar(
       const SnackBar(content: Text('提醒测试失败，请检查系统通知设置。')),
+    );
+  }
+}
+
+Future<void> _runCancelCountdownDiagnostic(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await ref.read(notificationServiceProvider).scheduleTodaySittingChainTest(
+          reminderMode: ReminderMode.soft,
+          duration: const Duration(minutes: 1),
+        );
+    await ref.read(notificationServiceProvider).stopPostureCountdown();
+    await ref.read(notificationServiceProvider).refreshReminderDiagnostics();
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('已启动 1 分钟倒计时并立即取消；1 分钟后不应再出现提醒。'),
+      ),
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(content: Text('取消测试失败，请检查系统通知设置。')),
     );
   }
 }

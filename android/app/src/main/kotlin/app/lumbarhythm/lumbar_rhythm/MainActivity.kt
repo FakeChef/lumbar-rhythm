@@ -14,6 +14,7 @@ class MainActivity : FlutterActivity() {
     private val galleryChannel = "lumbar_rhythm/gallery"
     private val postureCountdownChannel = "lumbar_rhythm/posture_countdown"
     private val postureAlarmChannel = "lumbar_rhythm/posture_alarm"
+    private val reminderChannel = "lumbar_rhythm/reminder"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -67,14 +68,14 @@ class MainActivity : FlutterActivity() {
 
                     try {
                         PostureCountdownService.ensureChannels(applicationContext)
-                        PostureCountdownService.startCountdown(
+                        val response = PostureCountdownService.startReminder(
                             context = applicationContext,
                             postureType = postureType,
                             durationSeconds = durationSeconds,
                             reminderMode = reminderMode,
                             startedAtMillis = startedAtMillis,
                         )
-                        result.success(null)
+                        result.success(response)
                     } catch (error: Exception) {
                         result.error("start_failed", error.message, null)
                     }
@@ -89,6 +90,13 @@ class MainActivity : FlutterActivity() {
                 }
                 "getPostureCountdownState" -> {
                     result.success(PostureCountdownService.getState(applicationContext))
+                }
+                "completePostureCountdown" -> {
+                    result.success(PostureCountdownService.completeSession(applicationContext))
+                }
+                "snoozePostureCountdown" -> {
+                    val minutes = call.argument<Int>("minutes") ?: 10
+                    result.success(PostureCountdownService.snooze(applicationContext, minutes))
                 }
                 "openNotificationSettings" -> {
                     try {
@@ -162,6 +170,71 @@ class MainActivity : FlutterActivity() {
                 }
                 "openExactAlarmSettings" -> {
                     result.success(openExactAlarmSettings())
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            reminderChannel,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startSittingReminder", "startStandingReminder" -> {
+                    val postureType = if (call.method == "startStandingReminder") "standing" else "sitting"
+                    val durationSeconds = call.argument<Int>("durationSeconds")?.toLong()
+                        ?: call.argument<Int>("durationMinutes")?.toLong()?.times(60L)
+                    val reminderMode = call.argument<String>("reminderMode") ?: "soft"
+                    val startedAtMillis = call.argument<Long>("startedAtMillis")
+                        ?: call.argument<Int>("startedAtMillis")?.toLong()
+                        ?: System.currentTimeMillis()
+                    if (durationSeconds == null || durationSeconds <= 0L) {
+                        result.success(
+                            mapOf(
+                                "success" to false,
+                                "errorCode" to "invalid_args",
+                                "message" to "Missing reminder duration.",
+                                "permission" to PostureCountdownService.getReminderPermissionStatus(applicationContext),
+                            ),
+                        )
+                        return@setMethodCallHandler
+                    }
+                    result.success(
+                        PostureCountdownService.startReminder(
+                            context = applicationContext,
+                            postureType = postureType,
+                            durationSeconds = durationSeconds,
+                            reminderMode = reminderMode,
+                            startedAtMillis = startedAtMillis,
+                        ),
+                    )
+                }
+                "cancelReminder" -> {
+                    result.success(PostureCountdownService.cancelSession(applicationContext))
+                }
+                "completeReminder" -> {
+                    result.success(PostureCountdownService.completeSession(applicationContext))
+                }
+                "snoozeReminder" -> {
+                    val minutes = call.argument<Int>("minutes") ?: 10
+                    result.success(PostureCountdownService.snooze(applicationContext, minutes))
+                }
+                "getActiveReminderSession" -> {
+                    result.success(PostureCountdownService.getActiveReminderSession(applicationContext))
+                }
+                "getReminderPermissionStatus" -> {
+                    result.success(PostureCountdownService.getReminderPermissionStatus(applicationContext))
+                }
+                "openExactAlarmSettings" -> {
+                    result.success(openExactAlarmSettings())
+                }
+                "openNotificationSettings" -> {
+                    try {
+                        openNotificationSettings()
+                        result.success(true)
+                    } catch (error: Exception) {
+                        result.error("open_settings_failed", error.message, null)
+                    }
                 }
                 else -> result.notImplemented()
             }

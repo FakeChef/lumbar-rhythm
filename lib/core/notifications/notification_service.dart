@@ -34,6 +34,10 @@ class PostureCountdownState {
     this.remainingSeconds,
     this.dueAt,
     this.startedAt,
+    this.targetDuration,
+    this.status,
+    this.exactAlarmAvailable,
+    this.notificationPermissionGranted,
   });
 
   final bool running;
@@ -41,8 +45,15 @@ class PostureCountdownState {
   final int? remainingSeconds;
   final DateTime? dueAt;
   final DateTime? startedAt;
+  final Duration? targetDuration;
+  final String? status;
+  final bool? exactAlarmAvailable;
+  final bool? notificationPermissionGranted;
 
   bool get isDue {
+    if (status == 'due' && postureType != null) {
+      return true;
+    }
     final due = dueAt;
     if (running || postureType == null || due == null) {
       return false;
@@ -59,8 +70,22 @@ class PostureCountdownState {
     }
 
     final postureName = map['postureType'];
+    final status = map['status']?.toString();
+    final dueAt =
+        millisToDate(map['dueAtMillis'] ?? map['expectedEndTimeMillis']);
+    final startedAt =
+        millisToDate(map['startedAtMillis'] ?? map['startTimeMillis']);
+    final targetDurationMillis = map['targetDurationMillis'];
+    bool? optionalBool(String key) {
+      return map.containsKey(key) ? map[key] == true : null;
+    }
+
+    final running = map['running'] == true ||
+        (status == 'running' &&
+            dueAt != null &&
+            DateTime.now().isBefore(dueAt));
     return PostureCountdownState(
-      running: map['running'] == true,
+      running: running,
       postureType: postureName is String
           ? PostureType.values.cast<PostureType?>().firstWhere(
                 (type) => type?.name == postureName,
@@ -70,8 +95,41 @@ class PostureCountdownState {
       remainingSeconds: map['remainingSeconds'] is int
           ? map['remainingSeconds'] as int
           : null,
-      dueAt: millisToDate(map['dueAtMillis']),
-      startedAt: millisToDate(map['startedAtMillis']),
+      dueAt: dueAt,
+      startedAt: startedAt,
+      targetDuration: targetDurationMillis is int
+          ? Duration(milliseconds: targetDurationMillis)
+          : null,
+      status: status,
+      exactAlarmAvailable: optionalBool('exactAlarmAvailable'),
+      notificationPermissionGranted:
+          optionalBool('notificationPermissionGranted'),
+    );
+  }
+}
+
+class ReminderPermissionStatus {
+  const ReminderPermissionStatus({
+    required this.notificationGranted,
+    required this.exactAlarmAvailable,
+    this.sdkInt,
+  });
+
+  final bool notificationGranted;
+  final bool exactAlarmAvailable;
+  final int? sdkInt;
+
+  static ReminderPermissionStatus fromMap(Map<Object?, Object?>? map) {
+    if (map == null) {
+      return const ReminderPermissionStatus(
+        notificationGranted: true,
+        exactAlarmAvailable: true,
+      );
+    }
+    return ReminderPermissionStatus(
+      notificationGranted: map['notificationGranted'] != false,
+      exactAlarmAvailable: map['exactAlarmAvailable'] != false,
+      sdkInt: map['sdkInt'] is int ? map['sdkInt'] as int : null,
     );
   }
 }
@@ -83,6 +141,8 @@ class PostureCountdownStartResult {
     required this.code,
     required this.message,
     this.dueAt,
+    this.session,
+    this.permission,
   });
 
   final bool success;
@@ -90,6 +150,8 @@ class PostureCountdownStartResult {
   final String code;
   final String message;
   final DateTime? dueAt;
+  final PostureCountdownState? session;
+  final ReminderPermissionStatus? permission;
 
   static PostureCountdownStartResult fromMap(Map<Object?, Object?>? map) {
     if (map == null) {
@@ -101,13 +163,24 @@ class PostureCountdownStartResult {
       );
     }
     final dueAtMillis = map['dueAtMillis'];
+    final sessionMap = map['session'];
+    final permissionMap = map['permission'];
+    final session = sessionMap is Map<Object?, Object?>
+        ? PostureCountdownState.fromMap(sessionMap)
+        : null;
     return PostureCountdownStartResult(
       success: map['success'] == true,
       mode: map['mode']?.toString() ?? 'none',
-      code: map['code']?.toString() ?? 'unknown',
+      code:
+          map['errorCode']?.toString() ?? map['code']?.toString() ?? 'unknown',
       message: map['message']?.toString() ?? '',
-      dueAt: dueAtMillis is int && dueAtMillis > 0
-          ? DateTime.fromMillisecondsSinceEpoch(dueAtMillis)
+      dueAt: session?.dueAt ??
+          (dueAtMillis is int && dueAtMillis > 0
+              ? DateTime.fromMillisecondsSinceEpoch(dueAtMillis)
+              : null),
+      session: session,
+      permission: permissionMap is Map<Object?, Object?>
+          ? ReminderPermissionStatus.fromMap(permissionMap)
           : null,
     );
   }
@@ -202,6 +275,8 @@ class ReminderDebugState {
     this.lastPostureReminderSessionStartedAt,
     this.lastPostureReminderPending,
     this.lastPostureReminderDueAt,
+    this.activeReminderSessionStatus,
+    this.activeReminderRemainingSeconds,
   });
 
   final DateTime? lastImmediateTestAt;
@@ -235,6 +310,8 @@ class ReminderDebugState {
   final DateTime? lastPostureReminderSessionStartedAt;
   final bool? lastPostureReminderPending;
   final DateTime? lastPostureReminderDueAt;
+  final String? activeReminderSessionStatus;
+  final int? activeReminderRemainingSeconds;
 
   ReminderDebugState copyWith({
     DateTime? lastImmediateTestAt,
@@ -268,6 +345,8 @@ class ReminderDebugState {
     DateTime? lastPostureReminderSessionStartedAt,
     bool? lastPostureReminderPending,
     DateTime? lastPostureReminderDueAt,
+    String? activeReminderSessionStatus,
+    int? activeReminderRemainingSeconds,
   }) {
     return ReminderDebugState(
       lastImmediateTestAt: lastImmediateTestAt ?? this.lastImmediateTestAt,
@@ -322,6 +401,10 @@ class ReminderDebugState {
           lastPostureReminderPending ?? this.lastPostureReminderPending,
       lastPostureReminderDueAt:
           lastPostureReminderDueAt ?? this.lastPostureReminderDueAt,
+      activeReminderSessionStatus:
+          activeReminderSessionStatus ?? this.activeReminderSessionStatus,
+      activeReminderRemainingSeconds:
+          activeReminderRemainingSeconds ?? this.activeReminderRemainingSeconds,
     );
   }
 }
@@ -397,8 +480,8 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   static const MethodChannel _postureCountdownChannel =
       MethodChannel('lumbar_rhythm/posture_countdown');
-  static const MethodChannel _postureAlarmChannel =
-      MethodChannel('lumbar_rhythm/posture_alarm');
+  static const MethodChannel _reminderChannel =
+      MethodChannel('lumbar_rhythm/reminder');
   final void Function(ReminderDebugState state)? _onDebugStateChanged;
 
   bool _timeZonesInitialized = false;
@@ -435,8 +518,8 @@ class NotificationService {
         const result = PostureCountdownStartResult(
           success: false,
           mode: 'none',
-          code: 'notification_permission_missing',
-          message: '通知权限未开启，请到设置中允许通知。',
+          code: 'notification_permission_denied',
+          message: '通知权限未开启，无法显示提醒。请先开启通知权限。',
         );
         _updateDebug(
           _debugState.copyWith(
@@ -453,99 +536,40 @@ class NotificationService {
       final arguments = {
         'postureType': postureType.name,
         'durationSeconds': duration.inSeconds,
+        'durationMinutes': duration.inMinutes,
         'reminderMode': reminderMode.name,
         'startedAtMillis': startedAt.millisecondsSinceEpoch,
       };
-      final dueAt = startedAt.add(duration);
-      PostureCountdownStartResult alarmResult;
-      try {
-        final alarmStartResult = await _postureAlarmChannel
-            .invokeMapMethod<Object?, Object?>('startPostureAlarm', arguments);
-        alarmResult = PostureCountdownStartResult.fromMap(
-          alarmStartResult,
-        );
-      } catch (alarmError) {
-        alarmResult = PostureCountdownStartResult(
-          success: false,
-          mode: 'none',
-          code: 'start_alarm_failed',
-          message: alarmError.toString(),
-          dueAt: dueAt,
-        );
-      }
-      if (alarmResult.success) {
-        _updateDebug(
-          _debugState.copyWith(
-            lastPostureReminderType: postureType,
-            lastPostureReminderSessionStartedAt: startedAt,
-            lastPostureReminderDueAt: alarmResult.dueAt ?? dueAt,
-            lastReminderMode: reminderMode,
-            lastChannelId: channelIdForReminderMode(reminderMode),
-            lastErrorMessage: null,
-            lastCountdownFailureCode: null,
-            lastCountdownFailureMessage: null,
-            lastCountdownStartMode: alarmResult.mode,
-            lastCountdownStartCode: alarmResult.code,
-            lastCountdownStartMessage: alarmResult.message,
-            lastCountdownStartDueAt: alarmResult.dueAt ?? dueAt,
-          ),
-        );
-        return alarmResult;
-      }
-
-      try {
-        await _postureCountdownChannel.invokeMethod<void>(
-          'startPostureCountdown',
-          arguments,
-        );
-        final result = PostureCountdownStartResult(
-          success: true,
-          mode: 'foregroundService',
-          code: 'fallback_foreground_service',
-          message: '系统闹钟权限不可用，已使用通知栏倒计时模式。',
-          dueAt: dueAt,
-        );
-        _updateDebug(
-          _debugState.copyWith(
-            lastPostureReminderType: postureType,
-            lastPostureReminderSessionStartedAt: startedAt,
-            lastPostureReminderDueAt: dueAt,
-            lastReminderMode: reminderMode,
-            lastChannelId: channelIdForReminderMode(reminderMode),
-            lastErrorMessage: null,
-            lastCountdownFailureCode: null,
-            lastCountdownFailureMessage: null,
-            lastCountdownStartMode: result.mode,
-            lastCountdownStartCode: result.code,
-            lastCountdownStartMessage: result.message,
-            lastCountdownStartDueAt: result.dueAt,
-          ),
-        );
-        return result;
-      } catch (fallbackError) {
-        const message = '倒计时启动失败，请到设置页进行提醒检测。';
-        final result = PostureCountdownStartResult(
-          success: false,
-          mode: 'none',
-          code: 'native_start_failed',
-          message: message,
-          dueAt: dueAt,
-        );
-        _updateDebug(
-          _debugState.copyWith(
-            lastPostureReminderType: postureType,
-            lastPostureReminderSessionStartedAt: startedAt,
-            lastErrorMessage: '$message $fallbackError',
-            lastCountdownFailureCode: result.code,
-            lastCountdownFailureMessage: result.message,
-            lastCountdownStartMode: result.mode,
-            lastCountdownStartCode: result.code,
-            lastCountdownStartMessage: result.message,
-            lastCountdownStartDueAt: result.dueAt,
-          ),
-        );
-        return result;
-      }
+      final method = postureType == PostureType.standing
+          ? 'startStandingReminder'
+          : 'startSittingReminder';
+      final nativeResult =
+          await _reminderChannel.invokeMapMethod<Object?, Object?>(
+        method,
+        arguments,
+      );
+      final result = PostureCountdownStartResult.fromMap(nativeResult);
+      _updateDebug(
+        _debugState.copyWith(
+          lastPostureReminderType: postureType,
+          lastPostureReminderSessionStartedAt:
+              result.session?.startedAt ?? startedAt,
+          lastPostureReminderDueAt: result.dueAt,
+          lastReminderMode: reminderMode,
+          lastChannelId: channelIdForReminderMode(reminderMode),
+          lastErrorMessage: result.success ? null : result.message,
+          lastCountdownFailureCode: result.success ? null : result.code,
+          lastCountdownFailureMessage: result.success ? null : result.message,
+          lastCountdownStartMode: result.mode,
+          lastCountdownStartCode: result.code,
+          lastCountdownStartMessage: result.message,
+          lastCountdownStartDueAt: result.dueAt,
+          notificationsEnabled: result.permission?.notificationGranted,
+          exactAlarmAllowed: result.permission?.exactAlarmAvailable,
+          exactAlarmSdkInt: result.permission?.sdkInt,
+        ),
+      );
+      return result;
     } catch (error) {
       const result = PostureCountdownStartResult(
         success: false,
@@ -571,11 +595,8 @@ class NotificationService {
 
   Future<void> stopPostureCountdown() async {
     try {
-      await _postureCountdownChannel.invokeMethod<void>(
-        'stopPostureCountdown',
-      );
-      await _postureAlarmChannel.invokeMethod<void>(
-        'cancelPostureAlarm',
+      await _reminderChannel.invokeMapMethod<Object?, Object?>(
+        'cancelReminder',
       );
       _updateDebug(
         _debugState.copyWith(
@@ -592,18 +613,93 @@ class NotificationService {
     }
   }
 
+  Future<PostureCountdownStartResult> completePostureCountdown() async {
+    try {
+      final response = await _reminderChannel.invokeMapMethod<Object?, Object?>(
+        'completeReminder',
+      );
+      final result = PostureCountdownStartResult.fromMap(response);
+      _updateDebug(
+        _debugState.copyWith(
+          lastCountdownStartMode: result.mode,
+          lastCountdownStartCode: result.code,
+          lastCountdownStartMessage: result.message,
+          lastErrorMessage: result.success ? null : result.message,
+        ),
+      );
+      return result;
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return PostureCountdownStartResult(
+        success: false,
+        mode: 'none',
+        code: 'unknown_error',
+        message: error.toString(),
+      );
+    }
+  }
+
+  Future<PostureCountdownStartResult> snoozePostureCountdown({
+    int minutes = 10,
+  }) async {
+    try {
+      final response = await _reminderChannel.invokeMapMethod<Object?, Object?>(
+        'snoozeReminder',
+        {'minutes': minutes},
+      );
+      final result = PostureCountdownStartResult.fromMap(response);
+      _updateDebug(
+        _debugState.copyWith(
+          lastCountdownStartMode: result.mode,
+          lastCountdownStartCode: result.code,
+          lastCountdownStartMessage: result.message,
+          lastCountdownStartDueAt: result.dueAt,
+          lastErrorMessage: result.success ? null : result.message,
+        ),
+      );
+      return result;
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return PostureCountdownStartResult(
+        success: false,
+        mode: 'none',
+        code: 'unknown_error',
+        message: error.toString(),
+      );
+    }
+  }
+
   Future<PostureCountdownState> getPostureCountdownState() async {
     try {
-      final state = await _postureAlarmChannel
-          .invokeMapMethod<Object?, Object?>('getPostureAlarmState');
-      if (state != null && state['scheduled'] == true) {
-        return PostureCountdownState.fromMap({
-          'running': true,
-          'postureType': state['postureType'],
-          'remainingSeconds': state['remainingSeconds'],
-          'dueAtMillis': state['dueAtMillis'],
-          'startedAtMillis': state['startedAtMillis'],
-        });
+      final response = await _reminderChannel
+          .invokeMapMethod<Object?, Object?>('getActiveReminderSession');
+      final session = response?['session'];
+      final permission = response?['permission'];
+      if (permission is Map<Object?, Object?>) {
+        final parsed = ReminderPermissionStatus.fromMap(permission);
+        _updateDebug(
+          _debugState.copyWith(
+            notificationsEnabled: parsed.notificationGranted,
+            exactAlarmAllowed: parsed.exactAlarmAvailable,
+            exactAlarmSdkInt: parsed.sdkInt,
+          ),
+        );
+      }
+      if (session is Map<Object?, Object?>) {
+        final parsed = PostureCountdownState.fromMap(session);
+        _updateDebug(
+          _debugState.copyWith(
+            lastPostureReminderType: parsed.postureType,
+            lastPostureReminderSessionStartedAt: parsed.startedAt,
+            lastPostureReminderDueAt: parsed.dueAt,
+            lastPostureReminderPending: parsed.running,
+            activeReminderSessionStatus: parsed.status,
+            activeReminderRemainingSeconds: parsed.remainingSeconds,
+            notificationsEnabled: parsed.notificationPermissionGranted,
+            exactAlarmAllowed: parsed.exactAlarmAvailable,
+          ),
+        );
+        return parsed;
       }
     } catch (error) {
       _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
@@ -620,9 +716,31 @@ class NotificationService {
     }
   }
 
+  Future<ReminderPermissionStatus> getReminderPermissionStatus() async {
+    try {
+      final state = await _reminderChannel
+          .invokeMapMethod<Object?, Object?>('getReminderPermissionStatus');
+      final parsed = ReminderPermissionStatus.fromMap(state);
+      _updateDebug(
+        _debugState.copyWith(
+          notificationsEnabled: parsed.notificationGranted,
+          exactAlarmAllowed: parsed.exactAlarmAvailable,
+          exactAlarmSdkInt: parsed.sdkInt,
+        ),
+      );
+      return parsed;
+    } catch (error) {
+      _updateDebug(_debugState.copyWith(lastErrorMessage: error.toString()));
+      return const ReminderPermissionStatus(
+        notificationGranted: true,
+        exactAlarmAvailable: true,
+      );
+    }
+  }
+
   Future<bool> openNotificationSettings() async {
     try {
-      final opened = await _postureCountdownChannel.invokeMethod<bool>(
+      final opened = await _reminderChannel.invokeMethod<bool>(
         'openNotificationSettings',
       );
       return opened ?? false;
@@ -634,11 +752,13 @@ class NotificationService {
 
   Future<ExactAlarmPermissionState> getExactAlarmPermissionState() async {
     try {
-      final state = await _postureAlarmChannel
-          .invokeMapMethod<Object?, Object?>('canScheduleExactAlarms');
-      final parsed = state == null
-          ? ExactAlarmPermissionState.allowed
-          : ExactAlarmPermissionState.fromMap(state);
+      final state = await _reminderChannel
+          .invokeMapMethod<Object?, Object?>('getReminderPermissionStatus');
+      final permission = ReminderPermissionStatus.fromMap(state);
+      final parsed = ExactAlarmPermissionState(
+        canScheduleExactAlarms: permission.exactAlarmAvailable,
+        sdkInt: permission.sdkInt,
+      );
       _updateDebug(
         _debugState.copyWith(
           exactAlarmAllowed: parsed.canScheduleExactAlarms,
@@ -654,7 +774,7 @@ class NotificationService {
 
   Future<bool> openExactAlarmSettings() async {
     try {
-      final opened = await _postureAlarmChannel.invokeMethod<bool>(
+      final opened = await _reminderChannel.invokeMethod<bool>(
         'openExactAlarmSettings',
       );
       return opened ?? false;
@@ -726,6 +846,7 @@ class NotificationService {
     await areNotificationsEnabled();
     await canScheduleExactNotifications();
     await getExactAlarmPermissionState();
+    await getPostureCountdownState();
     return _debugState;
   }
 
@@ -839,10 +960,11 @@ class NotificationService {
 
   Future<PostureCountdownStartResult> scheduleTodaySittingChainTest({
     required ReminderMode reminderMode,
+    Duration duration = const Duration(minutes: 1),
   }) {
     return startPostureCountdown(
       postureType: PostureType.sitting,
-      duration: const Duration(minutes: 1),
+      duration: duration,
       reminderMode: reminderMode,
       startedAt: DateTime.now(),
     );

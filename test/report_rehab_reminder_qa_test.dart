@@ -742,8 +742,13 @@ void main() {
     expect(find.text('检查并请求通知权限'), findsOneWidget);
     expect(find.text('发送立即测试提醒'), findsOneWidget);
     expect(find.text('打开系统通知设置'), findsOneWidget);
-    expect(find.text('10 秒后测试提醒'), findsNothing);
-    expect(find.text('1 分钟真实久坐提醒测试'), findsNothing);
+    expect(find.text('10 秒前台倒计时测试'), findsOneWidget);
+    expect(find.text('30 秒前台倒计时测试'), findsOneWidget);
+    expect(find.text('1 分钟锁屏测试'), findsOneWidget);
+    expect(find.text('3 分钟后台测试'), findsOneWidget);
+    expect(find.text('取消测试'), findsOneWidget);
+    expect(find.textContaining('重启恢复测试'), findsOneWidget);
+    expect(find.textContaining('真实 45 分钟验收测试'), findsOneWidget);
 
     await tester.tap(find.text('检查并请求通知权限'));
     await tester.pumpAndSettle();
@@ -1329,10 +1334,13 @@ class _FakeNotificationService extends NotificationService {
   final postureReminderTypes = <PostureType>[];
   final postureReminderModes = <ReminderMode>[];
   final postureReminderDelays = <Duration>[];
+  final countdownChainDurations = <Duration>[];
+  final countdownChainModes = <ReminderMode>[];
   int permissionRequests = 0;
   int vibrationDiagnosticCount = 0;
   int alarmDiagnosticCount = 0;
   int openSettingsCount = 0;
+  int stopCountdownCount = 0;
 
   @override
   Future<bool> requestPermissions() async {
@@ -1395,6 +1403,39 @@ class _FakeNotificationService extends NotificationService {
   }
 
   @override
+  Future<PostureCountdownStartResult> scheduleTodaySittingChainTest({
+    required ReminderMode reminderMode,
+    Duration duration = const Duration(minutes: 1),
+  }) async {
+    countdownChainModes.add(reminderMode);
+    countdownChainDurations.add(duration);
+    final dueAt = DateTime.now().add(duration);
+    return PostureCountdownStartResult(
+      success: true,
+      mode: 'foregroundExact',
+      code: 'ok',
+      message: '倒计时已启动。',
+      dueAt: dueAt,
+      session: PostureCountdownState(
+        running: true,
+        postureType: PostureType.sitting,
+        remainingSeconds: duration.inSeconds,
+        startedAt: DateTime.now(),
+        dueAt: dueAt,
+        targetDuration: duration,
+        status: 'running',
+        exactAlarmAvailable: true,
+        notificationPermissionGranted: true,
+      ),
+      permission: const ReminderPermissionStatus(
+        notificationGranted: true,
+        exactAlarmAvailable: true,
+        sdkInt: 34,
+      ),
+    );
+  }
+
+  @override
   Future<bool> schedulePostureReminder({
     required PostureType postureType,
     required Duration delay,
@@ -1453,6 +1494,11 @@ class _FakeNotificationService extends NotificationService {
   Future<bool> openNotificationSettings() async {
     openSettingsCount += 1;
     return true;
+  }
+
+  @override
+  Future<void> stopPostureCountdown() async {
+    stopCountdownCount += 1;
   }
 
   @override

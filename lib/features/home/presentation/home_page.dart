@@ -97,6 +97,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   _PostureSwitchSection(
                     activeType: session?.type,
                     selectedType: _selectedPosture,
+                    reminderStatus: reminderStatus,
                     onSwitchPosture: (type) async {
                       setState(() => _selectedPosture = type);
                       await ref
@@ -108,6 +109,18 @@ class _HomePageState extends ConsumerState<HomePage> {
                       await ref
                           .read(postureSessionControllerProvider.notifier)
                           .stopCurrent();
+                      ref.invalidate(_homeTodayOverviewProvider);
+                    },
+                    onComplete: () async {
+                      await ref
+                          .read(postureSessionControllerProvider.notifier)
+                          .completeReminder();
+                      ref.invalidate(_homeTodayOverviewProvider);
+                    },
+                    onSnooze: () async {
+                      await ref
+                          .read(postureSessionControllerProvider.notifier)
+                          .snoozeReminder(minutes: 10);
                       ref.invalidate(_homeTodayOverviewProvider);
                     },
                   ),
@@ -319,6 +332,7 @@ class _PostureStatusCard extends StatelessWidget {
         : selectedPosture;
     final duration = current?.durationAt(now) ?? Duration.zero;
     final durationText = current == null ? '00:00' : _formatDuration(duration);
+    final remainingText = _remainingText(reminderStatus);
     final greetingText = _recoveryGreeting(profile, now);
     final encouragementText = _phaseEncouragement(profile, now);
     final timerState = current == null
@@ -423,6 +437,8 @@ class _PostureStatusCard extends StatelessWidget {
                 suggestion: reminderStatus ??
                     timerState?.suggestion ??
                     '选择坐或站，开始今天的坐站节奏。',
+                elapsed: current == null ? null : durationText,
+                remaining: remainingText,
               ),
             ],
           ),
@@ -469,6 +485,17 @@ class _PostureStatusCard extends StatelessWidget {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
+  String? _remainingText(String? status) {
+    if (status == null || status.contains('提醒已到期')) {
+      return null;
+    }
+    final match = RegExp(r'剩余约 (\d+) 分钟').firstMatch(status);
+    if (match == null) {
+      return null;
+    }
+    return '约 ${match.group(1)} 分钟';
+  }
+
   String _recoveryGreeting(RecoveryProfile? profile, DateTime now) {
     final day = profile?.postSurgeryDay(now);
     final nickname = profile?.nickname?.trim();
@@ -497,10 +524,14 @@ class _TimerInfoPanel extends StatelessWidget {
   const _TimerInfoPanel({
     required this.message,
     required this.suggestion,
+    this.elapsed,
+    this.remaining,
   });
 
   final String message;
   final String suggestion;
+  final String? elapsed;
+  final String? remaining;
 
   @override
   Widget build(BuildContext context) {
@@ -531,6 +562,18 @@ class _TimerInfoPanel extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            if (elapsed != null || remaining != null) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 10,
+                runSpacing: 4,
+                children: [
+                  if (elapsed != null) Text('已持续：$elapsed'),
+                  if (remaining != null) Text('剩余：$remaining'),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -542,14 +585,20 @@ class _PostureSwitchSection extends StatelessWidget {
   const _PostureSwitchSection({
     required this.activeType,
     required this.selectedType,
+    required this.reminderStatus,
     required this.onSwitchPosture,
     required this.onStop,
+    required this.onComplete,
+    required this.onSnooze,
   });
 
   final PostureType? activeType;
   final PostureType selectedType;
+  final String? reminderStatus;
   final ValueChanged<PostureType> onSwitchPosture;
   final VoidCallback onStop;
+  final VoidCallback onComplete;
+  final VoidCallback onSnooze;
 
   @override
   Widget build(BuildContext context) {
@@ -567,12 +616,45 @@ class _PostureSwitchSection extends StatelessWidget {
               onSwitchPosture: onSwitchPosture,
             ),
             const SizedBox(height: 10),
-            OutlinedButton.icon(
-              key: const ValueKey('today-posture-stop'),
-              onPressed: onStop,
-              icon: const Icon(Icons.self_improvement_outlined),
-              label: const Text('我去休息了'),
-            ),
+            if (reminderStatus?.contains('提醒已到期') == true) ...[
+              FilledButton.icon(
+                key: const ValueKey('today-reminder-complete'),
+                onPressed: onComplete,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('我已处理'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                key: const ValueKey('today-reminder-snooze'),
+                onPressed: onSnooze,
+                icon: const Icon(Icons.snooze_outlined),
+                label: const Text('延后 10 分钟'),
+              ),
+            ] else if (activeType == PostureType.sitting ||
+                activeType == PostureType.standing) ...[
+              FilledButton.icon(
+                key: const ValueKey('today-reminder-complete'),
+                onPressed: onComplete,
+                icon: Icon(activeType == PostureType.standing
+                    ? Icons.event_seat_outlined
+                    : Icons.directions_walk_outlined),
+                label:
+                    Text(activeType == PostureType.standing ? '我已坐下' : '我已起身'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                key: const ValueKey('today-posture-stop'),
+                onPressed: onStop,
+                icon: const Icon(Icons.cancel_outlined),
+                label: const Text('取消提醒'),
+              ),
+            ] else
+              OutlinedButton.icon(
+                key: const ValueKey('today-posture-stop'),
+                onPressed: onStop,
+                icon: const Icon(Icons.self_improvement_outlined),
+                label: const Text('我去休息了'),
+              ),
           ],
         ),
       ),

@@ -48,8 +48,16 @@ class PostureAlarmActivity : Activity() {
             Button(this).apply {
                 text = "\u5df2\u5904\u7406"
                 setOnClickListener {
-                    PostureAlarmScheduler.markHandled(this@PostureAlarmActivity)
-                    PostureCountdownService.stopCountdown(this@PostureAlarmActivity)
+                    PostureCountdownService.completeSession(this@PostureAlarmActivity)
+                    finish()
+                }
+            },
+        )
+        layout.addView(
+            Button(this).apply {
+                text = "延后 10 分钟"
+                setOnClickListener {
+                    PostureCountdownService.snooze(this@PostureAlarmActivity, 10)
                     finish()
                 }
             },

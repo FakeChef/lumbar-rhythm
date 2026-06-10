@@ -291,8 +291,8 @@ void main() {
 
     expect(notificationService.startedCountdownPostures, [PostureType.sitting]);
     expect(find.textContaining('久坐倒计时中'), findsOneWidget);
-    expect(find.textContaining('通知栏倒计时模式'), findsOneWidget);
-    expect(find.textContaining('闹钟和提醒权限'), findsNothing);
+    expect(find.textContaining('准时提醒权限未开启，提醒可能延迟'), findsOneWidget);
+    expect(find.textContaining('系统提醒启动失败'), findsNothing);
   });
 
   testWidgets('missing notification permission shows permission message',
@@ -311,7 +311,7 @@ void main() {
 
     expect(postureRepository.openSession?.type, PostureType.sitting);
     expect(notificationService.startedCountdownPostures, isEmpty);
-    expect(find.textContaining('通知权限未开启，请到设置中允许通知。'), findsOneWidget);
+    expect(find.textContaining('通知权限未开启，无法显示提醒。请先开启通知权限。'), findsOneWidget);
     expect(find.textContaining('系统提醒启动失败，请检查通知权限'), findsNothing);
   });
 
@@ -425,7 +425,7 @@ void main() {
     await container.read(postureSessionControllerProvider.future);
     expect(
       container.read(postureReminderStatusProvider),
-      '久坐已到提醒时间，建议现在活动一下。',
+      '提醒已到期。你已经连续坐超过建议时间。',
     );
   });
 
@@ -749,8 +749,12 @@ class _FakeNotification extends NotificationService {
       return const PostureCountdownStartResult(
         success: false,
         mode: 'none',
-        code: 'notification_permission_missing',
-        message: '通知权限未开启，请到设置中允许通知。',
+        code: 'notification_permission_denied',
+        message: '通知权限未开启，无法显示提醒。请先开启通知权限。',
+        permission: ReminderPermissionStatus(
+          notificationGranted: false,
+          exactAlarmAvailable: true,
+        ),
       );
     }
     if (failCountdownStart) {
@@ -770,17 +774,12 @@ class _FakeNotification extends NotificationService {
       remainingSeconds: duration.inSeconds,
       startedAt: startedAt,
       dueAt: startedAt.add(duration),
+      targetDuration: duration,
+      status: 'running',
+      exactAlarmAvailable: exactAlarmAllowed,
+      notificationPermissionGranted: permissionGranted,
     );
-    if (!exactAlarmAllowed && foregroundFallbackSucceeds) {
-      return PostureCountdownStartResult(
-        success: true,
-        mode: 'foregroundService',
-        code: 'fallback_foreground_service',
-        message: '系统闹钟权限不可用，已使用通知栏倒计时模式。',
-        dueAt: startedAt.add(duration),
-      );
-    }
-    if (!exactAlarmAllowed) {
+    if (!foregroundFallbackSucceeds) {
       return PostureCountdownStartResult(
         success: false,
         mode: 'none',
@@ -791,10 +790,17 @@ class _FakeNotification extends NotificationService {
     }
     return PostureCountdownStartResult(
       success: true,
-      mode: 'alarmClock',
+      mode: exactAlarmAllowed ? 'foregroundExact' : 'foregroundInexact',
       code: 'ok',
-      message: '系统闹钟倒计时已启动',
+      message:
+          exactAlarmAllowed ? '倒计时已启动。' : '准时提醒权限未开启，提醒可能延迟。建议在设置中开启‘闹钟和提醒’权限。',
       dueAt: startedAt.add(duration),
+      session: countdownState,
+      permission: ReminderPermissionStatus(
+        notificationGranted: permissionGranted,
+        exactAlarmAvailable: exactAlarmAllowed,
+        sdkInt: 34,
+      ),
     );
   }
 
@@ -823,6 +829,15 @@ class _FakeNotification extends NotificationService {
   }
 
   @override
+  Future<ReminderPermissionStatus> getReminderPermissionStatus() async {
+    return ReminderPermissionStatus(
+      notificationGranted: permissionGranted,
+      exactAlarmAvailable: exactAlarmAllowed,
+      sdkInt: 34,
+    );
+  }
+
+  @override
   Future<void> stopPostureCountdown() async {
     stopCountdownCount += 1;
     countdownState = PostureCountdownState(
@@ -831,6 +846,43 @@ class _FakeNotification extends NotificationService {
       remainingSeconds: 0,
       startedAt: countdownState.startedAt,
       dueAt: countdownState.dueAt,
+    );
+  }
+
+  @override
+  Future<PostureCountdownStartResult> completePostureCountdown() async {
+    await stopPostureCountdown();
+    return const PostureCountdownStartResult(
+      success: true,
+      mode: 'foregroundExact',
+      code: 'ok',
+      message: '倒计时已完成。',
+    );
+  }
+
+  @override
+  Future<PostureCountdownStartResult> snoozePostureCountdown({
+    int minutes = 10,
+  }) async {
+    final dueAt = DateTime.now().add(Duration(minutes: minutes));
+    countdownState = PostureCountdownState(
+      running: true,
+      postureType: countdownState.postureType ?? PostureType.sitting,
+      remainingSeconds: minutes * 60,
+      startedAt: DateTime.now(),
+      dueAt: dueAt,
+      targetDuration: Duration(minutes: minutes),
+      status: 'running',
+      exactAlarmAvailable: exactAlarmAllowed,
+      notificationPermissionGranted: permissionGranted,
+    );
+    return PostureCountdownStartResult(
+      success: true,
+      mode: exactAlarmAllowed ? 'foregroundExact' : 'foregroundInexact',
+      code: 'ok',
+      message: '已延后 $minutes 分钟。',
+      dueAt: dueAt,
+      session: countdownState,
     );
   }
 

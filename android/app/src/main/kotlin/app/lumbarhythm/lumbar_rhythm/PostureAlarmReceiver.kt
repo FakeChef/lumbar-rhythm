@@ -6,15 +6,23 @@ import android.content.Intent
 
 class PostureAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        when {
-            PostureAlarmScheduler.isDueAction(intent?.action) -> {
-                PostureAlarmScheduler.onAlarmDue(context)
-                PostureCountdownService.markDue(context)
+        when (intent?.action) {
+            PostureCountdownService.ACTION_ALARM_DUE,
+            PostureCountdownService.ACTION_COMPLETE_STANDING_UP,
+            PostureCountdownService.ACTION_COMPLETE_SITTING_DOWN,
+            PostureCountdownService.ACTION_CANCEL,
+            PostureCountdownService.ACTION_HANDLED,
+            PostureCountdownService.ACTION_SNOOZE_10 -> {
+                PostureCountdownService.handleAction(context, intent.action)
             }
-            PostureAlarmScheduler.isRestAction(intent?.action) ||
-                PostureAlarmScheduler.isHandledAction(intent?.action) -> {
-                PostureAlarmScheduler.markHandled(context)
-                PostureCountdownService.stopCountdown(context)
+            else -> when {
+                PostureAlarmScheduler.isDueAction(intent?.action) -> {
+                    PostureCountdownService.markDue(context)
+                }
+                PostureAlarmScheduler.isRestAction(intent?.action) ||
+                    PostureAlarmScheduler.isHandledAction(intent?.action) -> {
+                    PostureCountdownService.completeSession(context)
+                }
             }
         }
     }

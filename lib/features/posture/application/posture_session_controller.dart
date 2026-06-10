@@ -54,6 +54,28 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     return endCurrent();
   }
 
+  Future<void> completeReminder() async {
+    await ref.read(notificationServiceProvider).completePostureCountdown();
+    ref.read(postureReminderStatusProvider.notifier).state = '当前已休息，坐/站倒计时已停止。';
+    _stopCountdownStatusRefresh();
+    await endCurrent();
+  }
+
+  Future<void> snoozeReminder({int minutes = 10}) async {
+    final result = await ref
+        .read(notificationServiceProvider)
+        .snoozePostureCountdown(minutes: minutes);
+    final session = state.valueOrNull;
+    if (result.success && session != null && result.session?.dueAt != null) {
+      ref.read(postureReminderStatusProvider.notifier).state =
+          _countdownRunningMessage(session.type, result.session!.dueAt!);
+      _configureCountdownStatusRefresh(session);
+      return;
+    }
+    ref.read(postureReminderStatusProvider.notifier).state =
+        result.message.isNotEmpty ? result.message : '延后失败，请到设置页进行提醒检测。';
+  }
+
   Future<void> startTodaySittingChainTest() async {
     final settings = await ref.read(reminderSettingsRepositoryProvider).load();
     final session = await ref.read(postureSessionRepositoryProvider).switchTo(
@@ -162,8 +184,9 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
             );
     if (!startResult.success) {
       ref.read(postureReminderStatusProvider.notifier).state =
-          startResult.code == 'notification_permission_missing'
-              ? '通知权限未开启，请到设置中允许通知。'
+          startResult.code == 'notification_permission_missing' ||
+                  startResult.code == 'notification_permission_denied'
+              ? '通知权限未开启，无法显示提醒。请先开启通知权限。'
               : '倒计时启动失败，请到设置页进行提醒检测。';
       _stopCountdownStatusRefresh();
       return;
@@ -171,10 +194,13 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     final dueAt =
         startResult.dueAt ?? startedAt.add(Duration(minutes: intervalMinutes));
     final runningMessage = _countdownRunningMessage(session.type, dueAt);
+    final permissionMessage =
+        startResult.permission?.exactAlarmAvailable == false ||
+                startResult.session?.exactAlarmAvailable == false
+            ? ' 准时提醒权限未开启，提醒可能延迟。建议开启“闹钟和提醒”权限。'
+            : '';
     ref.read(postureReminderStatusProvider.notifier).state =
-        startResult.mode == 'foregroundService'
-            ? '$runningMessage ${startResult.message}'
-            : runningMessage;
+        '$runningMessage$permissionMessage';
     _configureCountdownStatusRefresh(session);
   }
 
@@ -221,7 +247,11 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
       final message = countdown.running
           ? _countdownRunningMessage(session.type, countdown.dueAt!)
           : _countdownDueMessage(session.type);
-      ref.read(postureReminderStatusProvider.notifier).state = message;
+      final permissionMessage = countdown.exactAlarmAvailable == false
+          ? ' 准时提醒权限未开启，提醒可能延迟。建议开启“闹钟和提醒”权限。'
+          : '';
+      ref.read(postureReminderStatusProvider.notifier).state =
+          countdown.running ? '$message$permissionMessage' : message;
       return;
     }
     ref.read(postureReminderStatusProvider.notifier).state =
@@ -244,13 +274,13 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     }
     final minutes = (remaining.inSeconds / 60).ceil();
     return type == PostureType.standing
-        ? '久站倒计时中，剩余约 $minutes 分钟。'
-        : '久坐倒计时中，剩余约 $minutes 分钟。';
+        ? '当前状态：正在站。久站倒计时中，剩余约 $minutes 分钟。'
+        : '当前状态：正在坐。久坐倒计时中，剩余约 $minutes 分钟。';
   }
 
   String _countdownDueMessage(PostureType type) {
     return type == PostureType.standing
-        ? '久站已到提醒时间，建议现在变换姿势。'
-        : '久坐已到提醒时间，建议现在活动一下。';
+        ? '提醒已到期。你已经连续站超过建议时间。'
+        : '提醒已到期。你已经连续坐超过建议时间。';
   }
 }
