@@ -59,8 +59,6 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
               ),
               const SizedBox(height: 12),
               _TodayRehabLogListCard(data: data),
-              const SizedBox(height: 12),
-              const _RehabPhaseGuideCard(),
             ],
           ),
         ),
@@ -769,42 +767,11 @@ class _RecordDateRow extends StatelessWidget {
   }
 }
 
-class _RehabPhaseGuideCard extends StatelessWidget {
-  const _RehabPhaseGuideCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ExpansionTile(
-        title: const Text('康复阶段说明'),
-        childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-        children: [
-          Text(
-            _rehabPhaseGuideText,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  height: 1.45,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 String _phaseRangeLabel(RehabActivity activity) {
   final start = rehabPhaseTitle(activity.phaseStart);
   final end = rehabPhaseTitle(activity.phaseEnd);
   return start == end ? start : '$start-$end';
 }
-
-const _rehabPhaseGuideText =
-    '本康复计划参考运动医学中的组织愈合节律构建。人体修复并非线性过程，通常会经历炎症消退、组织增生、胶原纤维重塑到功能成熟等阶段。\n\n'
-    '我们将其划分为四个阶段，目的是让康复记录节奏与身体的修复节奏更好同步：\n\n'
-    '第1阶段（0-4周）：急性愈合与神经唤醒。聚焦早期管理，通过轻柔活动保护受影响组织，减少早期过度负荷带来的不适。\n\n'
-    '第2阶段（4-8周）：运动控制与动态稳定。针对组织增生期，重点在于通过温和运动，把零散的活动体验转化为更有序的受控力量。\n\n'
-    '第3阶段（8-12周）：功能性负荷进阶。对应组织重塑成熟期，通过功能性负荷训练，逐步提升胶原纤维的承受能力，重建日常活动信心。\n\n'
-    '第4阶段（12周后）：高负荷恢复。针对组织功能成熟期，由受控训练逐步过渡至自主运动，帮助回归正常生活与运动状态。\n\n'
-    '这套分期体系用于提供对应的心理与行动支持，帮助你稳步找回身体的掌控感。';
 
 Color _reactionColor(RehabReaction reaction) {
   return switch (reaction) {

@@ -196,21 +196,21 @@ class _TodayPostureSummaryCard extends StatelessWidget {
             _MiniMetricGrid(
               items: [
                 _MiniMetricItem(
-                  label: '今日最长坐姿',
-                  value: _formatShortDuration(summary.longestSitting),
+                  label: '坐姿',
+                  value: _formatShortDuration(summary.sittingTotal),
                 ),
                 _MiniMetricItem(
-                  label: '今日最长走动',
-                  value: _formatShortDuration(summary.longestWalking),
+                  label: '站立',
+                  value: _formatShortDuration(summary.standingTotal),
                 ),
                 _MiniMetricItem(
-                  label: '今日提醒次数',
-                  value: '${summary.rhythmReminderCount} 次',
-                  color: const Color(0xFFC39A61),
+                  label: '走动',
+                  value: _formatShortDuration(summary.walkingTotal),
                 ),
                 _MiniMetricItem(
-                  label: '今日停止次数',
+                  label: '停止记录',
                   value: '${summary.stopCount} 次',
+                  color: const Color(0xFFC39A61),
                 ),
               ],
             ),
@@ -235,8 +235,8 @@ class _MiniMetricGrid extends StatelessWidget {
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 3.05,
+        mainAxisSpacing: 6,
+        childAspectRatio: 3.45,
       ),
       itemBuilder: (context, index) => _MiniMetricTile(
         key: const ValueKey('today-posture-summary-metric'),
@@ -271,18 +271,19 @@ class _MiniMetricTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
+            Expanded(
+              child: Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(width: 6),
             Text(
               item.value,
               maxLines: 1,

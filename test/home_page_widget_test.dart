@@ -525,10 +525,10 @@ void main() {
 
     await _scrollDown(tester);
     expect(find.text('今日节奏'), findsOneWidget);
-    expect(find.text('今日最长坐姿'), findsOneWidget);
-    expect(find.text('今日最长走动'), findsOneWidget);
-    expect(find.text('今日提醒次数'), findsOneWidget);
-    expect(find.text('今日停止次数'), findsOneWidget);
+    expect(find.text('坐姿'), findsWidgets);
+    expect(find.text('站立'), findsOneWidget);
+    expect(find.text('走动'), findsOneWidget);
+    expect(find.text('停止记录'), findsWidgets);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('today-posture-summary')),
@@ -540,8 +540,17 @@ void main() {
     expect(find.text('今日站立累计'), findsNothing);
     expect(find.text('今日走动累计'), findsNothing);
     expect(find.text('今日休息累计'), findsNothing);
+    expect(find.text('今日最长坐姿'), findsNothing);
+    expect(find.text('今日最长走动'), findsNothing);
+    expect(find.text('今日提醒次数'), findsNothing);
+    expect(find.text('今日停止次数'), findsNothing);
+    expect(find.text('sitting'), findsNothing);
+    expect(find.text('standing'), findsNothing);
+    expect(find.text('walking'), findsNothing);
+    expect(find.text('resting'), findsNothing);
     expect(find.text('50 分'), findsWidgets);
-    expect(find.text('1 次'), findsWidgets);
+    expect(find.text('35 分'), findsWidgets);
+    expect(find.text('0 次'), findsWidgets);
   });
 
   testWidgets('today core content fits a common Android viewport',
@@ -565,12 +574,12 @@ void main() {
     expect(find.byKey(const ValueKey('today-rhythm-timer')), findsOneWidget);
     expect(find.text('我在坐'), findsWidgets);
     expect(find.byKey(const ValueKey('today-posture-walking')), findsNothing);
-    expect(find.text('今日最长坐姿'), findsOneWidget);
-    expect(find.text('今日最长走动'), findsOneWidget);
-    expect(find.text('今日提醒次数'), findsOneWidget);
-    expect(find.text('今日停止次数'), findsOneWidget);
+    expect(find.text('坐姿'), findsWidgets);
+    expect(find.text('站立'), findsOneWidget);
+    expect(find.text('走动'), findsOneWidget);
+    expect(find.text('停止记录'), findsWidgets);
     expect(
-      tester.getBottomRight(find.text('今日停止次数')).dy,
+      tester.getBottomRight(find.text('停止记录').last).dy,
       lessThanOrEqualTo(800),
     );
   });
