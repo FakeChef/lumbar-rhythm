@@ -422,7 +422,7 @@ void main() {
     expect(find.text('最近 7 天按活动趋势'), findsOneWidget);
     expect(
       find.text(
-        '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+        '这段时间还没有康复活动记录。',
       ),
       findsOneWidget,
     );
@@ -438,7 +438,7 @@ void main() {
     expect(find.text('最近 30 天按活动趋势'), findsOneWidget);
     expect(
       find.text(
-        '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+        '这段时间还没有康复活动记录。',
       ),
       findsOneWidget,
     );
@@ -733,9 +733,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(find.text('提醒检测'), 300.0);
+    await tester.scrollUntilVisible(find.text('高级检测'), 300.0);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('提醒检测'));
+    await tester.tap(find.byTooltip('高级检测'));
     await tester.pumpAndSettle();
 
     expect(find.text('当前提醒模式：震动提醒'), findsOneWidget);

@@ -23,7 +23,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
     final pageState = ref.watch(_rehabPageDataProvider);
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       children: [
         pageState.when(
           loading: () => const Card(
@@ -48,7 +48,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
               _RehabHeaderCard(
                 onAdd: () => _showAddLogPicker(context, ref, data),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               _DailyRecoveryNoteCard(
                 noteState: data.dailyNoteState,
                 onEdit: () => _showDailyRecoveryNoteDialog(
@@ -57,9 +57,9 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
                   data.dailyNoteState.note,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               _TodayRehabLogListCard(data: data),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               const _RehabPhaseGuideCard(),
             ],
           ),
@@ -199,14 +199,14 @@ class _RehabHeaderCard extends StatelessWidget {
     return Card(
       color: Theme.of(context).colorScheme.secondaryContainer,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
               Icons.self_improvement_outlined,
               color: Theme.of(context).colorScheme.primary,
-              size: 34,
+              size: 28,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -220,14 +220,16 @@ class _RehabHeaderCard extends StatelessWidget {
                           fontWeight: FontWeight.w800,
                         ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '记录今天做了什么、做了多少、做后感觉。',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 6),
                   Text(
-                    '记录今天做了什么、做了多少、做后感觉如何。',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    '这里是记录工具，不是康复处方。\n不舒服时可以休息。',
+                    '仅用于自我记录，不作为康复处方。',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: const Color(0xFF6B7280),
                           height: 1.4,
@@ -324,7 +326,7 @@ class _DailyRecoveryNoteCard extends StatelessWidget {
     final value = noteState.note;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -334,7 +336,7 @@ class _DailyRecoveryNoteCard extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               noteState.isFailed
                   ? '今日小结暂时无法读取，可稍后重试。'
@@ -343,7 +345,7 @@ class _DailyRecoveryNoteCard extends StatelessWidget {
                       : '${value.overallFeeling.label} · 腰 ${value.backPainScore} · '
                           '腿 ${value.legSymptomScore} · 疲劳 ${value.fatigueScore}',
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: onEdit,
               icon: const Icon(Icons.edit_note_outlined),
@@ -367,7 +369,7 @@ class _TodayRehabLogListCard extends StatelessWidget {
       key: const ValueKey('rehab-today-records-section'),
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -377,7 +379,7 @@ class _TodayRehabLogListCard extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                     ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               if (data.todayLogs.isEmpty)
                 Text(
                   '今天还没有康复记录，记录一点也有价值。',
@@ -393,7 +395,7 @@ class _TodayRehabLogListCard extends StatelessWidget {
                     ),
                     trailing: Text(_formatTime(log.createdAt)),
                   ),
-                  if (log != data.todayLogs.last) const SizedBox(height: 8),
+                  if (log != data.todayLogs.last) const Divider(height: 12),
                 ],
             ],
           ),
@@ -452,7 +454,7 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             16,
-            14,
+            12,
             16,
             MediaQuery.of(context).viewInsets.bottom + 14,
           ),
@@ -466,7 +468,7 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                       fontWeight: FontWeight.w800,
                     ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               DropdownButtonFormField<int>(
                 key: const ValueKey('rehab-activity-dropdown'),
                 initialValue: _action.id,
@@ -489,12 +491,12 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
               ),
               const SizedBox(height: 8),
               _SelectedActivityInfo(action: _action),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _RecordDateRow(
                 createdAt: _createdAt,
                 onPick: _pickDate,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _AmountStepper(
                 amount: _amount,
                 unit: _unit,
@@ -509,7 +511,7 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                 }),
                 onUnitChanged: (unit) => setState(() => _unit = unit),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text('做完感觉？', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 6),
               Wrap(
@@ -518,8 +520,9 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                 children: [
                   for (final reaction in RehabReaction.values)
                     ChoiceChip(
-                      avatar: Icon(_reactionIcon(reaction), size: 18),
+                      avatar: Icon(_reactionIcon(reaction), size: 16),
                       label: Text(reaction.label),
+                      labelStyle: Theme.of(context).textTheme.bodySmall,
                       selected: _reaction == reaction,
                       selectedColor: _reactionColor(reaction).withValues(
                         alpha: 0.16,
@@ -529,16 +532,16 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                 ],
               ),
               if (_reaction == RehabReaction.muchWorse) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 const Card(
                   color: Color(0xFFFFF1F0),
                   child: Padding(
-                    padding: EdgeInsets.all(16),
+                    padding: EdgeInsets.all(12),
                     child: Text('建议减少量、暂停观察，必要时咨询医生或康复师。'),
                   ),
                 ),
               ],
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text('症状标签（可选）', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 6),
               Wrap(
@@ -560,7 +563,7 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                     ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               _OptionalNoteField(
                 controller: _noteController,
                 isExpanded: _isNoteExpanded,
@@ -568,7 +571,7 @@ class _AddRehabLogSheetState extends State<_AddRehabLogSheet> {
                   setState(() => _isNoteExpanded = !_isNoteExpanded);
                 },
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -661,6 +664,7 @@ class _SelectedActivityInfo extends StatelessWidget {
     final phaseLabel = _phaseRangeLabel(activity);
     final patientTip = activity.patientTip.trim();
     final stopRule = activity.stopRule.trim();
+    final hasDetails = stopRule.isNotEmpty || activity.requiresDoctorClearance;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -679,16 +683,44 @@ class _SelectedActivityInfo extends StatelessWidget {
             ),
             if (patientTip.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(patientTip),
+              Text(
+                patientTip,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ],
-            if (stopRule.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(stopRule),
-            ],
-            if (activity.requiresDoctorClearance) ...[
-              const SizedBox(height: 6),
-              const Text('该活动更适合后期或专业指导下记录，请以医生或康复师建议为准。'),
-            ],
+            if (hasDetails)
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                title: Text(
+                  '查看注意事项',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                children: [
+                  if (stopRule.isNotEmpty)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        stopRule,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  if (activity.requiresDoctorClearance) ...[
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '该活动更适合后期或专业指导下记录，请以医生或康复师建议为准。',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
           ],
         ),
       ),
@@ -889,10 +921,10 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
       child: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            MediaQuery.of(context).viewInsets.bottom + 20,
+            16,
+            14,
+            16,
+            MediaQuery.of(context).viewInsets.bottom + 14,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -904,12 +936,12 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                       fontWeight: FontWeight.w800,
                     ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _RecordDateRow(
                 createdAt: _createdAt,
                 onPick: _pickDate,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _AmountStepper(
                 amount: _amount,
                 unit: _unit,
@@ -924,7 +956,7 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                 }),
                 onUnitChanged: (unit) => setState(() => _unit = unit),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text('做完感觉？', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
               Wrap(
@@ -933,8 +965,9 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                 children: [
                   for (final reaction in RehabReaction.values)
                     ChoiceChip(
-                      avatar: Icon(_reactionIcon(reaction), size: 18),
+                      avatar: Icon(_reactionIcon(reaction), size: 16),
                       label: Text(reaction.label),
+                      labelStyle: Theme.of(context).textTheme.bodySmall,
                       selected: _reaction == reaction,
                       selectedColor: _reactionColor(reaction).withValues(
                         alpha: 0.16,
@@ -948,12 +981,12 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                 const Card(
                   color: Color(0xFFFFF1F0),
                   child: Padding(
-                    padding: EdgeInsets.all(16),
+                    padding: EdgeInsets.all(12),
                     child: Text('建议减少量、暂停观察，必要时咨询医生或康复师。'),
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text('症状标签（可选）', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
               Wrap(
@@ -975,7 +1008,7 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _OptionalNoteField(
                 controller: _noteController,
                 isExpanded: _isNoteExpanded,
@@ -983,7 +1016,7 @@ class _RehabLogSheetState extends State<RehabLogSheet> {
                   setState(() => _isNoteExpanded = !_isNoteExpanded);
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -1061,10 +1094,10 @@ class _AmountStepper extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border.all(color: const Color(0xFFE5E7EB)),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1081,7 +1114,7 @@ class _AmountStepper extends StatelessWidget {
                 _formatAmount(amount),
                 key: const ValueKey('rehab-amount-stepper-value'),
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
               ),

@@ -35,7 +35,7 @@ void main() {
             .readAsStringSync();
 
     expect(settings, contains('前台倒计时会话'));
-    expect(settings, contains('点击“我在坐着”或“我在站着”后开始计时'));
+    expect(settings, contains('点击“我在坐”或“我在站”后开始计时'));
     expect(settings, contains('准时提醒权限未开启时会继续倒计时'));
     expect(settings, isNot(contains('自动循环提醒')));
     expect(settings, isNot(contains('全天节奏提醒')));

@@ -29,7 +29,7 @@ class SettingsPage extends ConsumerWidget {
     final testReminderSending = testReminderFeedback?.startsWith('正在') ?? false;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
       children: [
         Text(
           '设置',
@@ -42,7 +42,7 @@ class SettingsPage extends ConsumerWidget {
           '管理康复资料、坐站提醒、本地数据和隐私说明',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         _SettingsGroup(
           icon: Icons.person_outline,
           title: '我的康复资料',
@@ -56,7 +56,7 @@ class SettingsPage extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         settingsState.when(
           loading: () => const _SettingsLoading(),
           error: (error, stackTrace) => _SettingsError(
@@ -130,7 +130,7 @@ class SettingsPage extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         _SettingsGroup(
           icon: Icons.folder_open_outlined,
           title: '数据管理',
@@ -144,10 +144,10 @@ class SettingsPage extends ConsumerWidget {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.file_download_outlined),
-              title: const Text('导出本地数据'),
-              subtitle: const Text('导出 JSON 文件，主要用于备份或问题排查。'),
+              title: const Text('导出备份'),
+              subtitle: const Text('生成本地 JSON 备份文件。'),
               trailing: IconButton(
-                tooltip: '导出本地数据',
+                tooltip: '导出备份',
                 icon: const Icon(Icons.ios_share_outlined),
                 onPressed: () => _exportLocalData(context, ref),
               ),
@@ -155,7 +155,7 @@ class SettingsPage extends ConsumerWidget {
             const ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.backup_outlined),
-              title: Text('本地备份'),
+              title: Text('备份安全'),
               subtitle: Text('备份文件包含你的本地康复记录，请妥善保存。App 不会自动上传备份文件。'),
             ),
             Row(
@@ -163,7 +163,7 @@ class SettingsPage extends ConsumerWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.file_download_outlined),
-                    label: const Text('导出本地备份'),
+                    label: const Text('导出备份'),
                     onPressed: () => _exportLocalData(context, ref),
                   ),
                 ),
@@ -171,7 +171,7 @@ class SettingsPage extends ConsumerWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.file_upload_outlined),
-                    label: const Text('导入本地备份（高级）'),
+                    label: const Text('导入备份'),
                     onPressed: () => _confirmImportLocalBackup(context, ref),
                   ),
                 ),
@@ -204,7 +204,7 @@ class SettingsPage extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         _SettingsGroup(
           icon: Icons.privacy_tip_outlined,
           title: '隐私与免责声明',
@@ -806,16 +806,16 @@ class _ReminderSettingsSection extends StatelessWidget {
           leading: Icon(Icons.check_circle_outline),
           title: Text('手动倒计时'),
           subtitle: Text(
-            '坐姿或站姿提醒采用前台倒计时会话：点击“我在坐着”或“我在站着”后开始计时，到点提醒一次；准时提醒权限未开启时会继续倒计时，但提醒可能延迟；点击“我去休息了”后停止。',
+            '坐姿或站姿提醒采用前台倒计时会话：点击“我在坐”或“我在站”后开始计时，到点提醒一次；准时提醒权限未开启时会继续倒计时，但提醒可能延迟；点击“停止记录”后停止当前计时。',
           ),
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.bug_report_outlined),
-          title: const Text('提醒检测'),
-          subtitle: const Text('检查通知权限、发送测试提醒，或测试倒计时启动链路。'),
+          title: const Text('高级检测'),
+          subtitle: const Text('通知异常时检查权限、测试提醒和倒计时链路。'),
           trailing: IconButton(
-            tooltip: '提醒检测',
+            tooltip: '高级检测',
             icon: const Icon(Icons.chevron_right),
             onPressed: onDiagnosticsPressed,
           ),
@@ -823,7 +823,7 @@ class _ReminderSettingsSection extends StatelessWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.notifications_outlined),
-          title: const Text('立即测试提醒'),
+          title: const Text('测试提醒'),
           subtitle: Text('立即发送一条${settings.reminderMode.label}，用于确认通知通道。'),
           trailing: IconButton(
             tooltip: '立即测试提醒',
@@ -911,7 +911,7 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final debugState = ref.watch(reminderDebugStateProvider);
     return AlertDialog(
-      title: const Text('提醒检测'),
+      title: const Text('高级检测'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,

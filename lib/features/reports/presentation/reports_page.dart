@@ -39,7 +39,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final canSaveReport = reportState.asData != null;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
       children: [
         Row(
           children: [
@@ -70,7 +70,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         SegmentedButton<ReportPeriod>(
           segments: [
             for (final value in ReportPeriod.values)
@@ -81,7 +81,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             ref.read(reportPeriodProvider.notifier).state = values.single;
           },
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         reportState.when(
           loading: () => const _ReportLoading(),
           error: (error, stackTrace) => _ReportError(
@@ -163,14 +163,14 @@ class _ReportContent extends StatelessWidget {
           children: [
             if (period == ReportPeriod.day) ...[
               _DailyRehabLogSection(report: report),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
             ] else ...[
               _ActivityTrendReportSection(
                 report: report,
                 period: period,
                 days: period == ReportPeriod.week ? 7 : 30,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
             ],
             const _ShortDisclaimerText(),
           ],
@@ -240,13 +240,13 @@ class _ActivityTrendReportSection extends StatelessWidget {
         subtitle: '按实际记录过的康复活动查看趋势',
         child: trends.isEmpty
             ? const _EmptyHint(
-                text: '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+                text: '这段时间还没有康复活动记录。',
               )
             : Column(
                 children: [
                   for (final trend in trends) ...[
                     _RehabActivityTrendSection(trend: trend, days: days),
-                    if (trend != trends.last) const SizedBox(height: 16),
+                    if (trend != trends.last) const SizedBox(height: 12),
                   ],
                 ],
               ),
@@ -277,7 +277,7 @@ class _RehabActivityTrendSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -287,7 +287,7 @@ class _RehabActivityTrendSection extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             _MetricRow(label: '总记录次数', value: '${trend.totalCount} 次'),
             _MetricRow(
               label: '总完成量',
@@ -324,7 +324,7 @@ class _RehabActivityBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 176,
+      height: 152,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -512,7 +512,7 @@ class _ReportSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -539,7 +539,7 @@ class _ReportSection extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             child,
           ],
         ),
@@ -577,7 +577,7 @@ class _MetricRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [

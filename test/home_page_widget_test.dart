@@ -534,7 +534,7 @@ void main() {
 
     expect(find.textContaining('今天是术后第'), findsOneWidget);
     expect(find.byKey(const ValueKey('today-rhythm-timer')), findsOneWidget);
-    expect(find.text('我在坐着'), findsWidgets);
+    expect(find.text('我在坐'), findsWidgets);
     expect(find.byKey(const ValueKey('today-posture-walking')), findsNothing);
     expect(find.text('今日最长坐姿'), findsOneWidget);
     expect(find.text('今日最长走动'), findsOneWidget);
