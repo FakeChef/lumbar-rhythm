@@ -4,14 +4,18 @@ import android.content.ContentValues
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.provider.AlarmClock
 import android.provider.MediaStore
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.util.Calendar
+import java.util.Locale
 
 class MainActivity : FlutterActivity() {
     private val galleryChannel = "lumbar_rhythm/gallery"
+    private val systemTimerChannel = "lumbar_rhythm/system_timer"
     private val postureCountdownChannel = "lumbar_rhythm/posture_countdown"
     private val postureAlarmChannel = "lumbar_rhythm/posture_alarm"
     private val reminderChannel = "lumbar_rhythm/reminder"
@@ -39,6 +43,32 @@ class MainActivity : FlutterActivity() {
                     } catch (error: Exception) {
                         result.error("save_failed", error.message, null)
                     }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            systemTimerChannel,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startSystemTimer" -> {
+                    val durationSeconds = call.argument<Int>("durationSeconds")
+                    val message = call.argument<String>("message") ?: "腰椎节奏提醒"
+
+                    if (durationSeconds == null || durationSeconds <= 0) {
+                        result.success(
+                            mapOf(
+                                "success" to false,
+                                "code" to "invalid_duration",
+                                "message" to "无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。",
+                            ),
+                        )
+                        return@setMethodCallHandler
+                    }
+
+                    result.success(openSystemTimer(durationSeconds, message))
                 }
                 else -> result.notImplemented()
             }
@@ -271,6 +301,99 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {
             false
         }
+    }
+
+    private fun openSystemTimer(durationSeconds: Int, message: String): Map<String, Any?> {
+        val primary = if (prefersAlarmHandoff()) {
+            openSystemAlarm(durationSeconds, message)
+        } else {
+            openSystemTimerIntent(durationSeconds, message)
+        }
+        if (primary["success"] == true) {
+            return primary
+        }
+        val fallback = if (prefersAlarmHandoff()) {
+            openSystemTimerIntent(durationSeconds, message)
+        } else {
+            openSystemAlarm(durationSeconds, message)
+        }
+        if (fallback["success"] == true) {
+            return fallback
+        }
+        return mapOf(
+            "success" to false,
+            "code" to "system_reminder_unavailable",
+            "message" to "无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。",
+        )
+    }
+
+    private fun openSystemTimerIntent(durationSeconds: Int, message: String): Map<String, Any?> {
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+            putExtra(AlarmClock.EXTRA_LENGTH, durationSeconds)
+            putExtra(AlarmClock.EXTRA_MESSAGE, message)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (intent.resolveActivity(packageManager) == null) {
+            return mapOf(
+                "success" to false,
+                "code" to "system_timer_unavailable",
+                "message" to "无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。",
+            )
+        }
+        return try {
+            startActivity(intent)
+            mapOf(
+                "success" to true,
+                "code" to "ok",
+                "mode" to "timer",
+                "message" to "已打开系统提醒。",
+            )
+        } catch (_: Exception) {
+            mapOf(
+                "success" to false,
+                "code" to "system_timer_failed",
+                "message" to "无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。",
+            )
+        }
+    }
+
+    private fun openSystemAlarm(durationSeconds: Int, message: String): Map<String, Any?> {
+        val calendar = Calendar.getInstance().apply {
+            add(Calendar.SECOND, durationSeconds)
+        }
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY))
+            putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE))
+            putExtra(AlarmClock.EXTRA_MESSAGE, message)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (intent.resolveActivity(packageManager) == null) {
+            return mapOf(
+                "success" to false,
+                "code" to "system_alarm_unavailable",
+                "message" to "无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。",
+            )
+        }
+        return try {
+            startActivity(intent)
+            mapOf(
+                "success" to true,
+                "code" to "ok",
+                "mode" to "alarm",
+                "message" to "已打开系统闹钟。",
+            )
+        } catch (_: Exception) {
+            mapOf(
+                "success" to false,
+                "code" to "system_alarm_failed",
+                "message" to "无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。",
+            )
+        }
+    }
+
+    private fun prefersAlarmHandoff(): Boolean {
+        val maker = "${Build.MANUFACTURER} ${Build.BRAND}".lowercase(Locale.ROOT)
+        return maker.contains("vivo") || maker.contains("iqoo")
     }
 
     private fun savePngToGallery(bytes: ByteArray, fileName: String): android.net.Uri? {

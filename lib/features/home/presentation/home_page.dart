@@ -100,6 +100,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                     reminderStatus: reminderStatus,
                     onSwitchPosture: (type) async {
                       setState(() => _selectedPosture = type);
+                      if (type == PostureType.sitting ||
+                          type == PostureType.standing) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '将打开系统闹钟或计时器。不同手机界面可能不同，请确认系统提醒已开始。',
+                            ),
+                          ),
+                        );
+                      }
                       await ref
                           .read(postureSessionControllerProvider.notifier)
                           .switchTo(type);
@@ -109,6 +119,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                       await ref
                           .read(postureSessionControllerProvider.notifier)
                           .stopCurrent();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '如系统闹钟或计时器仍在运行，请在系统时钟中取消。',
+                            ),
+                          ),
+                        );
+                      }
                       ref.invalidate(_homeTodayOverviewProvider);
                     },
                     onComplete: () async {

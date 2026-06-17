@@ -621,7 +621,7 @@ class _RecoveryPhaseExplanationTile extends StatelessWidget {
             ),
             _RecoveryPhaseParagraph(
               isFootnote: true,
-              text: '以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。',
+              text: '以上阶段说明仅用于帮助理解记录节奏，不作为医疗判断或个人康复处方。',
             ),
           ],
         ),
@@ -788,7 +788,7 @@ class _ReminderSettingsSection extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.tune_outlined),
           title: const Text('提醒方式'),
-          subtitle: const Text('默认轻柔通知；需要更明显时可改为震动或响铃。'),
+          subtitle: const Text('用于通知测试和旧倒计时排查；系统提醒铃声由系统时钟决定。'),
           trailing: DropdownButton<ReminderMode>(
             value: settings.reminderMode,
             onChanged: settings.remindersEnabled ? onReminderModeChanged : null,
@@ -804,9 +804,9 @@ class _ReminderSettingsSection extends StatelessWidget {
         const ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.check_circle_outline),
-          title: Text('手动倒计时'),
+          title: Text('系统闹钟或计时器提醒'),
           subtitle: Text(
-            '坐姿或站姿提醒采用前台倒计时会话：点击“我在坐”或“我在站”后开始计时，到点提醒一次；准时提醒权限未开启时会继续倒计时，但提醒可能延迟；点击“停止记录”后停止当前计时。',
+            '点击“我在坐”或“我在站”后，会打开系统闹钟或计时器。不同手机界面可能不同，请确认系统提醒已开始。',
           ),
         ),
         ListTile(
@@ -951,7 +951,7 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             const Text(
-              '普通通知测试只验证 App 通知权限；坐/站倒计时使用前台倒计时会话，到点由 Android AlarmManager 触发。若锁屏后仍无法提醒，请将 Lumbar Rhythm 加入电池优化白名单，并允许后台运行。',
+              '普通通知测试只验证 App 通知权限；坐/站主提醒会交给系统闹钟或计时器。前台倒计时仅保留为旧链路排查，不作为核心提醒方案。',
             ),
             const SizedBox(height: 16),
             _DiagnosticButton(
@@ -969,7 +969,7 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
                     .read(notificationServiceProvider)
                     .openExactAlarmSettings(),
                 successMessage: '已尝试打开准时提醒权限设置',
-                failureMessage: '当前系统不支持直接打开该设置，提醒将继续以前台倒计时模式运行，但可能延迟。',
+                failureMessage: '当前系统不支持直接打开该设置，请优先使用系统闹钟或计时器提醒。',
               ),
             ),
             _DiagnosticButton(
@@ -1143,7 +1143,7 @@ String _formatDiagnosticBool(
 String _formatExactAlarmPermission(ReminderDebugState debugState) {
   final sdkInt = debugState.exactAlarmSdkInt;
   if (sdkInt != null && sdkInt < 31) {
-    return '不适用，前台倒计时仍可运行';
+    return '不适用，系统提醒由系统时钟处理';
   }
   return _formatDiagnosticBool(
     debugState.exactAlarmAllowed,

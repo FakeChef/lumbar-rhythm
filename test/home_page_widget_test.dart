@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumbar_rhythm/app/lumbar_rhythm_app.dart';
 import 'package:lumbar_rhythm/core/notifications/notification_service.dart';
+import 'package:lumbar_rhythm/core/reminders/system_timer_handoff_service.dart';
 import 'package:lumbar_rhythm/features/actions/data/rehab_repository.dart';
 import 'package:lumbar_rhythm/features/actions/domain/action_item.dart';
 import 'package:lumbar_rhythm/features/home/domain/stage_encouragement_messages.dart';
@@ -149,9 +150,10 @@ void main() {
     expect(
         find.byKey(const ValueKey('today-daytime-cycle-start')), findsNothing);
   });
-  testWidgets('app startup requests notification permission when reminders run',
+  testWidgets('app startup does not start posture reminder handoff',
       (tester) async {
     final notificationService = _FakeNotification();
+    final systemTimer = _FakeSystemTimerHandoff();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -162,6 +164,7 @@ void main() {
             _FakeReminderSettingsRepository(),
           ),
           notificationServiceProvider.overrideWithValue(notificationService),
+          systemTimerHandoffServiceProvider.overrideWithValue(systemTimer),
           rehabRepositoryProvider.overrideWithValue(_FakeRehabRepository()),
           recoveryRepositoryProvider.overrideWithValue(
             _FakeRecoveryRepository(),
@@ -174,20 +177,22 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
-    expect(notificationService.permissionRequests, 1);
     expect(notificationService.startedCountdownPostures, isEmpty);
-    expect(notificationService.stopCountdownCount, 0);
+    expect(systemTimer.durations, isEmpty);
+    expect(systemTimer.messages, isEmpty);
   });
 
-  testWidgets('sitting and standing start manual posture countdowns',
+  testWidgets('sitting and standing hand off reminders to system reminder',
       (tester) async {
     final postureRepository = _FakePostureRepository();
     final notificationService = _FakeNotification();
+    final systemTimer = _FakeSystemTimerHandoff();
     final rehabRepository = _FakeRehabRepository();
     await _pumpHome(
       tester,
       postureRepository: postureRepository,
       notificationService: notificationService,
+      systemTimerService: systemTimer,
       rehabRepository: rehabRepository,
       reminderSettingsRepository: _FakeReminderSettingsRepository(
         ReminderSettings.defaults.copyWith(
@@ -200,25 +205,23 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
     await tester.pumpAndSettle();
-    expect(notificationService.startedCountdownPostures,
-        contains(PostureType.sitting));
-    expect(notificationService.countdownModes, [ReminderMode.vibration]);
-    expect(
-        notificationService.countdownDurations, [const Duration(minutes: 15)]);
+    expect(notificationService.startedCountdownPostures, isEmpty);
+    expect(notificationService.stopCountdownCount, greaterThanOrEqualTo(1));
+    expect(systemTimer.durations, [const Duration(minutes: 15)]);
+    expect(systemTimer.messages, ['久坐提醒：该起来活动一下']);
     expect(postureRepository.openSession?.type, PostureType.sitting);
-    expect(find.textContaining('久坐倒计时中'), findsOneWidget);
+    expect(find.textContaining('已交给系统提醒'), findsOneWidget);
+    expect(find.textContaining('将打开系统闹钟或计时器'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('today-posture-standing')));
     await tester.pumpAndSettle();
-    expect(notificationService.startedCountdownPostures,
-        contains(PostureType.standing));
-    expect(notificationService.countdownModes,
-        [ReminderMode.vibration, ReminderMode.vibration]);
-    expect(notificationService.countdownDurations,
+    expect(notificationService.startedCountdownPostures, isEmpty);
+    expect(systemTimer.durations,
         [const Duration(minutes: 15), const Duration(minutes: 30)]);
+    expect(systemTimer.messages, ['久坐提醒：该起来活动一下', '久站提醒：该坐下休息一下']);
     expect(postureRepository.openSession?.type, PostureType.standing);
     expect(rehabRepository.addedLogs, isEmpty);
-    expect(find.textContaining('久站倒计时中'), findsOneWidget);
+    expect(find.textContaining('已交给系统提醒'), findsOneWidget);
   });
 
   testWidgets('resting stops posture countdown and alarm', (tester) async {
@@ -237,18 +240,21 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('today-posture-stop')));
     await tester.pumpAndSettle();
 
-    expect(notificationService.startedCountdownPostures, [PostureType.sitting]);
+    expect(notificationService.startedCountdownPostures, isEmpty);
     expect(notificationService.stopCountdownCount, greaterThanOrEqualTo(1));
     expect(postureRepository.openSession, isNull);
     expect(find.byKey(const ValueKey('today-posture-stop')), findsOneWidget);
+    expect(find.textContaining('如系统闹钟或计时器仍在运行'), findsOneWidget);
     expect(rehabRepository.addedLogs, isEmpty);
   });
-  testWidgets('disabled reminders do not start posture countdown',
+  testWidgets('disabled reminders do not start system reminder handoff',
       (tester) async {
     final notificationService = _FakeNotification();
+    final systemTimer = _FakeSystemTimerHandoff();
     await _pumpHome(
       tester,
       notificationService: notificationService,
+      systemTimerService: systemTimer,
       reminderSettingsRepository: _FakeReminderSettingsRepository(
         ReminderSettings.defaults.copyWith(remindersEnabled: false),
       ),
@@ -259,51 +265,61 @@ void main() {
 
     expect(notificationService.startedCountdownPostures, isEmpty);
     expect(notificationService.stopCountdownCount, greaterThanOrEqualTo(1));
+    expect(systemTimer.durations, isEmpty);
     expect(find.textContaining('提醒未开启'), findsOneWidget);
   });
 
-  testWidgets('posture switch keeps record and shows countdown failure',
+  testWidgets('posture switch keeps record and shows system reminder failure',
       (tester) async {
     final postureRepository = _FakePostureRepository();
-    final notificationService = _FakeNotification(failCountdownStart: true);
+    final systemTimer = _FakeSystemTimerHandoff(succeeds: false);
 
     await _pumpHome(
       tester,
       postureRepository: postureRepository,
-      notificationService: notificationService,
+      systemTimerService: systemTimer,
     );
 
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
     await tester.pumpAndSettle();
 
     expect(postureRepository.openSession?.type, PostureType.sitting);
-    expect(find.textContaining('倒计时启动失败，请到设置页进行提醒检测。'), findsOneWidget);
+    expect(systemTimer.durations, [const Duration(minutes: 45)]);
+    expect(find.textContaining('无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。'), findsOneWidget);
   });
 
-  testWidgets('alarm failure falls back to foreground countdown',
+  testWidgets('exact alarm state does not affect system reminder handoff',
       (tester) async {
     final notificationService = _FakeNotification(exactAlarmAllowed: false);
+    final systemTimer = _FakeSystemTimerHandoff();
 
-    await _pumpHome(tester, notificationService: notificationService);
+    await _pumpHome(
+      tester,
+      notificationService: notificationService,
+      systemTimerService: systemTimer,
+    );
 
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
     await tester.pumpAndSettle();
 
-    expect(notificationService.startedCountdownPostures, [PostureType.sitting]);
-    expect(find.textContaining('久坐倒计时中'), findsOneWidget);
-    expect(find.textContaining('准时提醒权限未开启，提醒可能延迟'), findsOneWidget);
+    expect(notificationService.startedCountdownPostures, isEmpty);
+    expect(systemTimer.messages, ['久坐提醒：该起来活动一下']);
+    expect(find.textContaining('已交给系统提醒'), findsOneWidget);
+    expect(find.textContaining('准时提醒权限未开启，提醒可能延迟'), findsNothing);
     expect(find.textContaining('系统提醒启动失败'), findsNothing);
   });
 
-  testWidgets('missing notification permission shows permission message',
+  testWidgets('missing notification permission does not block system reminder',
       (tester) async {
     final postureRepository = _FakePostureRepository();
     final notificationService = _FakeNotification(permissionGranted: false);
+    final systemTimer = _FakeSystemTimerHandoff();
 
     await _pumpHome(
       tester,
       postureRepository: postureRepository,
       notificationService: notificationService,
+      systemTimerService: systemTimer,
     );
 
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
@@ -311,35 +327,35 @@ void main() {
 
     expect(postureRepository.openSession?.type, PostureType.sitting);
     expect(notificationService.startedCountdownPostures, isEmpty);
-    expect(find.textContaining('通知权限未开启，无法显示提醒。请先开启通知权限。'), findsOneWidget);
+    expect(systemTimer.messages, ['久坐提醒：该起来活动一下']);
+    expect(find.textContaining('已交给系统提醒'), findsOneWidget);
+    expect(find.textContaining('通知权限未开启，无法显示提醒。请先开启通知权限。'), findsNothing);
     expect(find.textContaining('系统提醒启动失败，请检查通知权限'), findsNothing);
   });
 
-  testWidgets('alarm and foreground failures show diagnostic prompt',
+  testWidgets('system reminder handoff failure shows manual setup prompt',
       (tester) async {
     final postureRepository = _FakePostureRepository();
-    final notificationService = _FakeNotification(
-      exactAlarmAllowed: false,
-      foregroundFallbackSucceeds: false,
-    );
+    final systemTimer = _FakeSystemTimerHandoff(succeeds: false);
 
     await _pumpHome(
       tester,
       postureRepository: postureRepository,
-      notificationService: notificationService,
+      systemTimerService: systemTimer,
     );
 
     await tester.tap(find.byKey(const ValueKey('today-posture-sitting')));
     await tester.pumpAndSettle();
 
     expect(postureRepository.openSession?.type, PostureType.sitting);
-    expect(find.textContaining('倒计时启动失败，请到设置页进行提醒检测。'), findsOneWidget);
+    expect(find.textContaining('无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。'), findsOneWidget);
   });
 
-  test('latest posture countdown is not overwritten by startup setup',
+  test('latest system reminder handoff is not overwritten by startup setup',
       () async {
     final postureRepository = _FakePostureRepository();
     final notificationService = _FakeNotification();
+    final systemTimer = _FakeSystemTimerHandoff();
     final container = ProviderContainer(
       overrides: [
         postureSessionRepositoryProvider.overrideWithValue(postureRepository),
@@ -347,6 +363,7 @@ void main() {
           _FakeReminderSettingsRepository(),
         ),
         notificationServiceProvider.overrideWithValue(notificationService),
+        systemTimerHandoffServiceProvider.overrideWithValue(systemTimer),
         rehabRepositoryProvider.overrideWithValue(_FakeRehabRepository()),
       ],
     );
@@ -357,10 +374,12 @@ void main() {
         .read(postureSessionControllerProvider.notifier)
         .startSitting();
 
-    expect(notificationService.startedCountdownPostures, [PostureType.sitting]);
+    expect(notificationService.startedCountdownPostures, isEmpty);
+    expect(systemTimer.messages, ['久坐提醒：该起来活动一下']);
   });
 
-  test('restored sitting and standing sessions show countdown state', () async {
+  test('restored sitting and standing sessions show system reminder state',
+      () async {
     for (final posture in [PostureType.sitting, PostureType.standing]) {
       final postureRepository = _FakePostureRepository(
         openSession: _session(posture, minutesAgo: 10),
@@ -381,6 +400,9 @@ void main() {
             _FakeReminderSettingsRepository(),
           ),
           notificationServiceProvider.overrideWithValue(notificationService),
+          systemTimerHandoffServiceProvider.overrideWithValue(
+            _FakeSystemTimerHandoff(),
+          ),
         ],
       );
 
@@ -392,13 +414,14 @@ void main() {
       expect(restored?.type, posture);
       expect(
         container.read(postureReminderStatusProvider),
-        contains(posture == PostureType.standing ? '久站倒计时中' : '久坐倒计时中'),
+        contains('已交给系统提醒'),
       );
       container.dispose();
     }
   });
 
-  test('due countdown state shows one-shot due message', () async {
+  test('restored due countdown state is no longer the main reminder copy',
+      () async {
     final postureRepository = _FakePostureRepository(
       openSession: _session(PostureType.sitting, minutesAgo: 60),
     );
@@ -418,6 +441,9 @@ void main() {
           _FakeReminderSettingsRepository(),
         ),
         notificationServiceProvider.overrideWithValue(notificationService),
+        systemTimerHandoffServiceProvider.overrideWithValue(
+          _FakeSystemTimerHandoff(),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -425,7 +451,7 @@ void main() {
     await container.read(postureSessionControllerProvider.future);
     expect(
       container.read(postureReminderStatusProvider),
-      '提醒已到期。你已经连续坐超过建议时间。',
+      '当前状态：正在坐。已交给系统提醒。',
     );
   });
 
@@ -439,6 +465,9 @@ void main() {
           _FakeReminderSettingsRepository(),
         ),
         notificationServiceProvider.overrideWithValue(notificationService),
+        systemTimerHandoffServiceProvider.overrideWithValue(
+          _FakeSystemTimerHandoff(),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -569,6 +598,7 @@ Future<void> _pumpHome(
   _FakePostureRepository? postureRepository,
   _FakeRecoveryRepository? recoveryRepository,
   _FakeNotification? notificationService,
+  _FakeSystemTimerHandoff? systemTimerService,
   _FakeRehabRepository? rehabRepository,
   _FakeReminderSettingsRepository? reminderSettingsRepository,
   ValueChanged<int>? onOpenTab,
@@ -581,6 +611,7 @@ Future<void> _pumpHome(
     postureRepository: postureRepository,
     recoveryRepository: recoveryRepository,
     notificationService: notificationService,
+    systemTimerService: systemTimerService,
     rehabRepository: rehabRepository,
     reminderSettingsRepository: reminderSettingsRepository,
   );
@@ -592,6 +623,7 @@ Future<void> _pumpApp(
   _FakePostureRepository? postureRepository,
   _FakeRecoveryRepository? recoveryRepository,
   _FakeNotification? notificationService,
+  _FakeSystemTimerHandoff? systemTimerService,
   _FakeRehabRepository? rehabRepository,
   _FakeReminderSettingsRepository? reminderSettingsRepository,
 }) async {
@@ -606,6 +638,9 @@ Future<void> _pumpApp(
         ),
         notificationServiceProvider.overrideWithValue(
           notificationService ?? _FakeNotification(),
+        ),
+        systemTimerHandoffServiceProvider.overrideWithValue(
+          systemTimerService ?? _FakeSystemTimerHandoff(),
         ),
         rehabRepositoryProvider.overrideWithValue(
           rehabRepository ?? _FakeRehabRepository(),
@@ -704,19 +739,44 @@ class _FakeReminderSettingsRepository implements ReminderSettingsRepository {
   Future<void> save(ReminderSettings settings) async {}
 }
 
+class _FakeSystemTimerHandoff extends SystemTimerHandoffService {
+  _FakeSystemTimerHandoff({this.succeeds = true});
+
+  final bool succeeds;
+  final durations = <Duration>[];
+  final messages = <String>[];
+
+  @override
+  Future<SystemTimerHandoffResult> startTimer({
+    required Duration duration,
+    required String message,
+  }) async {
+    durations.add(duration);
+    messages.add(message);
+    if (!succeeds) {
+      return const SystemTimerHandoffResult(
+        success: false,
+        code: 'system_reminder_unavailable',
+        message: '无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。',
+      );
+    }
+    return const SystemTimerHandoffResult(
+      success: true,
+      code: 'ok',
+      message: '已打开系统提醒。',
+    );
+  }
+}
+
 class _FakeNotification extends NotificationService {
   _FakeNotification({
-    this.failCountdownStart = false,
     this.exactAlarmAllowed = true,
     this.permissionGranted = true,
-    this.foregroundFallbackSucceeds = true,
     this.countdownState = const PostureCountdownState(running: false),
   });
 
-  final bool failCountdownStart;
   final bool exactAlarmAllowed;
   final bool permissionGranted;
-  final bool foregroundFallbackSucceeds;
   PostureCountdownState countdownState;
   final startedCountdownPostures = <PostureType>[];
   final countdownModes = <ReminderMode>[];
@@ -757,14 +817,6 @@ class _FakeNotification extends NotificationService {
         ),
       );
     }
-    if (failCountdownStart) {
-      return const PostureCountdownStartResult(
-        success: false,
-        mode: 'none',
-        code: 'native_start_failed',
-        message: '倒计时启动失败，请到设置页进行提醒检测。',
-      );
-    }
     startedCountdownPostures.add(postureType);
     countdownModes.add(reminderMode);
     countdownDurations.add(duration);
@@ -779,15 +831,6 @@ class _FakeNotification extends NotificationService {
       exactAlarmAvailable: exactAlarmAllowed,
       notificationPermissionGranted: permissionGranted,
     );
-    if (!foregroundFallbackSucceeds) {
-      return PostureCountdownStartResult(
-        success: false,
-        mode: 'none',
-        code: 'native_start_failed',
-        message: '倒计时启动失败，请到设置页进行提醒检测。',
-        dueAt: startedAt.add(duration),
-      );
-    }
     return PostureCountdownStartResult(
       success: true,
       mode: exactAlarmAllowed ? 'foregroundExact' : 'foregroundInexact',
@@ -808,10 +851,6 @@ class _FakeNotification extends NotificationService {
   ReminderDebugState get debugState => ReminderDebugState(
         exactAlarmAllowed: exactAlarmAllowed,
         exactAlarmSdkInt: 34,
-        lastCountdownFailureCode:
-            failCountdownStart ? 'native_start_failed' : null,
-        lastCountdownFailureMessage:
-            failCountdownStart ? '倒计时启动失败，请到设置页进行提醒检测。' : null,
       );
 
   @override

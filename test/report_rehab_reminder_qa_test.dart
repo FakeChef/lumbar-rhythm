@@ -563,8 +563,8 @@ void main() {
     expect(find.text('坐站提醒'), findsOneWidget);
     expect(find.text('该记录一下今天的状态了'), findsOneWidget);
     expect(find.widgetWithText(SwitchListTile, '夜间勿扰'), findsNothing);
-    expect(find.text('手动倒计时'), findsOneWidget);
-    expect(find.textContaining('到点提醒一次'), findsOneWidget);
+    expect(find.text('系统闹钟或计时器提醒'), findsOneWidget);
+    expect(find.textContaining('会打开系统闹钟或计时器'), findsOneWidget);
     expect(find.text('白天节奏'), findsNothing);
 
     await tester.tap(find.text('昵称与手术日期'));
@@ -589,7 +589,7 @@ void main() {
     expect(find.text('第3阶段（8-12周）'), findsOneWidget);
     expect(find.text('第4阶段（12周后）'), findsOneWidget);
     expect(
-      find.text('以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。'),
+      find.text('以上阶段说明仅用于帮助理解记录节奏，不作为医疗判断或个人康复处方。'),
       findsOneWidget,
     );
 
@@ -1013,7 +1013,7 @@ void main() {
 
   test('app copy avoids unsupported medical promise wording', () {
     const allowedReportDisclaimer = '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
-    const allowedPhaseDisclaimer = '以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。';
+    const allowedPhaseDisclaimer = '以上阶段说明仅用于帮助理解记录节奏，不作为医疗判断或个人康复处方。';
     const forbidden = [
       '治疗',
       '治愈',

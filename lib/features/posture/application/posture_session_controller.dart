@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/data/app_data_refresh.dart';
 import '../../../core/notifications/notification_service.dart';
+import '../../../core/reminders/system_timer_handoff_service.dart';
 import '../../actions/application/posture_reminder_rehab_link.dart';
 import '../../actions/data/rehab_repository.dart';
 import '../../reports/application/daily_report_controller.dart';
@@ -119,7 +120,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     ref.invalidate(dailyReportControllerProvider);
     notifyAppDataChanged(ref);
     if (type == PostureType.sitting || type == PostureType.standing) {
-      await _startCountdownFor(session, settings);
+      await _handoffToSystemTimerFor(session, settings);
     } else {
       await _stopCountdownForNonTimedPosture();
     }
@@ -133,7 +134,8 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
           walkingThresholdMinutes: settings.walkingIntervalMinutes,
         );
     state = const AsyncData(null);
-    ref.read(postureReminderStatusProvider.notifier).state = '当前已休息，坐/站倒计时已停止。';
+    ref.read(postureReminderStatusProvider.notifier).state =
+        '当前记录已停止。如系统闹钟或计时器仍在运行，请在系统时钟中取消。';
     notifyAppDataChanged(ref);
     _stopCountdownStatusRefresh();
     await ref.read(notificationServiceProvider).stopPostureCountdown();
@@ -141,14 +143,15 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
 
   Future<void> rescheduleForCurrent() async {
     final session = state.valueOrNull;
-    final settings = await ref.read(reminderSettingsRepositoryProvider).load();
     if (session == null ||
         session.type == PostureType.walking ||
         session.type == PostureType.resting) {
       await _stopCountdownForNonTimedPosture();
       return;
     }
-    await _startCountdownFor(session, settings);
+    ref.read(postureReminderStatusProvider.notifier).state =
+        _systemTimerHandoffMessage(session.type);
+    await ref.read(notificationServiceProvider).stopPostureCountdown();
   }
 
   Future<void> handleAppResumed() async {
@@ -156,6 +159,33 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
         await ref.read(postureSessionRepositoryProvider).loadOpenSession();
     await _refreshCountdownStatus(session);
     _configureCountdownStatusRefresh(session);
+  }
+
+  Future<void> _handoffToSystemTimerFor(
+    PostureSession session,
+    ReminderSettings settings, {
+    int? sittingIntervalMinutes,
+    int? standingIntervalMinutes,
+  }) async {
+    _stopCountdownStatusRefresh();
+    await ref.read(notificationServiceProvider).stopPostureCountdown();
+    if (!settings.remindersEnabled) {
+      ref.read(postureReminderStatusProvider.notifier).state = '提醒未开启，可在设置中打开。';
+      return;
+    }
+
+    final intervalMinutes = session.type == PostureType.standing
+        ? standingIntervalMinutes ?? settings.standingIntervalMinutes
+        : sittingIntervalMinutes ?? settings.sittingIntervalMinutes;
+    final result = await ref.read(systemTimerHandoffServiceProvider).startTimer(
+          duration: Duration(minutes: intervalMinutes),
+          message: session.type == PostureType.standing
+              ? '久站提醒：该坐下休息一下'
+              : '久坐提醒：该起来活动一下',
+        );
+    ref.read(postureReminderStatusProvider.notifier).state = result.success
+        ? _systemTimerHandoffMessage(session.type)
+        : '无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。';
   }
 
   Future<void> _startCountdownFor(
@@ -206,7 +236,8 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
 
   Future<void> _stopCountdownForNonTimedPosture() async {
     await ref.read(notificationServiceProvider).stopPostureCountdown();
-    ref.read(postureReminderStatusProvider.notifier).state = '当前已休息，坐/站倒计时已停止。';
+    ref.read(postureReminderStatusProvider.notifier).state =
+        '当前记录已停止。如系统闹钟或计时器仍在运行，请在系统时钟中取消。';
     _stopCountdownStatusRefresh();
   }
 
@@ -232,8 +263,7 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
     if (session == null ||
         (session.type != PostureType.sitting &&
             session.type != PostureType.standing)) {
-      ref.read(postureReminderStatusProvider.notifier).state =
-          '当前状态不需要久坐/久站倒计时。';
+      ref.read(postureReminderStatusProvider.notifier).state = '当前状态不需要系统提醒。';
       return;
     }
     final settings = await ref.read(reminderSettingsRepositoryProvider).load();
@@ -241,30 +271,14 @@ class PostureSessionController extends AsyncNotifier<PostureSession?> {
       ref.read(postureReminderStatusProvider.notifier).state = '提醒未开启，可在设置中打开。';
       return;
     }
-    final countdown =
-        await ref.read(notificationServiceProvider).getPostureCountdownState();
-    if (countdown.postureType == session.type && countdown.dueAt != null) {
-      final message = countdown.running
-          ? _countdownRunningMessage(session.type, countdown.dueAt!)
-          : _countdownDueMessage(session.type);
-      final permissionMessage = countdown.exactAlarmAvailable == false
-          ? ' 准时提醒权限未开启，提醒可能延迟。建议开启“闹钟和提醒”权限。'
-          : '';
-      ref.read(postureReminderStatusProvider.notifier).state =
-          countdown.running ? '$message$permissionMessage' : message;
-      return;
-    }
     ref.read(postureReminderStatusProvider.notifier).state =
-        _countdownRunningMessage(
-      session.type,
-      session.startedAt.add(
-        Duration(
-          minutes: session.type == PostureType.standing
-              ? settings.standingIntervalMinutes
-              : settings.sittingIntervalMinutes,
-        ),
-      ),
-    );
+        _systemTimerHandoffMessage(session.type);
+  }
+
+  String _systemTimerHandoffMessage(PostureType type) {
+    return type == PostureType.standing
+        ? '当前状态：正在站。已交给系统提醒。'
+        : '当前状态：正在坐。已交给系统提醒。';
   }
 
   String _countdownRunningMessage(PostureType type, DateTime dueAt) {

@@ -29,14 +29,14 @@ void main() {
     expect(actions, isNot(contains("ValueKey('rehab-add-log')")));
   });
 
-  test('settings exposes manual countdown reminder copy', () {
+  test('settings exposes system alarm or timer handoff reminder copy', () {
     final settings =
         File('lib/features/settings/presentation/settings_page.dart')
             .readAsStringSync();
 
-    expect(settings, contains('前台倒计时会话'));
-    expect(settings, contains('点击“我在坐”或“我在站”后开始计时'));
-    expect(settings, contains('准时提醒权限未开启时会继续倒计时'));
+    expect(settings, contains('系统闹钟或计时器提醒'));
+    expect(settings, contains('点击“我在坐”或“我在站”后，会打开系统闹钟或计时器'));
+    expect(settings, contains('前台倒计时仅保留为旧链路排查'));
     expect(settings, isNot(contains('自动循环提醒')));
     expect(settings, isNot(contains('全天节奏提醒')));
   });
@@ -80,6 +80,7 @@ void main() {
     expect(notifications, isNot(contains('ReminderKind.walking')));
     expect(notifications, contains('walkingIntervalMinutes'));
     expect(notifications, contains('startPostureCountdown'));
+    expect(controller, contains('systemTimerHandoffServiceProvider'));
     expect(controller, contains('startWalking'));
     expect(controller, contains('stopPostureCountdown'));
     expect(controller, isNot(contains('showPostureDueReminder')));
