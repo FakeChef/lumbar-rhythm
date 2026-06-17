@@ -665,11 +665,10 @@ class _SelectedActivityInfo extends StatelessWidget {
     final patientTip = activity.patientTip.trim();
     final stopRule = activity.stopRule.trim();
     final hasDetails = stopRule.isNotEmpty || activity.requiresDoctorClearance;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.all(10),
         child: Column(

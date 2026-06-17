@@ -600,8 +600,9 @@ void main() {
 
     await tester.scrollUntilVisible(find.text('数据管理'), 300.0);
     expect(find.text('数据管理'), findsOneWidget);
-    expect(find.text('本地备份'), findsOneWidget);
-    expect(find.text('导入本地备份（高级）'), findsOneWidget);
+    expect(find.text('备份安全'), findsOneWidget);
+    expect(find.text('导出备份'), findsWidgets);
+    expect(find.text('导入备份'), findsOneWidget);
 
     await tester.scrollUntilVisible(find.text('隐私与免责声明'), 300.0);
     expect(find.text('隐私与免责声明'), findsOneWidget);
@@ -691,9 +692,9 @@ void main() {
     expect(find.text('提醒方式'), findsOneWidget);
     expect(find.text('响铃提醒'), findsOneWidget);
 
-    await tester.scrollUntilVisible(find.text('立即测试提醒'), 300.0);
+    await tester.scrollUntilVisible(find.text('测试提醒'), 300.0);
     await tester.pumpAndSettle();
-    expect(find.text('立即测试提醒'), findsOneWidget);
+    expect(find.text('测试提醒'), findsOneWidget);
 
     await tester.tap(find.byTooltip('立即测试提醒'));
     await tester.pumpAndSettle();
@@ -800,7 +801,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final importBackupEntry = find.text('导入本地备份（高级）');
+    final importBackupEntry = find.text('导入备份');
     await tester.scrollUntilVisible(importBackupEntry, 500);
     await tester.pumpAndSettle();
     await tester.tap(
@@ -896,7 +897,7 @@ void main() {
 
     expect(find.byKey(const ValueKey('rehab-today-records-section')),
         findsOneWidget);
-    expect(find.text('记录今天做了什么、做了多少、做后感觉如何。'), findsOneWidget);
+    expect(find.text('记录今天做了什么、做了多少、做后感觉。'), findsOneWidget);
     expect(find.text('今天还没有康复记录，记录一点也有价值。'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('rehab-add-entry-button')));
@@ -927,6 +928,9 @@ void main() {
     expect(find.textContaining('膈式呼吸'), findsWidgets);
     expect(find.text('膈式呼吸活动'), findsNothing);
     expect(find.text('选择舒适姿势，放慢呼吸并记录时间。'), findsOneWidget);
+    expect(find.text('查看注意事项'), findsOneWidget);
+    await tester.tap(find.text('查看注意事项'));
+    await tester.pumpAndSettle();
     expect(find.text('如果头晕或不舒服，恢复自然呼吸。'), findsOneWidget);
     expect(find.textContaining('风险等级'), findsNothing);
     expect(find.byKey(const ValueKey('rehab-add-log')), findsNothing);
