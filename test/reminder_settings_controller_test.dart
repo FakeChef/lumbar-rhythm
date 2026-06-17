@@ -61,6 +61,27 @@ void main() {
     expect(notificationService.stopCountdownCount, greaterThanOrEqualTo(1));
     expect(container.read(appDataRefreshProvider), 3);
   });
+
+  test('saves one minute sitting and standing reminder intervals', () async {
+    final repository = _FakeReminderSettingsRepository();
+    final container = _createContainer(repository);
+    addTearDown(container.dispose);
+
+    await container.read(reminderSettingsControllerProvider.future);
+    await container
+        .read(reminderSettingsControllerProvider.notifier)
+        .setSittingIntervalMinutes(1);
+    await container
+        .read(reminderSettingsControllerProvider.notifier)
+        .setStandingIntervalMinutes(1);
+
+    final settings = container.read(reminderSettingsControllerProvider).value;
+
+    expect(settings?.sittingIntervalMinutes, 1);
+    expect(settings?.standingIntervalMinutes, 1);
+    expect(repository.savedSettings.last.sittingIntervalMinutes, 1);
+    expect(repository.savedSettings.last.standingIntervalMinutes, 1);
+  });
 }
 
 ProviderContainer _createContainer(

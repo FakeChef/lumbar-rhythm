@@ -19,7 +19,7 @@ final _settingsTestReminderFeedbackProvider =
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
-  static const _intervalOptions = [15, 30, 45, 60, 90, 120];
+  static const _intervalOptions = [1, 15, 30, 45, 60, 90, 120];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -29,7 +29,7 @@ class SettingsPage extends ConsumerWidget {
     final testReminderSending = testReminderFeedback?.startsWith('正在') ?? false;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
       children: [
         Text(
           '设置',
@@ -42,7 +42,7 @@ class SettingsPage extends ConsumerWidget {
           '管理康复资料、坐站提醒、本地数据和隐私说明',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         _SettingsGroup(
           icon: Icons.person_outline,
           title: '我的康复资料',
@@ -56,7 +56,7 @@ class SettingsPage extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         settingsState.when(
           loading: () => const _SettingsLoading(),
           error: (error, stackTrace) => _SettingsError(
@@ -130,7 +130,7 @@ class SettingsPage extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         _SettingsGroup(
           icon: Icons.folder_open_outlined,
           title: '数据管理',
@@ -144,10 +144,10 @@ class SettingsPage extends ConsumerWidget {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.file_download_outlined),
-              title: const Text('导出本地数据'),
-              subtitle: const Text('导出 JSON 文件，主要用于备份或问题排查。'),
+              title: const Text('导出备份'),
+              subtitle: const Text('生成本地 JSON 备份文件。'),
               trailing: IconButton(
-                tooltip: '导出本地数据',
+                tooltip: '导出备份',
                 icon: const Icon(Icons.ios_share_outlined),
                 onPressed: () => _exportLocalData(context, ref),
               ),
@@ -155,7 +155,7 @@ class SettingsPage extends ConsumerWidget {
             const ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.backup_outlined),
-              title: Text('本地备份'),
+              title: Text('备份安全'),
               subtitle: Text('备份文件包含你的本地康复记录，请妥善保存。App 不会自动上传备份文件。'),
             ),
             Row(
@@ -163,7 +163,7 @@ class SettingsPage extends ConsumerWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.file_download_outlined),
-                    label: const Text('导出本地备份'),
+                    label: const Text('导出备份'),
                     onPressed: () => _exportLocalData(context, ref),
                   ),
                 ),
@@ -171,7 +171,7 @@ class SettingsPage extends ConsumerWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.file_upload_outlined),
-                    label: const Text('导入本地备份（高级）'),
+                    label: const Text('导入备份'),
                     onPressed: () => _confirmImportLocalBackup(context, ref),
                   ),
                 ),
@@ -204,7 +204,7 @@ class SettingsPage extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         _SettingsGroup(
           icon: Icons.privacy_tip_outlined,
           title: '隐私与免责声明',
@@ -621,7 +621,7 @@ class _RecoveryPhaseExplanationTile extends StatelessWidget {
             ),
             _RecoveryPhaseParagraph(
               isFootnote: true,
-              text: '以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。',
+              text: '以上阶段说明仅用于帮助理解记录节奏，不作为医疗判断或个人康复处方。',
             ),
           ],
         ),
@@ -788,7 +788,7 @@ class _ReminderSettingsSection extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.tune_outlined),
           title: const Text('提醒方式'),
-          subtitle: const Text('默认轻柔通知；需要更明显时可改为震动或响铃。'),
+          subtitle: const Text('用于通知测试和旧倒计时排查；系统提醒铃声由系统时钟决定。'),
           trailing: DropdownButton<ReminderMode>(
             value: settings.reminderMode,
             onChanged: settings.remindersEnabled ? onReminderModeChanged : null,
@@ -804,18 +804,18 @@ class _ReminderSettingsSection extends StatelessWidget {
         const ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.check_circle_outline),
-          title: Text('手动倒计时'),
+          title: Text('系统闹钟或计时器提醒'),
           subtitle: Text(
-            '坐姿或站姿提醒采用手动倒计时：点击“我在坐”或“我在站”后开始计时，到点提醒一次；切换为走路或休息后自动停止。',
+            '点击“我在坐”或“我在站”后，会打开系统闹钟或计时器。不同手机界面可能不同，请确认系统提醒已开始。',
           ),
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.bug_report_outlined),
-          title: const Text('提醒诊断'),
-          subtitle: const Text('检查通知权限、发送测试提醒，或打开系统通知设置。'),
+          title: const Text('高级检测'),
+          subtitle: const Text('通知异常时检查权限、测试提醒和倒计时链路。'),
           trailing: IconButton(
-            tooltip: '提醒诊断',
+            tooltip: '高级检测',
             icon: const Icon(Icons.chevron_right),
             onPressed: onDiagnosticsPressed,
           ),
@@ -823,7 +823,7 @@ class _ReminderSettingsSection extends StatelessWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.notifications_outlined),
-          title: const Text('立即测试提醒'),
+          title: const Text('测试提醒'),
           subtitle: Text('立即发送一条${settings.reminderMode.label}，用于确认通知通道。'),
           trailing: IconButton(
             tooltip: '立即测试提醒',
@@ -911,7 +911,7 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final debugState = ref.watch(reminderDebugStateProvider);
     return AlertDialog(
-      title: const Text('提醒诊断'),
+      title: const Text('高级检测'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -927,9 +927,31 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
                 falseText: '未允许',
               ),
             ),
+            _DiagnosticLine(
+              label: '准时提醒权限',
+              value: _formatExactAlarmPermission(debugState),
+            ),
+            _DiagnosticLine(
+              label: 'active session',
+              value: debugState.lastPostureReminderType == null
+                  ? '无'
+                  : '有 / ${debugState.lastPostureReminderType!.name}',
+            ),
+            _DiagnosticLine(
+              label: 'expectedEndTimeMillis',
+              value: debugState.lastPostureReminderDueAt == null
+                  ? '无'
+                  : '${debugState.lastPostureReminderDueAt!.millisecondsSinceEpoch}',
+            ),
+            _DiagnosticLine(
+              label: '剩余时间',
+              value: debugState.activeReminderRemainingSeconds == null
+                  ? '无'
+                  : '${debugState.activeReminderRemainingSeconds} 秒',
+            ),
             const SizedBox(height: 12),
             const Text(
-              '若测试提醒没有声音，请检查系统设置中的通知权限、通知频道声音、勿扰模式和电池限制。',
+              '普通通知测试只验证 App 通知权限；坐/站主提醒会交给系统闹钟或计时器。前台倒计时仅保留为旧链路排查，不作为核心提醒方案。',
             ),
             const SizedBox(height: 16),
             _DiagnosticButton(
@@ -937,6 +959,70 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
               label: '检查并请求通知权限',
               onPressed: () => _requestDiagnosticPermission(context, ref),
             ),
+            _DiagnosticButton(
+              icon: Icons.alarm_add_outlined,
+              label: '尝试打开准时提醒权限设置',
+              onPressed: () => _runDiagnosticAction(
+                context: context,
+                ref: ref,
+                action: () => ref
+                    .read(notificationServiceProvider)
+                    .openExactAlarmSettings(),
+                successMessage: '已尝试打开准时提醒权限设置',
+                failureMessage: '当前系统不支持直接打开该设置，请优先使用系统闹钟或计时器提醒。',
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.timer_outlined,
+              label: '10 秒前台倒计时测试',
+              onPressed: () => _runCountdownChainDiagnostic(
+                context,
+                ref,
+                settings,
+                duration: const Duration(seconds: 10),
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.timer_3_outlined,
+              label: '30 秒前台倒计时测试',
+              onPressed: () => _runCountdownChainDiagnostic(
+                context,
+                ref,
+                settings,
+                duration: const Duration(seconds: 30),
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.lock_outline,
+              label: '1 分钟锁屏测试',
+              onPressed: () => _runCountdownChainDiagnostic(
+                context,
+                ref,
+                settings,
+                duration: const Duration(minutes: 1),
+                extraMessage: '点击后请立即锁屏，等待 1 分钟，确认是否提醒。',
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.home_outlined,
+              label: '3 分钟后台测试',
+              onPressed: () => _runCountdownChainDiagnostic(
+                context,
+                ref,
+                settings,
+                duration: const Duration(minutes: 3),
+                extraMessage: '点击后请返回桌面或切到其他 App，等待 3 分钟，确认是否提醒。',
+              ),
+            ),
+            _DiagnosticButton(
+              icon: Icons.cancel_outlined,
+              label: '取消测试',
+              onPressed: () => _runCancelCountdownDiagnostic(context, ref),
+            ),
+            const Text(
+                '重启恢复测试：启动 3 分钟倒计时，关闭并重新打开 App，今日页应恢复 active session；若已过期，应显示到期状态。'),
+            const SizedBox(height: 6),
+            const Text('真实 45 分钟验收测试：仅在短测试全部通过后执行一次。'),
             _DiagnosticButton(
               icon: Icons.send_outlined,
               label: '发送立即测试提醒',
@@ -963,6 +1049,25 @@ class _ReminderDiagnosticsDialog extends ConsumerWidget {
                 successMessage: '已打开系统通知设置',
               ),
             ),
+            if (debugState.lastCountdownFailureCode != null ||
+                debugState.lastCountdownFailureMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '最近一次倒计时失败：${debugState.lastCountdownFailureCode ?? 'unknown'} / ${debugState.lastCountdownFailureMessage ?? '无详细信息'}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+              ),
+            ],
+            if (debugState.lastCountdownStartMode != null ||
+                debugState.lastCountdownStartCode != null ||
+                debugState.lastCountdownStartMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '最近一次倒计时链路：mode=${debugState.lastCountdownStartMode ?? 'unknown'} / code=${debugState.lastCountdownStartCode ?? 'unknown'} / message=${debugState.lastCountdownStartMessage ?? '无详细信息'} / dueAt=${_formatDiagnosticDateTime(debugState.lastCountdownStartDueAt)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (debugState.lastErrorMessage != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -1035,6 +1140,18 @@ String _formatDiagnosticBool(
   return value ? trueText : falseText;
 }
 
+String _formatExactAlarmPermission(ReminderDebugState debugState) {
+  final sdkInt = debugState.exactAlarmSdkInt;
+  if (sdkInt != null && sdkInt < 31) {
+    return '不适用，系统提醒由系统时钟处理';
+  }
+  return _formatDiagnosticBool(
+    debugState.exactAlarmAllowed,
+    trueText: '准时提醒权限可用',
+    falseText: '准时提醒权限未开启，提醒可能延迟',
+  );
+}
+
 Future<void> _requestDiagnosticPermission(
   BuildContext context,
   WidgetRef ref,
@@ -1063,6 +1180,7 @@ Future<void> _runDiagnosticAction({
   required WidgetRef ref,
   required Future<bool> Function() action,
   required String successMessage,
+  String failureMessage = '通知权限未允许，请先开启',
 }) async {
   final messenger = ScaffoldMessenger.of(context);
   try {
@@ -1071,7 +1189,7 @@ Future<void> _runDiagnosticAction({
     if (!context.mounted) return;
     messenger.showSnackBar(
       SnackBar(
-        content: Text(ok ? successMessage : '通知权限未允许，请先开启'),
+        content: Text(ok ? successMessage : failureMessage),
       ),
     );
   } catch (_) {
@@ -1080,6 +1198,72 @@ Future<void> _runDiagnosticAction({
       const SnackBar(content: Text('提醒测试失败，请检查系统通知设置。')),
     );
   }
+}
+
+Future<void> _runCountdownChainDiagnostic(
+  BuildContext context,
+  WidgetRef ref,
+  ReminderSettings settings, {
+  Duration duration = const Duration(minutes: 1),
+  String? extraMessage,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final result = await ref
+        .read(notificationServiceProvider)
+        .scheduleTodaySittingChainTest(
+          reminderMode: settings.reminderMode,
+          duration: duration,
+        );
+    await ref.read(notificationServiceProvider).refreshReminderDiagnostics();
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          '${extraMessage == null ? '' : '$extraMessage '}mode=${result.mode} / code=${result.code} / message=${result.message} / dueAt=${_formatDiagnosticDateTime(result.dueAt)}',
+        ),
+      ),
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(content: Text('提醒测试失败，请检查系统通知设置。')),
+    );
+  }
+}
+
+Future<void> _runCancelCountdownDiagnostic(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await ref.read(notificationServiceProvider).scheduleTodaySittingChainTest(
+          reminderMode: ReminderMode.soft,
+          duration: const Duration(minutes: 1),
+        );
+    await ref.read(notificationServiceProvider).stopPostureCountdown();
+    await ref.read(notificationServiceProvider).refreshReminderDiagnostics();
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('已启动 1 分钟倒计时并立即取消；1 分钟后不应再出现提醒。'),
+      ),
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(content: Text('取消测试失败，请检查系统通知设置。')),
+    );
+  }
+}
+
+String _formatDiagnosticDateTime(DateTime? value) {
+  if (value == null) {
+    return 'unknown';
+  }
+  return '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')} '
+      '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 }
 
 class _InfoDialog extends StatelessWidget {

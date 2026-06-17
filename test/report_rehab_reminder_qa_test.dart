@@ -422,7 +422,7 @@ void main() {
     expect(find.text('最近 7 天按活动趋势'), findsOneWidget);
     expect(
       find.text(
-        '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+        '这段时间还没有康复活动记录。',
       ),
       findsOneWidget,
     );
@@ -438,7 +438,7 @@ void main() {
     expect(find.text('最近 30 天按活动趋势'), findsOneWidget);
     expect(
       find.text(
-        '这段时间还没有康复活动记录。请先在康复页记录一次康复活动，周报/月报会按活动生成趋势图。',
+        '这段时间还没有康复活动记录。',
       ),
       findsOneWidget,
     );
@@ -563,8 +563,8 @@ void main() {
     expect(find.text('坐站提醒'), findsOneWidget);
     expect(find.text('该记录一下今天的状态了'), findsOneWidget);
     expect(find.widgetWithText(SwitchListTile, '夜间勿扰'), findsNothing);
-    expect(find.text('手动倒计时'), findsOneWidget);
-    expect(find.textContaining('到点提醒一次'), findsOneWidget);
+    expect(find.text('系统闹钟或计时器提醒'), findsOneWidget);
+    expect(find.textContaining('会打开系统闹钟或计时器'), findsOneWidget);
     expect(find.text('白天节奏'), findsNothing);
 
     await tester.tap(find.text('昵称与手术日期'));
@@ -589,7 +589,7 @@ void main() {
     expect(find.text('第3阶段（8-12周）'), findsOneWidget);
     expect(find.text('第4阶段（12周后）'), findsOneWidget);
     expect(
-      find.text('以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。'),
+      find.text('以上阶段说明仅用于帮助理解记录节奏，不作为医疗判断或个人康复处方。'),
       findsOneWidget,
     );
 
@@ -600,8 +600,9 @@ void main() {
 
     await tester.scrollUntilVisible(find.text('数据管理'), 300.0);
     expect(find.text('数据管理'), findsOneWidget);
-    expect(find.text('本地备份'), findsOneWidget);
-    expect(find.text('导入本地备份（高级）'), findsOneWidget);
+    expect(find.text('备份安全'), findsOneWidget);
+    expect(find.text('导出备份'), findsWidgets);
+    expect(find.text('导入备份'), findsOneWidget);
 
     await tester.scrollUntilVisible(find.text('隐私与免责声明'), 300.0);
     expect(find.text('隐私与免责声明'), findsOneWidget);
@@ -613,6 +614,54 @@ void main() {
     expect(find.textContaining('无云端上传'), findsOneWidget);
   });
 
+  testWidgets('settings page saves and restores one minute reminder intervals',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final settingsRepository =
+        _MutableReminderSettingsRepository(ReminderSettings.defaults);
+    final recoveryRepository = _FakeRecoveryRepository();
+
+    Future<void> pumpSettingsPage() {
+      return tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            reminderSettingsRepositoryProvider
+                .overrideWithValue(settingsRepository),
+            recoveryRepositoryProvider.overrideWithValue(recoveryRepository),
+          ],
+          child: const MaterialApp(home: Scaffold(body: SettingsPage())),
+        ),
+      );
+    }
+
+    await pumpSettingsPage();
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 分钟'), findsNothing);
+
+    await tester.tap(find.byType(DropdownButton<int>).first);
+    await tester.pumpAndSettle();
+    expect(find.text('1 分钟'), findsWidgets);
+    await tester.tap(find.text('1 分钟').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButton<int>).at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('1 分钟'), findsWidgets);
+    await tester.tap(find.text('1 分钟').last);
+    await tester.pumpAndSettle();
+
+    expect(settingsRepository.settings.sittingIntervalMinutes, 1);
+    expect(settingsRepository.settings.standingIntervalMinutes, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await pumpSettingsPage();
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 分钟'), findsNWidgets(2));
+  });
   testWidgets('settings page test reminder uses selected mode', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -643,9 +692,9 @@ void main() {
     expect(find.text('提醒方式'), findsOneWidget);
     expect(find.text('响铃提醒'), findsOneWidget);
 
-    await tester.scrollUntilVisible(find.text('立即测试提醒'), 300.0);
+    await tester.scrollUntilVisible(find.text('测试提醒'), 300.0);
     await tester.pumpAndSettle();
-    expect(find.text('立即测试提醒'), findsOneWidget);
+    expect(find.text('测试提醒'), findsOneWidget);
 
     await tester.tap(find.byTooltip('立即测试提醒'));
     await tester.pumpAndSettle();
@@ -685,17 +734,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(find.text('提醒诊断'), 300.0);
+    await tester.scrollUntilVisible(find.text('高级检测'), 300.0);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('提醒诊断'));
+    await tester.tap(find.byTooltip('高级检测'));
     await tester.pumpAndSettle();
 
     expect(find.text('当前提醒模式：震动提醒'), findsOneWidget);
     expect(find.text('检查并请求通知权限'), findsOneWidget);
     expect(find.text('发送立即测试提醒'), findsOneWidget);
     expect(find.text('打开系统通知设置'), findsOneWidget);
-    expect(find.text('10 秒后测试提醒'), findsNothing);
-    expect(find.text('1 分钟真实久坐提醒测试'), findsNothing);
+    expect(find.text('10 秒前台倒计时测试'), findsOneWidget);
+    expect(find.text('30 秒前台倒计时测试'), findsOneWidget);
+    expect(find.text('1 分钟锁屏测试'), findsOneWidget);
+    expect(find.text('3 分钟后台测试'), findsOneWidget);
+    expect(find.text('取消测试'), findsOneWidget);
+    expect(find.textContaining('重启恢复测试'), findsOneWidget);
+    expect(find.textContaining('真实 45 分钟验收测试'), findsOneWidget);
 
     await tester.tap(find.text('检查并请求通知权限'));
     await tester.pumpAndSettle();
@@ -747,7 +801,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final importBackupEntry = find.text('导入本地备份（高级）');
+    final importBackupEntry = find.text('导入备份');
     await tester.scrollUntilVisible(importBackupEntry, 500);
     await tester.pumpAndSettle();
     await tester.tap(
@@ -843,7 +897,7 @@ void main() {
 
     expect(find.byKey(const ValueKey('rehab-today-records-section')),
         findsOneWidget);
-    expect(find.text('记录今天做了什么、做了多少、做后感觉如何。'), findsOneWidget);
+    expect(find.text('记录今天做了什么、做了多少、做后感觉。'), findsOneWidget);
     expect(find.text('今天还没有康复记录，记录一点也有价值。'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('rehab-add-entry-button')));
@@ -874,6 +928,9 @@ void main() {
     expect(find.textContaining('膈式呼吸'), findsWidgets);
     expect(find.text('膈式呼吸活动'), findsNothing);
     expect(find.text('选择舒适姿势，放慢呼吸并记录时间。'), findsOneWidget);
+    expect(find.text('查看注意事项'), findsOneWidget);
+    await tester.tap(find.text('查看注意事项'));
+    await tester.pumpAndSettle();
     expect(find.text('如果头晕或不舒服，恢复自然呼吸。'), findsOneWidget);
     expect(find.textContaining('风险等级'), findsNothing);
     expect(find.byKey(const ValueKey('rehab-add-log')), findsNothing);
@@ -956,7 +1013,7 @@ void main() {
 
   test('app copy avoids unsupported medical promise wording', () {
     const allowedReportDisclaimer = '本报告仅用于个人康复记录回顾，不作为专业判断依据。';
-    const allowedPhaseDisclaimer = '以上阶段说明仅用于帮助理解记录节奏，不作为医疗诊断或个人康复处方。';
+    const allowedPhaseDisclaimer = '以上阶段说明仅用于帮助理解记录节奏，不作为医疗判断或个人康复处方。';
     const forbidden = [
       '治疗',
       '治愈',
@@ -979,7 +1036,7 @@ void main() {
           .readAsStringSync()
           .replaceAll(allowedReportDisclaimer, '')
           .replaceAll(allowedPhaseDisclaimer, '')
-          .replaceAll('提醒诊断', '');
+          .replaceAll('提醒检测', '');
       for (final word in forbidden) {
         expect(text, isNot(contains(word)),
             reason: '${file.path} contains $word');
@@ -1281,10 +1338,13 @@ class _FakeNotificationService extends NotificationService {
   final postureReminderTypes = <PostureType>[];
   final postureReminderModes = <ReminderMode>[];
   final postureReminderDelays = <Duration>[];
+  final countdownChainDurations = <Duration>[];
+  final countdownChainModes = <ReminderMode>[];
   int permissionRequests = 0;
   int vibrationDiagnosticCount = 0;
   int alarmDiagnosticCount = 0;
   int openSettingsCount = 0;
+  int stopCountdownCount = 0;
 
   @override
   Future<bool> requestPermissions() async {
@@ -1347,6 +1407,39 @@ class _FakeNotificationService extends NotificationService {
   }
 
   @override
+  Future<PostureCountdownStartResult> scheduleTodaySittingChainTest({
+    required ReminderMode reminderMode,
+    Duration duration = const Duration(minutes: 1),
+  }) async {
+    countdownChainModes.add(reminderMode);
+    countdownChainDurations.add(duration);
+    final dueAt = DateTime.now().add(duration);
+    return PostureCountdownStartResult(
+      success: true,
+      mode: 'foregroundExact',
+      code: 'ok',
+      message: '倒计时已启动。',
+      dueAt: dueAt,
+      session: PostureCountdownState(
+        running: true,
+        postureType: PostureType.sitting,
+        remainingSeconds: duration.inSeconds,
+        startedAt: DateTime.now(),
+        dueAt: dueAt,
+        targetDuration: duration,
+        status: 'running',
+        exactAlarmAvailable: true,
+        notificationPermissionGranted: true,
+      ),
+      permission: const ReminderPermissionStatus(
+        notificationGranted: true,
+        exactAlarmAvailable: true,
+        sdkInt: 34,
+      ),
+    );
+  }
+
+  @override
   Future<bool> schedulePostureReminder({
     required PostureType postureType,
     required Duration delay,
@@ -1405,6 +1498,11 @@ class _FakeNotificationService extends NotificationService {
   Future<bool> openNotificationSettings() async {
     openSettingsCount += 1;
     return true;
+  }
+
+  @override
+  Future<void> stopPostureCountdown() async {
+    stopCountdownCount += 1;
   }
 
   @override

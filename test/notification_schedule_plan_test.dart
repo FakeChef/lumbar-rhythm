@@ -63,6 +63,7 @@ void main() {
     ).readAsStringSync();
 
     expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
+    expect(manifest, contains('com.android.alarm.permission.SET_ALARM'));
     expect(manifest, contains('android.permission.VIBRATE'));
     expect(manifest, contains('android.permission.FOREGROUND_SERVICE'));
     expect(
@@ -70,6 +71,8 @@ void main() {
       contains('android.permission.FOREGROUND_SERVICE_SPECIAL_USE'),
     );
     expect(manifest, contains('.PostureCountdownService'));
+    expect(manifest, contains('.PostureAlarmReceiver'));
+    expect(manifest, contains('.PostureAlarmActivity'));
     expect(manifest, contains('android:foregroundServiceType="specialUse"'));
     expect(
         manifest, isNot(contains('android.permission.ACCESS_FINE_LOCATION')));
@@ -79,19 +82,74 @@ void main() {
     expect(manifest, isNot(contains('android.permission.USE_EXACT_ALARM')));
     expect(
       manifest,
-      isNot(contains('android.permission.SCHEDULE_EXACT_ALARM')),
+      contains('android.permission.SCHEDULE_EXACT_ALARM'),
     );
+    expect(
+        manifest, contains('user_visible_health_posture_countdown_reminder'));
   });
 
-  test('foreground service sends one due reminder and does not loop', () {
+  test('system alarm or timer handoff is the primary posture reminder path',
+      () {
+    final scheduler = File(
+      'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/PostureAlarmScheduler.kt',
+    ).readAsStringSync();
+    final service = File(
+      'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/PostureCountdownService.kt',
+    ).readAsStringSync();
+    final systemTimer = File(
+      'lib/core/reminders/system_timer_handoff_service.dart',
+    ).readAsStringSync();
+    final activity = File(
+      'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/MainActivity.kt',
+    ).readAsStringSync();
+    final controller = File(
+      'lib/features/posture/application/posture_session_controller.dart',
+    ).readAsStringSync();
+    final receiver = File(
+      'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/PostureAlarmReceiver.kt',
+    ).readAsStringSync();
+
+    expect(
+        systemTimer, contains("MethodChannel('lumbar_rhythm/system_timer')"));
+    expect(activity, contains('AlarmClock.ACTION_SET_TIMER'));
+    expect(activity, contains('AlarmClock.ACTION_SET_ALARM'));
+    expect(activity, contains('AlarmClock.EXTRA_LENGTH'));
+    expect(activity, contains('AlarmClock.EXTRA_HOUR'));
+    expect(activity, contains('AlarmClock.EXTRA_MINUTES'));
+    expect(activity, contains('AlarmClock.EXTRA_MESSAGE'));
+    expect(activity, isNot(contains('EXTRA_SKIP_UI')));
+    expect(activity, contains('prefersAlarmHandoff'));
+    expect(activity, contains('Build.MANUFACTURER'));
+    expect(activity, contains('Build.BRAND'));
+    expect(activity, contains('vivo'));
+    expect(activity, contains('iqoo'));
+    expect(activity, contains('system_reminder_unavailable'));
+    expect(controller, contains('systemTimerHandoffServiceProvider'));
+    expect(controller, contains('已交给系统提醒'));
+    expect(controller, contains('无法打开系统闹钟或计时器，请手动打开系统时钟设置提醒。'));
+    expect(service, contains('hasActiveSession'));
+    expect(service, contains('expectedEndTimeMillis'));
+    expect(service, contains('setExactAndAllowWhileIdle'));
+    expect(service, contains('setAndAllowWhileIdle'));
+    expect(service, contains('ACTION_SNOOZE_10'));
+    expect(service, contains('ACTION_CANCEL'));
+    expect(service, contains('ACTION_HANDLED'));
+    expect(service, contains('canScheduleExactAlarms'));
+    expect(service, contains('notification_permission_denied'));
+    expect(service, isNot(contains('ACTION_SET_TIMER')));
+    expect(scheduler, isNot(contains('setAlarmClock')));
+    expect(receiver, contains('PostureCountdownService.handleAction'));
+  });
+
+  test('foreground service is countdown fallback and does not loop', () {
     final service = File(
       'android/app/src/main/kotlin/app/lumbarhythm/lumbar_rhythm/PostureCountdownService.kt',
     ).readAsStringSync();
 
     expect(service, contains('startForeground'));
     expect(service, contains('TICK_INTERVAL_MILLIS = 15_000L'));
-    expect(service, contains('reminderShown'));
-    expect(service, contains('if (!state.reminderShown)'));
+    expect(service, contains('showDueNotification'));
+    expect(service, contains('handleDue'));
     expect(service, contains('stopSelf()'));
     expect(service, isNot(contains('BOOT_COMPLETED')));
     expect(service, isNot(contains('zonedSchedule')));
@@ -107,12 +165,48 @@ void main() {
 
     expect(
         service, contains("MethodChannel('lumbar_rhythm/posture_countdown')"));
+    expect(service, contains("MethodChannel('lumbar_rhythm/reminder')"));
+    expect(service, contains('PostureCountdownStartResult'));
+    expect(service, contains('ReminderPermissionStatus'));
+    expect(service, contains('notification_permission_denied'));
     expect(service, contains('startPostureCountdown'));
     expect(service, contains('stopPostureCountdown'));
+    expect(service, contains('completePostureCountdown'));
+    expect(service, contains('snoozePostureCountdown'));
     expect(service, contains('getPostureCountdownState'));
-    expect(activity, contains('startPostureCountdown'));
-    expect(activity, contains('stopPostureCountdown'));
-    expect(activity, contains('getPostureCountdownState'));
+    expect(service, contains('getReminderPermissionStatus'));
+    expect(service, contains('openExactAlarmSettings'));
+    expect(activity, contains('startSittingReminder'));
+    expect(activity, contains('startStandingReminder'));
+    expect(activity, contains('cancelReminder'));
+    expect(activity, contains('completeReminder'));
+    expect(activity, contains('snoozeReminder'));
+    expect(activity, contains('getActiveReminderSession'));
+    expect(activity, contains('getReminderPermissionStatus'));
+    expect(activity, contains('openExactAlarmSettings'));
+  });
+
+  test('settings diagnostics exposes non-blocking countdown chain test', () {
+    final settings = File(
+      'lib/features/settings/presentation/settings_page.dart',
+    ).readAsStringSync();
+
+    expect(settings, contains('_formatExactAlarmPermission'));
+    expect(settings, contains('openExactAlarmSettings'));
+    expect(settings, contains('scheduleTodaySittingChainTest'));
+    expect(settings, contains('10 秒前台倒计时测试'));
+    expect(settings, contains('30 秒前台倒计时测试'));
+    expect(settings, contains('1 分钟锁屏测试'));
+    expect(settings, contains('3 分钟后台测试'));
+    expect(settings, contains('取消测试'));
+    expect(settings, contains('重启恢复测试'));
+    expect(settings, contains('真实 45 分钟验收测试'));
+    expect(settings, contains('mode='));
+    expect(settings, contains('code='));
+    expect(settings, contains('message='));
+    expect(settings, contains('dueAt='));
+    expect(settings, contains('当前系统不支持直接打开该设置，请优先使用系统闹钟或计时器提醒。'));
+    expect(settings, contains('准时提醒权限未开启，提醒可能延迟'));
   });
 
   test('real posture reminder path no longer schedules pending notifications',
@@ -129,7 +223,7 @@ void main() {
     expect(scheduleNext, isNot(contains('zonedSchedule')));
   });
 
-  test('settings and home copy describe manual countdown only', () {
+  test('settings and home copy describe system alarm or timer handoff', () {
     final settings = File(
       'lib/features/settings/presentation/settings_page.dart',
     ).readAsStringSync();
@@ -137,14 +231,16 @@ void main() {
       'lib/features/posture/application/posture_session_controller.dart',
     ).readAsStringSync();
 
-    expect(settings, contains('手动倒计时'));
-    expect(settings, contains('到点提醒一次'));
-    expect(controller, contains('久坐倒计时中'));
-    expect(controller, contains('久站倒计时中'));
-    expect(controller, contains('当前状态不需要久坐/久站倒计时'));
+    expect(settings, contains('系统闹钟或计时器提醒'));
+    expect(settings, contains('会打开系统闹钟或计时器'));
+    expect(settings, contains('前台倒计时仅保留为旧链路排查'));
+    expect(controller, contains('已交给系统提醒'));
+    expect(controller, contains('当前状态不需要系统提醒'));
+    expect(controller, contains('如系统闹钟或计时器仍在运行，请在系统时钟中取消'));
     expect(settings, isNot(contains('白天节奏')));
     expect(settings, isNot(contains('自动循环提醒')));
     expect(settings, isNot(contains('全天节奏提醒')));
+    expect(controller, isNot(contains('系统提醒启动失败，请检查通知权限')));
   });
 
   test('diagnostic UI is simplified for regular users', () {
